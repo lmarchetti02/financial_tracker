@@ -12,7 +12,11 @@ logger = getLogger("financial_tracker")
 
 
 def initialize_db(year: int) -> None:
-    """Initializes the database if it doesn't already exist."""
+    """Initializes the database if it doesn't already exist.
+
+    Args:
+        year (int): The year of the expenses in the database.
+    """
     logger.info("Called 'initialize_db'.")
 
     # create necessary dir
@@ -55,4 +59,4 @@ def add_expense(year: int, expense: Expense):
                 expense.cost,
             ),
         )
-        logger.debug("Added expense to the database.")
+        logger.debug(f"Added expense to the database:\n{expense}.")
