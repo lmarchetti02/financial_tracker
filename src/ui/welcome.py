@@ -1,8 +1,12 @@
 """Welcome page of the application."""
 
-from typing import Callable
+from collections.abc import Callable
+from logging import getLogger
 
 import flet as ft
+
+logger = getLogger("financial_tracker")
+
 
 YEAR_OPTIONS = [ft.dropdown.Option("2026")]
 
@@ -15,6 +19,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
         on_start_callback (Callable[[int], None]): A function that accepts the year
             as input and produces no output.
     """
+    logger.info("Called 'welcome_page'")
 
     def clear_error(e: ft.Event) -> None:
         """Clears the error text of the drop-down menu."""
@@ -29,7 +34,9 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
             return
 
         selected_year = int(years_dropdown.value)
+        logger.debug(f"Year {selected_year} has been selected")
 
+        # wipe page
         page.controls.clear()
         page.update()
 
@@ -40,6 +47,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
 
     years_dropdown = ft.Dropdown(
         label="Select year",
+        value="2026",
         width=200,
         options=YEAR_OPTIONS,
         on_text_change=clear_error,
@@ -47,10 +55,12 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
 
     layout = ft.Column(
         controls=[
+            # title
             ft.Container(height=page.window.height * 0.1),
             ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
             ft.Text("by Luca Marchetti", size=22),
             ft.Container(height=page.window.height * 0.2),
+            # year selection
             ft.Row(
                 controls=[
                     years_dropdown,
@@ -64,5 +74,4 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
         expand=True,
     )
 
-    # load page
     page.add(layout)
