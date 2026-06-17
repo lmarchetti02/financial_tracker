@@ -4,6 +4,8 @@ from enum import Enum, auto
 from logging import getLogger
 from typing import Self
 
+from flet import Text
+from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
@@ -73,3 +75,16 @@ class Expense:
                 cost REAL NOT NULL
             )
         """
+
+    @staticmethod
+    def get_table_columns() -> list[DataColumn2]:
+        """Returns the flet columns to be used to display the database."""
+        logger.info("Called 'get_table_columns'")
+
+        return [
+            DataColumn2(label=Text("Month"), numeric=True, fixed_width=100),
+            DataColumn2(label=Text("Day(s)"), numeric=True, fixed_width=130),
+            DataColumn2(label=Text("Description"), size=DataColumnSize.L),
+            DataColumn2(label=Text("Category"), fixed_width=220),
+            DataColumn2(label=Text("Cost (€)"), numeric=True, fixed_width=150),
+        ]

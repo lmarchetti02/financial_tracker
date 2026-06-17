@@ -48,7 +48,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
     years_dropdown = ft.Dropdown(
         label="Select year",
         value="2026",
-        width=200,
+        width=150,
         options=YEAR_OPTIONS,
         on_text_change=clear_error,
     )
