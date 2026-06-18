@@ -26,6 +26,8 @@ CATEGORIES = [
     for cat in Categories
 ]
 
+MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 
 def show_alert(page: ft.Page, title: str, content: str) -> None:
     """Shows alert for missing data.
@@ -36,10 +38,10 @@ def show_alert(page: ft.Page, title: str, content: str) -> None:
         content (str): The content of the alert dialog.
     """
     page.show_dialog(
-        ft.CupertinoAlertDialog(
+        ft.AlertDialog(
             title=ft.Text(title),
             content=ft.Text(content),
-            actions=[ft.CupertinoDialogAction("Dismiss", on_click=lambda _: page.pop_dialog())],
+            actions=[ft.TextButton("Dismiss", on_click=lambda _: page.pop_dialog())],
         )
     )
     page.update()
@@ -52,6 +54,9 @@ def expenses_view(page: ft.Page) -> ft.Control:
     if (year := page.session.store.get("selected_year")) is None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
+
+    current_month_filter: int | None = None
+    current_sort: SortingConfig | None = None
 
     def handle_date_options(_: ft.Event) -> None:
         """Shows a date picker or a date range picker depending of the choice."""
@@ -179,45 +184,61 @@ def expenses_view(page: ft.Page) -> ft.Control:
             refresh_table()
 
         page.show_dialog(
-            ft.CupertinoAlertDialog(
+            ft.AlertDialog(
                 title=ft.Text("Delete expense"),
                 content=ft.Text("Are you sure you want to delete this entry?"),
                 actions=[
-                    ft.CupertinoDialogAction("Yes", destructive=True, on_click=delete),
-                    ft.CupertinoDialogAction("No", default=True, on_click=lambda _: page.pop_dialog()),
+                    ft.TextButton("Yes", on_click=delete),
+                    ft.TextButton("No", on_click=lambda _: page.pop_dialog()),
                 ],
             )
         )
 
     # TODO
-    def duplicate_expense(e: ft.Event) -> None: ...
+    def edit_expense(e: ft.Event) -> None: ...
 
-    def refresh_table(sort: SortingConfig | None = None) -> None:
+    def refresh_table() -> None:
         """Refreshes the dable that displays the database."""
         logger.info("Called 'refresh_table'")
 
+        # clear all rows
         data_table.rows.clear()
+        print(current_month_filter, current_sort)
 
-        rows = fetch_expenses(year, sort)
+        rows = fetch_expenses(year, current_sort, current_month_filter)
         for id, row in rows:
             delete_button = ft.Button(icon=ft.Icons.DELETE, width=50, height=30, data=id, on_click=delete_expense)
             duplicate_button = ft.Button(
-                icon=ft.Icons.COPY, width=50, height=30, data=id, on_click=duplicate_expense, color=ft.Colors.BLUE
+                icon=ft.Icons.EDIT, width=50, height=30, data=id, on_click=edit_expense, color=ft.Colors.BLUE
             )
             row.append(ft.DataCell(ft.Row(controls=[duplicate_button, delete_button])))
             data_table.rows.append(ft.DataRow(cells=row))
 
         page.update()
 
-    # TODO
     def sort_columns(e: ft.DataColumnSortEvent) -> None:
         """Sorts the columns of the table."""
-        data_table.sort_column_index = e.column_index
-        data_table.sort_ascending = e.ascending
+        nonlocal current_sort
 
-        sort = SortingConfig(e.column_index, e.ascending)
-        refresh_table(sort)
+        data_table.sort_column_index = e.column_index  # which columns
+        data_table.sort_ascending = e.ascending  # ascending = T, descending = F
 
+        current_sort = SortingConfig(e.column_index, e.ascending)
+        refresh_table()
+
+    def filter_months(e: ft.Event) -> None:
+        """Filters the month column."""
+        nonlocal current_month_filter
+
+        month = e.control.data
+        if month > 0:
+            current_month_filter = month
+        else:
+            current_month_filter = None
+
+        refresh_table()
+
+    # add expense objects
     default_date = datetime.today()
     date_picker = ft.DatePicker(value=default_date, on_change=update_date_text)
     range_picker = ft.DateRangePicker(on_change=update_date_text)
@@ -234,11 +255,26 @@ def expenses_view(page: ft.Page) -> ft.Control:
         on_text_change=lambda _: setattr(category_picker, "error_text", None),
         width=220,
     )
+    cost_text = ft.TextField(label="Cost (€)", width=120)
+    description_text = ft.TextField(label="Description", width=720, multiline=True)
 
+    # expenses database
     columns = Expense.get_table_columns()
     columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
     columns[0].on_sort = sort_columns  # month and day
     columns[4].on_sort = sort_columns  # cost
+
+    filter = ft.PopupMenuButton(
+        icon=ft.Icons.FILTER_ALT,
+        icon_color=ft.Colors.WHITE,
+        icon_size=20,
+        tooltip="Filter month",
+        items=[ft.PopupMenuItem(f"{MONTHS[i]} ({i + 1})", data=i + 1, on_click=filter_months) for i in range(12)]
+        + [ft.PopupMenuItem()]
+        + [ft.PopupMenuItem("Clead Filter", data=-1, on_click=filter_months)],
+    )
+    columns[0].label.controls.append(filter)  # type: ignore
+
     data_table = DataTable2(
         fixed_top_rows=1,
         min_width=600,
@@ -250,6 +286,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         rows=[],
     )
 
+    # page layout
     upper_row = ft.Row(
         controls=[
             date_options_dropdown,
@@ -257,7 +294,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
             ft.Container(width=20),
             category_picker,
             ft.Container(width=20),
-            cost_text := ft.TextField(label="Cost (€)", width=120),
+            cost_text,
         ],
         alignment=ft.MainAxisAlignment.CENTER,
     )
@@ -266,7 +303,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         controls=[
             ft.Container(height=40),
             upper_row,
-            description_text := ft.TextField(label="Description", width=720, multiline=True),
+            description_text,
             ft.Button("Add Expense", on_click=add_new_expense),
             ft.Container(height=50),
             ft.Column(controls=[data_table], expand=True),
@@ -276,6 +313,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         expand=True,
     )
 
+    # first table refresh
     try:
         refresh_table()
     except OperationalError:

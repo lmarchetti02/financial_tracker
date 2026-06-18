@@ -131,12 +131,14 @@ def remove_expense(year: int, id: int) -> bool:
         return cursor.rowcount > 0
 
 
-def fetch_expenses(year: int, sort: SortingConfig | None = None) -> RowGenerator:
+def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | None = None) -> RowGenerator:
     """Fetches all the expenses.
 
     Args:
         year (int): The year of the expenses in the database.
         sort (SortingConfig | None): If given, the rows gets sorted (see `SortingConfig`).
+            Defaults to `None`.
+        month (int | None): The month to filter the table by.
             Defaults to `None`.
 
     Returns:
@@ -148,10 +150,14 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None) -> RowGenerator
         connection.row_factory = sq.Row
         cursor = connection.cursor()
 
-        if sort is None:
-            cursor.execute(f"SELECT * FROM {DB_NAME}")
-        else:
+        if month is None and sort is not None:
             cursor.execute(f"SELECT * FROM {DB_NAME} ORDER BY {sort.sql_command}")
+        elif sort is None and month is not None:
+            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ?", str(month))
+        elif sort is not None and month is not None:
+            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", str(month))
+        else:
+            cursor.execute(f"SELECT * FROM {DB_NAME}")
 
         rows = cursor.fetchall()
 
