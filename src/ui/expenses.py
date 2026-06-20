@@ -7,9 +7,11 @@ from sqlite3 import OperationalError
 import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
-from database import Categories, Expense
-from database.operations import (SortingConfig, add_expense, fetch_expenses,
-                                 remove_expense)
+from database import (Categories, Expense, SortingConfig, add_expense,
+                      fetch_expenses, remove_expense)
+from helpers.constants import MONTHS
+from plotting import show_expenses_summary
+from plotting.expenses_summary import show_expenses_pie
 
 logger = getLogger("financial_tracker")
 
@@ -25,8 +27,6 @@ CATEGORIES = [
     )
     for cat in Categories
 ]
-
-MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
 def show_alert(page: ft.Page, title: str, content: str) -> None:
@@ -213,6 +213,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
             row.append(ft.DataCell(ft.Row(controls=[duplicate_button, delete_button])))
             data_table.rows.append(ft.DataRow(cells=row))
 
+        table_column.expand = len(data_table.rows) > 10
         data_table.expand = len(data_table.rows) > 10
 
         page.update()
@@ -258,6 +259,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
     )
     cost_text = ft.TextField(label="Cost (€)", width=120)
     description_text = ft.TextField(label="Description", width=720, multiline=True)
+    add_expense_button = ft.Button("Add Expense", on_click=add_new_expense)
 
     # expenses database
     columns = Expense.get_table_columns()
@@ -269,6 +271,8 @@ def expenses_view(page: ft.Page) -> ft.Control:
         icon=ft.Icons.FILTER_ALT,
         icon_color=ft.Colors.WHITE,
         icon_size=20,
+        padding=0,
+        menu_padding=0,
         tooltip="Filter month",
         items=[ft.PopupMenuItem(f"{MONTHS[i]} ({i + 1})", data=i + 1, on_click=filter_months) for i in range(12)]
         + [ft.PopupMenuItem()]
@@ -292,6 +296,20 @@ def expenses_view(page: ft.Page) -> ft.Control:
         rows=[],
     )
 
+    # plotting
+    summary_button = ft.Button(
+        "Show Summary",
+        icon=ft.Icons.BAR_CHART,
+        color="#006400",
+        on_click=lambda _: show_expenses_summary(page),
+    )
+    pie_chart_button = ft.Button(
+        "Show Pie Chart",
+        icon=ft.Icons.BAR_CHART,
+        color="#000096",
+        on_click=lambda _: show_expenses_pie(page, current_month_filter),
+    )
+
     # page layout
     upper_row = ft.Row(
         controls=[
@@ -310,11 +328,12 @@ def expenses_view(page: ft.Page) -> ft.Control:
             ft.Container(height=40),
             upper_row,
             description_text,
-            ft.Button("Add Expense", on_click=add_new_expense),
-            ft.Container(height=50),
-            ft.Column(controls=[data_table], expand=True),
+            add_expense_button,
+            ft.Container(height=10),
+            table_column := ft.Column(controls=[data_table]),
+            ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
         ],
-        alignment=ft.MainAxisAlignment.CENTER,
+        alignment=ft.MainAxisAlignment.START,
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         expand=True,
     )

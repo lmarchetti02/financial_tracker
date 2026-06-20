@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
 
+import numpy as np
 from flet import Alignment, Container, DataCell, Text
 
 from helpers.constants import DB_DIRECTORY, DB_NAME
 
-from .expense import Expense
+from .expense import Categories, Expense
 
 logger = getLogger("financial_tracker")
 
@@ -52,6 +53,11 @@ class SortingConfig:
             raise ValueError("You cannot sort this column.")
 
 
+def get_db_path(year: int) -> Path:
+    """Returns the path to the expenses database for the current year."""
+    return Path.home() / DB_DIRECTORY / (DB_NAME + f"_{year}.db")
+
+
 def initialize_db(year: int) -> None:
     """Initializes the database if it doesn't already exist.
 
@@ -61,13 +67,12 @@ def initialize_db(year: int) -> None:
     logger.info("Called 'initialize_db'.")
 
     # create necessary dir
-    app_dir = Path.home() / DB_DIRECTORY
-    app_dir.mkdir(parents=True, exist_ok=True)
-    db_path = app_dir / (DB_NAME + f"_{year}.db")
+    DB_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    db_path = get_db_path(year)
     logger.debug("Created database dir if it didn't already exist.")
 
     # create database
-    with sq.connect(str(db_path)) as connection:
+    with sq.connect(db_path) as connection:
         # create cursor
         cursor = connection.cursor()
 
@@ -89,7 +94,7 @@ def add_expense(year: int, expense: Expense) -> None:
     """
     logger.info("Called 'add_expense'.")
 
-    with sq.connect(str(Path.home() / DB_DIRECTORY / (DB_NAME + f"_{year}.db"))) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(
@@ -121,7 +126,7 @@ def remove_expense(year: int, id: int) -> bool:
     """
     logger.info("Called 'remove_expense'")
 
-    with sq.connect(str(Path.home() / DB_DIRECTORY / (DB_NAME + f"_{year}.db"))) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
         cursor.execute(f"DELETE FROM {DB_NAME} WHERE id = ? RETURNING *", (id,))
 
@@ -145,7 +150,7 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
-    with sq.connect(str(Path.home() / DB_DIRECTORY / (DB_NAME + f"_{year}.db"))) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row
         cursor = connection.cursor()
@@ -177,3 +182,35 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
                     DataCell(Text(f"{row['cost']:.2f}")),
                 ],
             )
+
+
+def fetch_category(year: int, category: Categories) -> np.ndarray:
+    """Fetch the total expense per month for a specified category.
+
+    Args:
+        year (int): The year of the expenses.
+        category (Categories): The desired category (see `:enum:Categories`).
+
+    Returns:
+        np.ndarray: An array of shape (12,) with the totals per month.
+    """
+    logger.info("Called 'fetch_category'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"""
+            SELECT month, SUM(cost) FROM {DB_NAME} 
+            WHERE category = ?
+            GROUP BY month
+            ORDER BY month ASC
+            """,
+            (category.name,),
+        )
+
+        monthly_total = np.zeros(12, dtype=np.float32)
+        for row in cursor.fetchall():
+            monthly_total[row[0] - 1] = row[1]
+
+        return monthly_total
