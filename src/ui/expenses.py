@@ -203,7 +203,6 @@ def expenses_view(page: ft.Page) -> ft.Control:
 
         # clear all rows
         data_table.rows.clear()
-        print(current_month_filter, current_sort)
 
         rows = fetch_expenses(year, current_sort, current_month_filter)
         for id, row in rows:
@@ -213,6 +212,8 @@ def expenses_view(page: ft.Page) -> ft.Control:
             )
             row.append(ft.DataCell(ft.Row(controls=[duplicate_button, delete_button])))
             data_table.rows.append(ft.DataRow(cells=row))
+
+        data_table.expand = len(data_table.rows) > 10
 
         page.update()
 
@@ -275,13 +276,18 @@ def expenses_view(page: ft.Page) -> ft.Control:
     )
     columns[0].label.controls.append(filter)  # type: ignore
 
+    borders = ft.BorderSide(width=2)
+    v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
     data_table = DataTable2(
         fixed_top_rows=1,
-        min_width=600,
-        expand=True,
+        border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
+        vertical_lines=v_lines,
+        horizontal_lines=v_lines,
         heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
-        heading_row_color=ft.Colors.LIGHT_BLUE,
+        heading_row_color="#960000",
         heading_row_height=35,
+        horizontal_margin=0,
+        column_spacing=15,
         columns=columns,  # type: ignore
         rows=[],
     )

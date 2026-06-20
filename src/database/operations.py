@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
 
-from flet import DataCell, Text
+from flet import Alignment, Container, DataCell, Text
 
 from helpers.constants import DB_DIRECTORY, DB_NAME
 
@@ -153,9 +153,9 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
         if month is None and sort is not None:
             cursor.execute(f"SELECT * FROM {DB_NAME} ORDER BY {sort.sql_command}")
         elif sort is None and month is not None:
-            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ?", str(month))
+            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ?", (month,))
         elif sort is not None and month is not None:
-            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", str(month))
+            cursor.execute(f"SELECT * FROM {DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", (month,))
         else:
             cursor.execute(f"SELECT * FROM {DB_NAME}")
 
@@ -170,10 +170,10 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
                 # TODO: Move it to expense.py
                 row["id"],
                 [
-                    DataCell(Text(str(row["month"]))),
-                    DataCell(Text(days)),
+                    DataCell(Container(Text(str(row["month"])), alignment=Alignment.CENTER)),
+                    DataCell(Container(Text(days), alignment=Alignment.CENTER)),
                     DataCell(Text(str(row["description"]))),
                     DataCell(Text(str(row["category"]).lower().capitalize().replace("_", " "))),
-                    DataCell(Text(str(row["cost"]))),
+                    DataCell(Text(f"{row['cost']:.2f}")),
                 ],
             )

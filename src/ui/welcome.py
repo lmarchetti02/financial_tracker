@@ -21,12 +21,12 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
     """
     logger.info("Called 'welcome_page'")
 
-    def clear_error(e: ft.Event) -> None:
+    def clear_error(_: ft.Event) -> None:
         """Clears the error text of the drop-down menu."""
         years_dropdown.error_text = None
         page.update()
 
-    def start_app(e: ft.Event) -> None:
+    def start_app(_: ft.Event) -> None:
         """Clears the welcome page and checks the selected year."""
         if years_dropdown.value is None:
             years_dropdown.error_text = "You have to select a year"
