@@ -114,12 +114,12 @@ def add_expense(year: int, expense: Expense) -> None:
         logger.debug(f"Added expense to the database:\n{expense}.")
 
 
-def remove_expense(year: int, id: int) -> bool:
+def remove_expense(year: int, expense_id: int) -> bool:
     """Deletes an expense from the database.
 
     Args:
         year (int): The year of the expenses in the database.
-        id (int): The id of the expense to delete.
+        expense_id (int): The id of the expense to delete.
 
     Returns:
         bool: `True` if the operation succeeded, `False` if it didn't.
@@ -128,10 +128,43 @@ def remove_expense(year: int, id: int) -> bool:
 
     with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
-        cursor.execute(f"DELETE FROM {DB_NAME} WHERE id = ? RETURNING *", (id,))
+        cursor.execute(f"DELETE FROM {DB_NAME} WHERE id = ? RETURNING *", (expense_id,))
 
         deleted_expense = cursor.fetchone()
         logger.debug(f"Deleted expense:\n{deleted_expense}")
+
+        return cursor.rowcount > 0
+
+
+def edit_expense(year: int, expense_id: int, old: Expense, new: Expense) -> bool:
+    """Edits an expense in the database.
+
+    Args:
+        year (int): The year of the expenses in the database.
+        expense_id (int): The id of the expense to edit.
+        old (Expense): The expense to modify.
+        new (Expense): The modified expense.
+
+    Returns:
+        bool: `True` if the operation succeeded, `False` if it didn't.
+    """
+    logger.info("Called 'edit_expense'")
+
+    # get differences between old and new
+    differences = old - new
+    if "category" in differences:
+        differences["category"] = differences["category"].name
+    logger.debug(f"Differences:\n{differences}")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+
+        # construct command based on differences
+        sql_command = [f"{name} = ?" for name in differences.keys()]
+        sql_command = "SET " + ", ".join(sql_command)
+        sql_params = tuple([val for val in differences.values()]) + (expense_id,)
+
+        cursor.execute(f"UPDATE {DB_NAME} {sql_command} WHERE id = ?", sql_params)
 
         return cursor.rowcount > 0
 
@@ -214,3 +247,27 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
             monthly_total[row[0] - 1] = row[1]
 
         return monthly_total
+
+
+def fetch_by_id(year: int, expense_id: int) -> Expense:
+    """Fetches the expense with the desired ID.
+
+    Args:
+        year (int): The year of the expenses in the database.
+        expense_id (int): The id of the expense to delete.
+
+    Returns:
+        Expense: The desired expense.
+    """
+    logger.info("Called 'fetch_by_id'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(f"SELECT * FROM {DB_NAME} WHERE id = ?", (expense_id,))
+        fields = cursor.fetchone()
+
+        expense = Expense.init_from_tuple(fields[1:])
+        logger.debug(f"Expense retrieved by ID:\n{expense}")
+
+        return expense

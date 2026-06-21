@@ -8,7 +8,8 @@ import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
 from database import (Categories, Expense, SortingConfig, add_expense,
-                      fetch_expenses, remove_expense)
+                      edit_expense, fetch_expenses, remove_expense)
+from database.operations import fetch_by_id
 from helpers.constants import MONTHS
 from plotting import show_expenses_summary
 from plotting.expenses_summary import show_expenses_pie
@@ -85,9 +86,9 @@ def expenses_view(page: ft.Page) -> ft.Control:
             value = date_picker.value or default_date
             date_button.content = value.astimezone().strftime("%d/%m")  # type: ignore
 
-    def add_new_expense(_: ft.Event) -> None:
-        """Adds a new expense based on the user's inputs."""
-        logger.info("Called 'add_new_expense'")
+    def get_expense_from_inputs() -> Expense | None:
+        """Reads the values in the controls and returns an `:class:Expense` object."""
+        logger.info("Called 'get_expense_from_inputs'")
 
         if category_picker.value is None:
             category_picker.error_text = "You must chose a category"
@@ -144,7 +145,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
             day_start = date_local.day
             day_end = None
 
-        # add expense
+        # reconstruct expense
         expense = Expense(
             month=month,
             day_start=day_start,
@@ -153,9 +154,14 @@ def expenses_view(page: ft.Page) -> ft.Control:
             category=Categories(int(category_picker.value)),
             cost=cost,
         )
-        add_expense(year, expense)
+        logger.debug(f"Reconstructed expense:\n{expense}")
 
-        # clear data
+        return expense
+
+    def clear_inputs() -> None:
+        """Clears the add expense controls."""
+        logger.info("Called 'clear_inputs'")
+
         if date_options_dropdown.value == "range":
             range_picker.start_value = None
             range_picker.end_value = None
@@ -167,8 +173,21 @@ def expenses_view(page: ft.Page) -> ft.Control:
         cost_text.value = ""
         logger.debug("Cleared expense data")
 
-        date_button.content = default_date.strftime("%d/%m")
         date_options_dropdown.value = "day"
+        date_picker.value = default_date
+        date_button.content = default_date.strftime("%d/%m")
+
+    def add_new_expense(_: ft.Event) -> None:
+        """Adds a new expense based on the user's inputs."""
+        logger.info("Called 'add_new_expense'")
+
+        expense = get_expense_from_inputs()
+        if expense is None:
+            return
+        add_expense(year, expense)
+
+        # clear data
+        clear_inputs()
         refresh_table()
 
     def delete_expense(e: ft.Event) -> None:
@@ -179,14 +198,17 @@ def expenses_view(page: ft.Page) -> ft.Control:
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the expense."""
-            remove_expense(year, expense_id)
+            success = remove_expense(year, expense_id)
+            if not success:
+                show_alert(page, "Error deleting expense", f"It was not possible to delete expense {expense_id}")
+
             page.pop_dialog()
             refresh_table()
 
         page.show_dialog(
             ft.AlertDialog(
                 title=ft.Text("Delete expense"),
-                content=ft.Text("Are you sure you want to delete this entry?"),
+                content=ft.Text("Are you sure you want to delete this expense?"),
                 actions=[
                     ft.TextButton("Yes", on_click=delete),
                     ft.TextButton("No", on_click=lambda _: page.pop_dialog()),
@@ -194,8 +216,55 @@ def expenses_view(page: ft.Page) -> ft.Control:
             )
         )
 
-    # TODO
-    def edit_expense(e: ft.Event) -> None: ...
+    def edit_this_expense(e: ft.Event) -> None:
+        """Edits an expense."""
+        logger.info("Called 'edit_expense'")
+
+        # get expense
+        expense_id = e.control.data
+        old_expense = fetch_by_id(year, expense_id)
+
+        # put values in the controls
+        category_picker.value = str(old_expense.category.value)
+        cost_text.value = f"{old_expense.cost:.2f}"
+        description_text.value = old_expense.description
+
+        if old_expense.day_end is not None:
+            date_options_dropdown.value = "range"
+            range_picker.start_value = datetime(year=year, month=old_expense.month, day=old_expense.day_start)
+            range_picker.end_value = datetime(year=year, month=old_expense.month, day=old_expense.day_end)
+        else:
+            date_picker.value = datetime(year=year, month=old_expense.month, day=old_expense.day_start)
+            date_options_dropdown.value = "day"
+        update_date_text(e)
+
+        def modify(_: ft.Event) -> None:
+            """Actually modifies the expense."""
+            # get modified expense
+            new_expense = get_expense_from_inputs()
+            if new_expense is None:
+                return
+
+            # check if new == old
+            if new_expense == old_expense:
+                show_alert(page, "Unchanged expense", "You did not modify the expense.")
+                return
+
+            success = edit_expense(year, expense_id, old_expense, new_expense)
+            if not success:
+                show_alert(page, "Error modifying expense", f"It was not possible to modify expense {expense_id}")
+
+            clear_inputs()
+            add_expense_button.content = "Add Expense"
+            add_expense_button.color = None
+            add_expense_button.on_click = add_new_expense
+
+            refresh_table()
+
+        # modify button
+        add_expense_button.content = "Edit Expense"
+        add_expense_button.color = ft.Colors.PURPLE
+        add_expense_button.on_click = modify
 
     def refresh_table() -> None:
         """Refreshes the dable that displays the database."""
@@ -208,7 +277,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         for id, row in rows:
             delete_button = ft.Button(icon=ft.Icons.DELETE, width=50, height=30, data=id, on_click=delete_expense)
             duplicate_button = ft.Button(
-                icon=ft.Icons.EDIT, width=50, height=30, data=id, on_click=edit_expense, color=ft.Colors.BLUE
+                icon=ft.Icons.EDIT, width=50, height=30, data=id, on_click=edit_this_expense, color=ft.Colors.BLUE
             )
             row.append(ft.DataCell(ft.Row(controls=[duplicate_button, delete_button])))
             data_table.rows.append(ft.DataRow(cells=row))

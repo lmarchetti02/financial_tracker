@@ -1,5 +1,6 @@
 """Implementation of the `:class:Expense` class."""
 
+from dataclasses import fields
 from enum import Enum, auto
 from logging import getLogger
 from typing import Self
@@ -58,6 +59,54 @@ class Expense:
             raise ValueError("End date cannot be before start date.")
 
         return self
+
+    def __sub__(self, other: Self) -> dict:
+        """Subtraction operator overloading.
+
+        Args:
+            other (`:class:Expense`): The object to subtract.
+
+        Returns:
+            dict: A dictionary with the differences between the instance and the
+                other object. In particular, only the values of `other` that
+                differ from `self`.
+        """
+        if not isinstance(other, Expense):
+            return NotImplemented
+
+        differences = {}
+        for field in fields(self):
+            v_self = getattr(self, field.name)
+            v_other = getattr(other, field.name)
+            if v_self != v_other:
+                differences[field.name] = v_other
+
+        return differences
+
+    @classmethod
+    def init_from_tuple(cls, fields: tuple[int, int, int, str, str, float]) -> Self:
+        """Returns an instance of the class from a tuple.
+
+        It is meant to be used to reconstruct an expense from a row of the
+        database after sqlite has fetched it.
+
+        Args:
+            fields (tuple): A tuple with the values with which to initialize the class.
+
+        Returns:
+            `:class:Expense`: An instance of the class with the desired values.
+        """
+        logger.info("Called 'init_from_tuple'")
+
+        month, day_start, day_end, description, category, cost = fields
+        return cls(
+            month=month,
+            day_start=day_start,
+            day_end=day_end,
+            description=description,
+            category=Categories[category],
+            cost=cost,
+        )
 
     @staticmethod
     def create_table() -> str:
