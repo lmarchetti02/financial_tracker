@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import TABLEAU_COLORS
 
-from database import Categories, fetch_category
+from database.expenses import Categories, fetch_category
 from helpers.constants import MONTHS
 
 logger = getLogger("financial_tracker")

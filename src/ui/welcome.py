@@ -1,6 +1,7 @@
 """Welcome page of the application."""
 
 from collections.abc import Callable
+from datetime import datetime
 from logging import getLogger
 
 import flet as ft
@@ -47,7 +48,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
 
     years_dropdown = ft.Dropdown(
         label="Select year",
-        value="2026",
+        value=str(datetime.today().year),
         width=150,
         options=YEAR_OPTIONS,
         on_text_change=clear_error,

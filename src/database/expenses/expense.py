@@ -10,7 +10,7 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
-from helpers.constants import DB_NAME
+from helpers.constants import EXPENSES_DB_NAME
 
 logger = getLogger("financial_tracker")
 
@@ -114,7 +114,7 @@ class Expense:
         logger.info("Called 'Expense.create_table'")
 
         return f"""
-            CREATE TABLE IF NOT EXISTS {DB_NAME} (
+            CREATE TABLE IF NOT EXISTS {EXPENSES_DB_NAME} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 month INTEGER NOT NULL,
                 day_start INTEGER NOT NULL,

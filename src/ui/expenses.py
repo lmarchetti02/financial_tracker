@@ -7,9 +7,7 @@ from sqlite3 import OperationalError
 import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
-from database import (Categories, Expense, SortingConfig, add_expense,
-                      edit_expense, fetch_expenses, remove_expense)
-from database.operations import fetch_by_id
+import database.expenses as ex
 from helpers.constants import MONTHS
 from plotting import show_expenses_summary
 from plotting.expenses_summary import show_expenses_pie
@@ -26,7 +24,7 @@ CATEGORIES = [
         key=str(cat.value),
         text=cat.name.lower().capitalize().replace("_", " "),
     )
-    for cat in Categories
+    for cat in ex.Categories
 ]
 
 
@@ -57,7 +55,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
     year = int(year)
 
     current_month_filter: int | None = None
-    current_sort: SortingConfig | None = None
+    current_sort: ex.SortingConfig | None = None
 
     def handle_date_options(_: ft.Event) -> None:
         """Shows a date picker or a date range picker depending of the choice."""
@@ -86,7 +84,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
             value = date_picker.value or default_date
             date_button.content = value.astimezone().strftime("%d/%m")  # type: ignore
 
-    def get_expense_from_inputs() -> Expense | None:
+    def get_expense_from_inputs() -> ex.Expense | None:
         """Reads the values in the controls and returns an `:class:Expense` object."""
         logger.info("Called 'get_expense_from_inputs'")
 
@@ -146,12 +144,12 @@ def expenses_view(page: ft.Page) -> ft.Control:
             day_end = None
 
         # reconstruct expense
-        expense = Expense(
+        expense = ex.Expense(
             month=month,
             day_start=day_start,
             day_end=day_end,
             description=description_text.value,
-            category=Categories(int(category_picker.value)),
+            category=ex.Categories(int(category_picker.value)),
             cost=cost,
         )
         logger.debug(f"Reconstructed expense:\n{expense}")
@@ -184,7 +182,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         expense = get_expense_from_inputs()
         if expense is None:
             return
-        add_expense(year, expense)
+        ex.add_expense(year, expense)
 
         # clear data
         clear_inputs()
@@ -198,7 +196,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the expense."""
-            success = remove_expense(year, expense_id)
+            success = ex.remove_expense(year, expense_id)
             if not success:
                 show_alert(page, "Error deleting expense", f"It was not possible to delete expense {expense_id}")
 
@@ -222,7 +220,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
 
         # get expense
         expense_id = e.control.data
-        old_expense = fetch_by_id(year, expense_id)
+        old_expense = ex.fetch_by_id(year, expense_id)
 
         # put values in the controls
         category_picker.value = str(old_expense.category.value)
@@ -250,7 +248,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
                 show_alert(page, "Unchanged expense", "You did not modify the expense.")
                 return
 
-            success = edit_expense(year, expense_id, old_expense, new_expense)
+            success = ex.edit_expense(year, expense_id, old_expense, new_expense)
             if not success:
                 show_alert(page, "Error modifying expense", f"It was not possible to modify expense {expense_id}")
 
@@ -273,7 +271,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         # clear all rows
         data_table.rows.clear()
 
-        rows = fetch_expenses(year, current_sort, current_month_filter)
+        rows = ex.fetch_expenses(year, current_sort, current_month_filter)
         for id, row in rows:
             delete_button = ft.Button(icon=ft.Icons.DELETE, width=50, height=30, data=id, on_click=delete_expense)
             duplicate_button = ft.Button(
@@ -294,7 +292,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
         data_table.sort_column_index = e.column_index  # which columns
         data_table.sort_ascending = e.ascending  # ascending = T, descending = F
 
-        current_sort = SortingConfig(e.column_index, e.ascending)
+        current_sort = ex.SortingConfig(e.column_index, e.ascending)
         refresh_table()
 
     def filter_months(e: ft.Event) -> None:
@@ -331,7 +329,7 @@ def expenses_view(page: ft.Page) -> ft.Control:
     add_expense_button = ft.Button("Add Expense", on_click=add_new_expense)
 
     # expenses database
-    columns = Expense.get_table_columns()
+    columns = ex.Expense.get_table_columns()
     columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
     columns[0].on_sort = sort_columns  # month and day
     columns[4].on_sort = sort_columns  # cost
