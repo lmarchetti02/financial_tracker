@@ -5,7 +5,7 @@ from logging import getLogger
 from sqlite3 import Row
 
 import flet as ft
-from flet_datatable2 import DataColumn2
+from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
@@ -51,8 +51,8 @@ class Income(DataContainer):
                 numeric=True,
                 fixed_width=80,
             ),
-            DataColumn2(label=ft.Text("Source"), fixed_width=200),
-            DataColumn2(label=ft.Text("Amount (€)"), numeric=True, fixed_width=100),
+            DataColumn2(label=ft.Text("Source"), size=DataColumnSize.S),
+            DataColumn2(label=ft.Text("Amount (€)"), numeric=True, fixed_width=150),
         ]
 
     @staticmethod

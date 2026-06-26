@@ -48,6 +48,7 @@ def fetch_incomes(year: int, sort: ISC | None = None, month: int | None = None) 
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the incomes in the database.
     """
+    logger.info("Called 'fetch_incomes'")
     with sq.connect(get_db_path(year, WhichDb.INCOMES)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row

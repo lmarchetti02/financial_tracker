@@ -9,8 +9,7 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 from helpers.constants import MONTHS
-from plotting import show_expenses_summary
-from plotting.expenses_summary import show_expenses_pie
+from plotting import show_expenses_pie, show_expenses_summary
 
 logger = getLogger("financial_tracker")
 
@@ -338,7 +337,7 @@ class ExpensesView(ft.Column):
 
     def edit_this_expense(self, e: ft.Event) -> None:
         """Edits an expense."""
-        logger.info("Called 'edit_expense'")
+        logger.info("Called 'edit_this_expense'")
         expense_id = e.control.data
         old_expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
 

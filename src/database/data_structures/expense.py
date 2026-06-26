@@ -28,6 +28,8 @@ class Categories(Enum):
     PERSONAL_ITEMS = auto()
     PRESENTS = auto()
     TRAVEL = auto()
+    TRADING_FEE = auto()
+    INTEREST_ON_DEBT = auto()
     OTHER = auto()
 
 
