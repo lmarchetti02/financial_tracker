@@ -188,7 +188,7 @@ def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) ->
     differences = old - new
     logger.debug(f"Differences:\n{differences}")
 
-    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
+    with sq.connect(get_db_path(year, db_enum)) as connection:
         cursor = connection.cursor()
 
         # construct command based on differences

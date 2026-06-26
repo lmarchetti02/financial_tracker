@@ -81,6 +81,7 @@ class DataContainer(ABC):
 
         resolved_types = get_type_hints(cls)
         cmd = [f"{f.name} {_convert_types(resolved_types[f.name])}" for f in fields(cls)]
+        cmd.insert(0, "id INTEGER PRIMARY KEY AUTOINCREMENT")
 
         return f"CREATE TABLE IF NOT EXISTS {cls.db_name} ({', '.join(cmd)})"
 
