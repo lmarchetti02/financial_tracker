@@ -41,7 +41,7 @@ def fetch_expenses(year: int, sort: ESC | None = None, month: int | None = None)
 
     Args:
         year (int): The year of the expenses in the database.
-        sort (SortingConfig | None): If given, the rows gets sorted (see `SortingConfig`).
+        sort (ExpensesSortingConfig | None): If given, the rows gets sorted (see `ExpensesSortingConfig`).
             Defaults to `None`.
         month (int | None): The month to filter the table by.
             Defaults to `None`.
