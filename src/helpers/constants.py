@@ -5,7 +5,8 @@ from pathlib import Path
 
 DEBUGGING = getenv("DEBUGGING", "False").lower() == "true"
 
-DB_DIRECTORY = Path.home() / ".financial_tracker"
-DB_NAME = "expenses"
+APP_DIRECTORY = Path.home() / ".financial_tracker"
+EXPENSES_DB_NAME = "expenses"
+INCOME_DB_NAME = "income"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

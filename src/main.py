@@ -4,10 +4,12 @@ from logging import getLogger
 
 import flet as ft
 
-from database.operations import initialize_db
+from database.db_operations import WhichDb, initialize_db
 from helpers import setup_logger
+from helpers.constants import APP_DIRECTORY
 from ui.expenses import expenses_view
 from ui.home import home_view
+from ui.income import income_view
 from ui.portfolio import portfolio_view
 from ui.welcome import welcome_page
 
@@ -29,9 +31,10 @@ def startup_layout(page: ft.Page) -> None:
                 main_content.content = expenses_view(page)
                 logger.debug("Add expense view selected")
             case 2:
-                main_content.content = portfolio_view()
-                logger.debug("Portfolio view selected")
+                main_content.content = income_view(page)
+                logger.debug("Income view selected")
             case 3:
+                main_content.content = portfolio_view()
                 logger.debug("Settings view selected")
             case _:
                 return
@@ -44,6 +47,8 @@ def startup_layout(page: ft.Page) -> None:
         destinations=[
             ft.NavigationRailDestination(icon=ft.Icons.HOME, label="Home"),
             ft.NavigationRailDestination(icon=ft.Icons.CREDIT_CARD_OUTLINED, label="Expenses"),
+            ft.NavigationRailDestination(icon=ft.Icons.MONEY, label="Income"),
+            ft.NavigationRailDestination(icon=ft.Icons.PEOPLE, label="D & C"),
             ft.NavigationRailDestination(icon=ft.Icons.PIE_CHART, label="Portfolio"),
             ft.NavigationRailDestination(icon=ft.Icons.SETTINGS, label="Settings"),
         ],
@@ -81,8 +86,12 @@ def main(page: ft.Page):
         # save selected year for current session
         page.session.store.set("selected_year", selected_year)
 
+        # create data dir if it doesn't exist
+        (APP_DIRECTORY / f"{selected_year}_data").mkdir(exist_ok=True, parents=True)
+
         # create db if it doesn't exists
-        initialize_db(selected_year)
+        for db in WhichDb:
+            initialize_db(selected_year, db)
 
         # start home
         startup_layout(page)
