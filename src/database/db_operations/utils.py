@@ -1,163 +1,32 @@
-"""Some helper functions."""
+from abc import ABC, abstractmethod
+from collections.abc import Generator
+from dataclasses import dataclass, field
 
-import sqlite3 as sq
-from dataclasses import fields
-from enum import Enum, auto
-from logging import getLogger
-from pathlib import Path
-from typing import Literal, overload
+from flet import DataCell
 
-from helpers.constants import APP_DIRECTORY
-
-from ..data_structures import DataContainer, Expense, Income
-
-logger = getLogger("financial_tracker")
+type RowGenerator = Generator[tuple[int, list[DataCell]], None, None]
 
 
-class WhichDb(Enum):
-    """Defines the database to use."""
+@dataclass
+class SortingConfig(ABC):
+    """Helper class to properly sort columns.
 
-    EXPENSES = auto()
-    INCOMES = auto()
+    Attributes:
+        col_id (int): The ID of the column given by flet.
+        ascending (int): Whether the column is to be sorted in ascending
+            (`True`) or descending (`False`) order.
+        sql_command (str): The sqlite command that corresponds to the given
+            `col_id` and `ascending`.
 
-
-_DB_TO_CLASS = {WhichDb.EXPENSES: Expense, WhichDb.INCOMES: Income}
-_CLASS_TO_DB = {Expense: WhichDb.EXPENSES, Income: WhichDb.INCOMES}
-
-
-def get_db_path(year: int, db: WhichDb) -> Path:
-    """Returns the path to the desired database for the current year.
-
-    Args:
-        year (int): The desired year.
-        db (`:enum:WhichDb`): The db to fetch.
-
-    Returns:
-        Path: The path to the desired database.
+    Raises:
+        ValueError: If the column is not sortable.
     """
-    return Path.home() / APP_DIRECTORY / f"{year}_data" / (_DB_TO_CLASS[db].db_name + f"_{year}.db")
 
+    col_id: int
+    ascending: bool
 
-def initialize_db(year: int, db: WhichDb) -> None:
-    """Initializes the database if it doesn't already exist.
+    sql_command: str = field(init=False)
 
-    Args:
-        year (int): The desired year.
-        db (`:enum:WhichDb`): The db to initialize.
-    """
-    logger.info(f"Called 'initialize_db' for {db}.")
-
-    # create database
-    db_path = get_db_path(year, db)
-    with sq.connect(db_path) as connection:
-        # create cursor
-        cursor = connection.cursor()
-
-        # create table
-        cursor.execute(_DB_TO_CLASS[db].create_table())
-
-        # create index on categories for more efficient filtering
-        db_name = _DB_TO_CLASS[db].db_name
-        cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
-        if db == WhichDb.EXPENSES:
-            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")
-        elif db == WhichDb.INCOMES:
-            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_source ON {db_name}(source)")
-
-        logger.debug(f"Created table inside {db_path} if it didn't already exist.")
-
-
-@overload
-def fetch_by_id(year: int, db: Literal[WhichDb.EXPENSES], row_id: int) -> Expense: ...
-
-
-@overload
-def fetch_by_id(year: int, db: Literal[WhichDb.INCOMES], row_id: int) -> Income: ...
-
-
-def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
-    """Fetches the expense with the desired ID.
-
-    Args:
-        year (int): The year of the expenses in the database.
-        db (`:enum:WhichDb`): The db to use.
-        row_id (int): The id of the row to fetch.
-
-    Returns:
-        `:class:DataContainer`: The desired object.
-    """
-    logger.info("Called 'fetch_by_id'")
-
-    with sq.connect(get_db_path(year, db)) as connection:
-        cursor = connection.cursor()
-
-        cursor.execute(f"SELECT * FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ?", (row_id,))  # type: ignore
-        fields = cursor.fetchone()
-
-        if db == WhichDb.EXPENSES:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.INCOMES:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        logger.debug(f"Object retrieved by ID:\n{data}")
-
-        return data
-
-
-def add_item(year: int, item: DataContainer) -> None:
-    """Adds a `:class:DataContainer` subclass instance to the database.
-
-    Args:
-        year (int): The desired year.
-        item (`:class:DataContainer`): The item to add.
-    """
-    logger.info("Called 'add_item'.")
-
-    db_enum = _CLASS_TO_DB.get(type(item))
-    if not db_enum:
-        raise ValueError(f"Unsupported item type: {type(item)}")
-
-    with sq.connect(get_db_path(year, db_enum)) as connection:
-        cursor = connection.cursor()
-
-        # get names and values
-        columns = []
-        values = []
-        for f in fields(item):
-            columns.append(f.name)
-            val = getattr(item, f.name)
-
-            if isinstance(val, Enum):
-                values.append(val.name)
-            else:
-                values.append(val)
-
-        # generate sql query
-        col_str = ", ".join(columns)
-        placeholders = ", ".join(["?"] * len(columns))
-        query = f"INSERT INTO {item.db_name} ({col_str}) VALUES ({placeholders})"
-
-        cursor.execute(query, tuple(values))
-        logger.debug(f"Added item to the database:\n{item}.")
-
-
-def remove_item(year: int, db: WhichDb, row_id: int) -> bool:
-    """Removes a `:class:DataContainer` subclass instance from the database.
-
-    Args:
-        year (int): The desired year.
-        db (`:enum:WhichDb`): The db to use.
-        row_id (int): The ID of the row where the item is stored.
-
-    Returns:
-        `True` if the operation was successful, `False` otherwise.
-    """
-    logger.info("Called 'remove_expense'")
-
-    with sq.connect(get_db_path(year, db)) as connection:
-        cursor = connection.cursor()
-        cursor.execute(f"DELETE FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ? RETURNING *", (row_id,))  # type: ignore
-
-        deleted_item = cursor.fetchone()
-        logger.debug(f"Deleted item:\n{deleted_item}")
-
-        return cursor.rowcount > 0
+    @abstractmethod
+    def __post_init__(self) -> None:
+        """Converts the attributes given by flet to strings that can be passed to sqlite."""

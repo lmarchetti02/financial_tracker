@@ -58,12 +58,19 @@ class DataContainer(ABC):
                 other object. In particular, only the values of `other` that
                 differ from `self`.
         """
+        resolved_types = get_type_hints(self)
+
         differences = {}
         for field in fields(self):
+            field_type = resolved_types[field.name]
+
             v_self = getattr(self, field.name)
             v_other = getattr(other, field.name)
             if v_self != v_other:
-                differences[field.name] = v_other
+                if isinstance(field_type, type) and issubclass(field_type, Enum):
+                    differences[field.name] = v_other.name
+                else:
+                    differences[field.name] = v_other
 
         return differences
 
@@ -93,7 +100,7 @@ class DataContainer(ABC):
                 field_type = next(a for a in args if a is not type(None))
 
             # reconstruct enums
-            if isinstance(field_type, type) and issubclass(field_type, Enum) and value is not None:
+            if isinstance(field_type, type) and issubclass(field_type, Enum):
                 kwargs[field.name] = field_type[value]
             else:
                 kwargs[field.name] = value
