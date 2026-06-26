@@ -4,24 +4,20 @@ import sqlite3 as sq
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from logging import getLogger
-from pathlib import Path
 
 import numpy as np
 from flet import Alignment, Container, DataCell, Text
 
-from helpers.constants import APP_DIRECTORY, EXPENSES_DB_NAME
+from helpers.constants import EXPENSES_DB_NAME
 
-from .expense import Categories, Expense
+from ..data_structures import Categories, Expense
+from .utils import WhichDb, get_db_path
 
 __all__ = [
     "SortingConfig",
-    "initialize_expenses_db",
-    "add_expense",
-    "remove_expense",
     "edit_expense",
     "fetch_expenses",
     "fetch_category",
-    "fetch_by_id",
 ]
 
 logger = getLogger("financial_tracker")
@@ -64,85 +60,6 @@ class SortingConfig:
             raise ValueError("You cannot sort this column.")
 
 
-def get_db_path(year: int) -> Path:
-    """Returns the path to the expenses database for the current year."""
-    return Path.home() / APP_DIRECTORY / f"{year}_data" / (EXPENSES_DB_NAME + f"_{year}.db")
-
-
-def initialize_expenses_db(year: int) -> None:
-    """Initializes the database if it doesn't already exist.
-
-    Args:
-        year (int): The year of the expenses in the database.
-    """
-    logger.info("Called 'initialize_db'.")
-
-    # create database
-    db_path = get_db_path(year)
-    with sq.connect(db_path) as connection:
-        # create cursor
-        cursor = connection.cursor()
-
-        # create table
-        cursor.execute(Expense.create_table())
-
-        # create index on categories for more efficient filtering
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_month ON expenses(month)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_category ON expenses(category)")
-        logger.debug(f"Created table inside {db_path} if it didn't already exist.")
-
-
-def add_expense(year: int, expense: Expense) -> None:
-    """Adds an expense to the database.
-
-    Args:
-        year (int): The year of the expenses in the database.
-        expense (Expense): The expense to add.
-    """
-    logger.info("Called 'add_expense'.")
-
-    with sq.connect(get_db_path(year)) as connection:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            f"""
-            INSERT INTO {EXPENSES_DB_NAME} (month, day_start, day_end, description, category, cost)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (
-                expense.month,
-                expense.day_start,
-                expense.day_end,
-                expense.description,
-                expense.category.name,
-                expense.cost,
-            ),
-        )
-        logger.debug(f"Added expense to the database:\n{expense}.")
-
-
-def remove_expense(year: int, expense_id: int) -> bool:
-    """Deletes an expense from the database.
-
-    Args:
-        year (int): The year of the expenses in the database.
-        expense_id (int): The id of the expense to delete.
-
-    Returns:
-        bool: `True` if the operation succeeded, `False` if it didn't.
-    """
-    logger.info("Called 'remove_expense'")
-
-    with sq.connect(get_db_path(year)) as connection:
-        cursor = connection.cursor()
-        cursor.execute(f"DELETE FROM {EXPENSES_DB_NAME} WHERE id = ? RETURNING *", (expense_id,))
-
-        deleted_expense = cursor.fetchone()
-        logger.debug(f"Deleted expense:\n{deleted_expense}")
-
-        return cursor.rowcount > 0
-
-
 def edit_expense(year: int, expense_id: int, old: Expense, new: Expense) -> bool:
     """Edits an expense in the database.
 
@@ -163,7 +80,7 @@ def edit_expense(year: int, expense_id: int, old: Expense, new: Expense) -> bool
         differences["category"] = differences["category"].name
     logger.debug(f"Differences:\n{differences}")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
         cursor = connection.cursor()
 
         # construct command based on differences
@@ -190,7 +107,7 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row
         cursor = connection.cursor()
@@ -207,21 +124,7 @@ def fetch_expenses(year: int, sort: SortingConfig | None = None, month: int | No
         rows = cursor.fetchall()
 
         for row in rows:
-            if row["day_end"] is not None:
-                days = f"{row['day_start']}-{row['day_end']}"
-            else:
-                days = str(row["day_start"])
-            yield (
-                # TODO: Move it to expense.py
-                row["id"],
-                [
-                    DataCell(Container(Text(str(row["month"])), alignment=Alignment.CENTER)),
-                    DataCell(Container(Text(days), alignment=Alignment.CENTER)),
-                    DataCell(Text(str(row["description"]))),
-                    DataCell(Text(str(row["category"]).lower().capitalize().replace("_", " "))),
-                    DataCell(Text(f"{row['cost']:.2f}")),
-                ],
-            )
+            yield (row["id"], Expense.get_table_row(row))
 
 
 def fetch_category(year: int, category: Categories) -> np.ndarray:
@@ -236,7 +139,7 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
     """
     logger.info("Called 'fetch_category'")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(
@@ -254,27 +157,3 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
             monthly_total[row[0] - 1] = row[1]
 
         return monthly_total
-
-
-def fetch_by_id(year: int, expense_id: int) -> Expense:
-    """Fetches the expense with the desired ID.
-
-    Args:
-        year (int): The year of the expenses in the database.
-        expense_id (int): The id of the expense to delete.
-
-    Returns:
-        Expense: The desired expense.
-    """
-    logger.info("Called 'fetch_by_id'")
-
-    with sq.connect(get_db_path(year)) as connection:
-        cursor = connection.cursor()
-
-        cursor.execute(f"SELECT * FROM {EXPENSES_DB_NAME} WHERE id = ?", (expense_id,))
-        fields = cursor.fetchone()
-
-        expense = Expense.init_from_tuple(fields[1:])
-        logger.debug(f"Expense retrieved by ID:\n{expense}")
-
-        return expense
