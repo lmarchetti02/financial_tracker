@@ -23,7 +23,7 @@ CATEGORIES = [
         key=str(cat.value),
         text=cat.name.lower().capitalize().replace("_", " "),
     )
-    for cat in db.Categories
+    for cat in sorted(db.Categories, key=lambda c: c.name)
 ]
 
 

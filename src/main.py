@@ -87,7 +87,7 @@ def main(page: ft.Page):
         page.session.store.set("selected_year", selected_year)
 
         # create data dir if it doesn't exist
-        (APP_DIRECTORY / f"{selected_year}_data").mkdir(exist_ok=True, parents=True)
+        APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
 
         # create db if it doesn't exists
         for db in WhichDb:

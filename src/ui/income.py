@@ -17,7 +17,7 @@ SOURCES = [
         key=str(src.value),
         text=src.name.lower().capitalize().replace("_", " "),
     )
-    for src in db.Sources
+    for src in sorted(db.Sources, key=lambda s: s.name)
 ]
 
 
@@ -87,6 +87,9 @@ class IncomeView(ft.Column):
         # cost
         self.amount_text = ft.TextField(label="Amount (€)", width=150)
 
+        # description
+        self.description_text = ft.TextField(label="Description", width=570, multiline=True)
+
         # button
         self.add_income_button = ft.Button("Add Income", on_click=self.add_new_income)
 
@@ -145,6 +148,7 @@ class IncomeView(ft.Column):
         return [
             ft.Container(height=40),
             upper_row,
+            self.description_text,
             self.add_income_button,
             ft.Container(height=10),
             self.table_column,
@@ -156,6 +160,11 @@ class IncomeView(ft.Column):
 
         if self.month_picker.value is None:
             show_alert(self._page, "Invalid month", "The month cannot be empty.")
+            self._page.update()
+            return None
+
+        if self.description_text.value == "":
+            show_alert(self._page, "Empty description", "You must add a description to the income")
             self._page.update()
             return None
 
@@ -179,6 +188,7 @@ class IncomeView(ft.Column):
         income = db.Income(
             month=int(self.month_picker.value),
             source=db.Sources(int(self.source_picker.value)),
+            description=self.description_text.value,
             amount=cost,
         )
         logger.debug(f"Reconstructed income:\n{income}")
@@ -190,6 +200,7 @@ class IncomeView(ft.Column):
         logger.info("Called 'clear_inputs'")
 
         self.month_picker.value = str(self.default_date.month)
+        self.description_text.value = ""
         self.source_picker.value = None
         self.amount_text.value = ""
         logger.debug("Cleared expense data")
@@ -266,6 +277,7 @@ class IncomeView(ft.Column):
         self.month_picker.value = str(old_income.month)
         self.source_picker.value = str(old_income.source.value)
         self.amount_text.value = f"{old_income.amount:.2f}"
+        self.description_text.value = old_income.description
 
     def refresh_table(self) -> None:
         """Refreshes the table that displays the database."""

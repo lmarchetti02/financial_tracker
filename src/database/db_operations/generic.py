@@ -35,7 +35,7 @@ def get_db_path(year: int, db: WhichDb) -> Path:
     Returns:
         Path: The path to the desired database.
     """
-    return Path.home() / APP_DIRECTORY / f"{year}_data" / (_DB_TO_CLASS[db].db_name + f"_{year}.db")
+    return Path.home() / APP_DIRECTORY / f"{year}_data.db"
 
 
 def initialize_db(year: int, db: WhichDb) -> None:
@@ -64,7 +64,7 @@ def initialize_db(year: int, db: WhichDb) -> None:
         elif db == WhichDb.INCOMES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_source ON {db_name}(source)")
 
-        logger.debug(f"Created table inside {db_path} if it didn't already exist.")
+        logger.debug(f"Created table '{db_name}' inside {db_path} if it didn't already exist.")
 
 
 @overload
