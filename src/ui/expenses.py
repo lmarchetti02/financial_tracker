@@ -2,14 +2,16 @@
 
 from datetime import datetime
 from logging import getLogger
-from sqlite3 import OperationalError
 
 import flet as ft
-from flet_datatable2 import DataColumn2, DataTable2
+from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.constants import MONTHS
+from _helpers.formatting import enum_label
 from plotting import show_expenses_pie, show_expenses_summary
+
+from .base_view import BaseCrudView
+from .common import show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -21,58 +23,17 @@ DATE_OPTIONS = [
 CATEGORIES = [
     ft.DropdownOption(
         key=str(cat.value),
-        text=cat.name.lower().capitalize().replace("_", " "),
+        text=enum_label(cat),
     )
     for cat in sorted(db.Categories, key=lambda c: c.name)
 ]
 
 
-def show_alert(page: ft.Page, title: str, content: str) -> None:
-    """Shows alert for missing data.
-
-    Args:
-        page (ft.Page): The page object.
-        title (str): The title of the alert dialog.
-        content (str): The content of the alert dialog.
-    """
-    page.show_dialog(
-        ft.AlertDialog(
-            title=ft.Text(title),
-            content=ft.Text(content),
-            actions=[ft.TextButton("Dismiss", on_click=lambda _: page.pop_dialog())],
-        )
-    )
-    page.update()
-
-
-class ExpensesView(ft.Column):
+class ExpensesView(BaseCrudView):
     """Encapsulates the 'add expense' view logic and UI."""
 
-    def __init__(self, page: ft.Page):
-        """Initializes the view, state variables, and layout."""
-        super().__init__()
-        self._page = page
-
-        if (year := self._page.session.store.get("selected_year")) is None:
-            raise RuntimeError("Cannot retrieve the current year.")
-        self.year = int(year)
-
-        self.current_month_filter: int | None = None
-        self.current_category_filter: db.Categories | None = None
-        self.current_sort: db.ESC | None = None
-        self.default_date = datetime.today()
-
-        self.expand = True
-        self.alignment = ft.MainAxisAlignment.START
-        self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-
-        self._init_controls()
-        self.controls = self._build_layout()
-
-        try:
-            self.refresh_table()
-        except OperationalError:
-            pass
+    _heading_color = "#960000"
+    _sorting_config_cls = db.ExpensesSortingConfig
 
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
@@ -112,55 +73,10 @@ class ExpensesView(ft.Column):
         columns[0].on_sort = self.sort_columns
         columns[4].on_sort = self.sort_columns
 
-        filter_menu = ft.PopupMenuButton(
-            icon=ft.Icons.FILTER_ALT,
-            icon_color=ft.Colors.WHITE,
-            icon_size=20,
-            padding=0,
-            menu_padding=0,
-            tooltip="Filter month",
-            items=[
-                ft.PopupMenuItem(f"{MONTHS[i]} ({i + 1})", data=i + 1, on_click=self.filter_months) for i in range(12)
-            ]
-            + [ft.PopupMenuItem()]
-            + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
-        )
-        columns[0].label.controls.append(filter_menu)  # type: ignore
+        columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
+        columns[2].label.controls.append(self._build_enum_filter_menu(db.Categories, "Filter category"))  # type: ignore
 
-        category_filter_menu = ft.PopupMenuButton(
-            icon=ft.Icons.FILTER_ALT,
-            icon_color=ft.Colors.WHITE,
-            icon_size=20,
-            padding=0,
-            menu_padding=0,
-            tooltip="Filter category",
-            items=[
-                ft.PopupMenuItem(
-                    cat.name.lower().capitalize().replace("_", " "), data=cat, on_click=self.filter_categories
-                )
-                for cat in sorted(db.Categories, key=lambda c: c.name)
-            ]
-            + [ft.PopupMenuItem()]
-            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_categories)],
-        )
-        columns[2].label.controls.append(category_filter_menu)  # type: ignore
-
-        borders = ft.BorderSide(width=2)
-        v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
-
-        self.data_table = DataTable2(
-            fixed_top_rows=1,
-            border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
-            vertical_lines=v_lines,
-            horizontal_lines=v_lines,
-            heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
-            heading_row_color="#960000",
-            heading_row_height=35,
-            horizontal_margin=0,
-            column_spacing=15,
-            columns=columns,  # type: ignore
-            rows=[],
-        )
+        self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table])
 
         # plotting
@@ -329,9 +245,9 @@ class ExpensesView(ft.Column):
         self.clear_inputs()
         self.refresh_table()
 
-    def delete_expense(self, e: ft.Event) -> None:
+    def delete_item(self, e: ft.Event) -> None:
         """Deletes an expense from the database."""
-        logger.info("Called 'delete_expense'")
+        logger.info("Called 'delete_item'")
         expense_id = e.control.data
 
         def delete(_: ft.Event) -> None:
@@ -354,9 +270,9 @@ class ExpensesView(ft.Column):
             )
         )
 
-    def edit_this_expense(self, e: ft.Event) -> None:
+    def edit_this_item(self, e: ft.Event) -> None:
         """Edits an expense."""
-        logger.info("Called 'edit_this_expense'")
+        logger.info("Called 'edit_this_item'")
         expense_id = e.control.data
         old_expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
 
@@ -387,9 +303,9 @@ class ExpensesView(ft.Column):
 
         self.fill_inputs_from_expense(old_expense, e)
 
-    def copy_this_expense(self, e: ft.Event) -> None:
+    def copy_this_item(self, e: ft.Event) -> None:
         """Prefills the add-expense form from an existing expense, to add it as a new entry."""
-        logger.info("Called 'copy_this_expense'")
+        logger.info("Called 'copy_this_item'")
         expense_id = e.control.data
         expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
 
@@ -415,61 +331,9 @@ class ExpensesView(ft.Column):
 
         self.update_date_text(e)
 
-    def refresh_table(self) -> None:
-        """Refreshes the table that displays the database."""
-        logger.info("Called 'refresh_table'")
-        self.data_table.rows.clear()
-
-        rows = db.fetch_expenses(self.year, self.current_sort, self.current_month_filter, self.current_category_filter)
-        for row_id, row_data in rows:
-            delete_btn = ft.Button(icon=ft.Icons.DELETE, width=50, height=30, data=row_id, on_click=self.delete_expense)
-            edit_btn = ft.Button(
-                icon=ft.Icons.EDIT,
-                width=50,
-                height=30,
-                data=row_id,
-                on_click=self.edit_this_expense,
-                color=ft.Colors.BLUE,
-            )
-            copy_btn = ft.Button(
-                icon=ft.Icons.COPY,
-                width=50,
-                height=30,
-                data=row_id,
-                on_click=self.copy_this_expense,
-                color=ft.Colors.GREEN,
-            )
-            row_data.append(ft.DataCell(ft.Row(controls=[edit_btn, copy_btn, delete_btn])))
-            self.data_table.rows.append(ft.DataRow(cells=row_data))
-
-        row_count = len(self.data_table.rows)
-        self.table_column.expand = row_count > 10
-        self.data_table.expand = row_count > 10
-
-        self._page.update()
-
-    def sort_columns(self, e: ft.DataColumnSortEvent) -> None:
-        """Sorts the columns of the table."""
-        self.data_table.sort_column_index = e.column_index
-        self.data_table.sort_ascending = e.ascending
-
-        self.current_sort = db.ExpensesSortingConfig(e.column_index, e.ascending)
-        self.refresh_table()
-
-    def filter_months(self, e: ft.Event) -> None:
-        """Filters the month column."""
-        month = e.control.data
-        if month > 0:
-            self.current_month_filter = month
-        else:
-            self.current_month_filter = None
-
-        self.refresh_table()
-
-    def filter_categories(self, e: ft.Event) -> None:
-        """Filters the category column."""
-        self.current_category_filter = e.control.data
-        self.refresh_table()
+    def _fetch_rows(self) -> db.RowGenerator:
+        """Fetches expenses matching the current sort and filters."""
+        return db.fetch_expenses(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
 
 
 def expenses_view(page: ft.Page) -> ft.Control:

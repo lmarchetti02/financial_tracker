@@ -1,6 +1,5 @@
 """Implementation of the main operations on the incomes database."""
 
-import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
@@ -9,7 +8,7 @@ import numpy as np
 from _helpers.constants import INCOME_DB_NAME
 
 from ..data_structures import Income, Sources
-from .generic import get_db_path
+from .generic import fetch_monthly_totals, fetch_rows
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -20,17 +19,7 @@ class IncomesSortingConfig(SortingConfig):
     """Defines how the expenses are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
-        if self.ascending:
-            order = "ASC"
-        else:
-            order = "DESC"
-
-        if self.col_id == 0:
-            self.sql_command = f"month {order}"
-        elif self.col_id == 2:
-            self.sql_command = f"amount {order}"
-        else:
-            raise ValueError("You cannot sort this column.")
+        self._resolve({0: "month", 2: "amount"})
 
 
 type ISC = IncomesSortingConfig
@@ -55,32 +44,8 @@ def fetch_incomes(
             and the id of the incomes in the database.
     """
     logger.info("Called 'fetch_incomes'")
-    with sq.connect(get_db_path(year)) as connection:
-        # enable column access by name
-        connection.row_factory = sq.Row
-        cursor = connection.cursor()
-
-        conditions: list[str] = []
-        params: list[int | str] = []
-        if month is not None:
-            conditions.append("month = ?")
-            params.append(month)
-        if source is not None:
-            conditions.append("source = ?")
-            params.append(source.name)
-
-        query = f"SELECT * FROM {INCOME_DB_NAME}"
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        if sort is not None:
-            query += f" ORDER BY {sort.sql_command}"
-
-        cursor.execute(query, params)
-
-        rows = cursor.fetchall()
-
-        for row in rows:
-            yield (row["id"], Income.get_table_row(row))
+    extra_filter = ("source", source) if source is not None else None
+    return fetch_rows(year, INCOME_DB_NAME, Income, sort=sort, month=month, extra_filter=extra_filter)
 
 
 def fetch_source(year: int, source: Sources) -> np.ndarray:
@@ -95,21 +60,4 @@ def fetch_source(year: int, source: Sources) -> np.ndarray:
     """
     logger.info("Called 'fetch_source'")
 
-    with sq.connect(get_db_path(year)) as connection:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            f"""
-            SELECT month, SUM(amount) FROM {INCOME_DB_NAME}
-            WHERE source = ?
-            GROUP BY month
-            ORDER BY month ASC
-            """,
-            (source.name,),
-        )
-
-        monthly_total = np.zeros(12, dtype=np.float32)
-        for row in cursor.fetchall():
-            monthly_total[row[0] - 1] = row[1]
-
-        return monthly_total
+    return fetch_monthly_totals(year, INCOME_DB_NAME, "amount", "source", source)

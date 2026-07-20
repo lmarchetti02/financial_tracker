@@ -134,6 +134,27 @@ class TestInitFromTuple:
         assert reconstructed.source is Sources.INVESTMENTS
 
 
+class TestMonthColumn:
+    """Tests for `DataContainer.month_column`."""
+
+    def test_is_a_fixed_width_numeric_column(self) -> None:
+        """The shared month column is numeric and has a fixed width, regardless of the subclass."""
+        column = Expense.month_column()
+
+        assert column.numeric is True
+        assert column.fixed_width == 80
+
+
+class TestMonthCell:
+    """Tests for `DataContainer.month_cell`."""
+
+    def test_renders_the_row_s_month(self) -> None:
+        """The cell displays the row's `month` value as text."""
+        cell = Expense.month_cell({"month": 6})
+
+        assert cell.content.content.value == "6"
+
+
 class TestSub:
     """Tests for `DataContainer.__sub__`."""
 

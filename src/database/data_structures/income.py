@@ -10,6 +10,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import INCOME_DB_NAME
+from _helpers.formatting import enum_label
 
 from .base import DataContainer
 
@@ -48,11 +49,7 @@ class Income(DataContainer):
         logger.info("Called 'Income.get_table_columns'")
 
         return [
-            DataColumn2(
-                label=ft.Row(controls=[ft.Text("M")], tight=True, spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-                numeric=True,
-                fixed_width=80,
-            ),
+            Income.month_column(),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
             DataColumn2(label=ft.Row(controls=[ft.Text("Source")], tight=True, spacing=5), fixed_width=200),
             DataColumn2(label=ft.Text("Amount (€)"), numeric=True, fixed_width=150),
@@ -61,8 +58,8 @@ class Income(DataContainer):
     @staticmethod
     def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
         return [
-            ft.DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER)),
+            Income.month_cell(row),
             ft.DataCell(ft.Text(f"{row['description']}")),
-            ft.DataCell(ft.Text(str(row["source"]).lower().capitalize().replace("_", " "))),
+            ft.DataCell(ft.Text(enum_label(Sources[row["source"]]))),
             ft.DataCell(ft.Text(f"{row['amount']:.2f}")),
         ]

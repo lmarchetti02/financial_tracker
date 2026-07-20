@@ -11,6 +11,7 @@ from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import EXPENSES_DB_NAME
+from _helpers.formatting import enum_label
 
 from .base import DataContainer
 
@@ -72,11 +73,7 @@ class Expense(DataContainer):
         logger.info("Called 'get_table_columns'")
 
         return [
-            DataColumn2(
-                label=ft.Row(controls=[ft.Text("M")], tight=True, spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-                numeric=True,
-                fixed_width=80,
-            ),
+            Expense.month_column(),
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=100),
             DataColumn2(label=ft.Row(controls=[ft.Text("Category")], tight=True, spacing=5), fixed_width=200),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
@@ -90,9 +87,9 @@ class Expense(DataContainer):
         else:
             days = str(row["day_start"])
         return [
-            ft.DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER)),
+            Expense.month_cell(row),
             ft.DataCell(ft.Container(ft.Text(days), alignment=ft.Alignment.CENTER)),
-            ft.DataCell(ft.Text(str(row["category"]).lower().capitalize().replace("_", " "))),
+            ft.DataCell(ft.Text(enum_label(Categories[row["category"]]))),
             ft.DataCell(ft.Text(str(row["description"]))),
             ft.DataCell(ft.Text(f"{row['cost']:.2f}")),
         ]

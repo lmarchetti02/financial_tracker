@@ -1,13 +1,12 @@
 """Implementation of the main operations on the transfers database."""
 
-import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
 from _helpers.constants import TRANSFERS_DB_NAME
 
 from ..data_structures import Kind, Transfer
-from .generic import get_db_path
+from .generic import fetch_rows
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -18,17 +17,7 @@ class TransfersSortingConfig(SortingConfig):
     """Defines how the transfers are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
-        if self.ascending:
-            order = "ASC"
-        else:
-            order = "DESC"
-
-        if self.col_id == 0:
-            self.sql_command = f"month {order}"
-        elif self.col_id == 6:
-            self.sql_command = f"amount {order}"
-        else:
-            raise ValueError("You cannot sort this column.")
+        self._resolve({0: "month", 6: "amount"})
 
 
 type TSC = TransfersSortingConfig
@@ -53,29 +42,5 @@ def fetch_transfers(
             and the id of the transfers in the database.
     """
     logger.info("Called 'fetch_transfers'")
-    with sq.connect(get_db_path(year)) as connection:
-        # enable column access by name
-        connection.row_factory = sq.Row
-        cursor = connection.cursor()
-
-        conditions: list[str] = []
-        params: list[int | str] = []
-        if month is not None:
-            conditions.append("month = ?")
-            params.append(month)
-        if kind is not None:
-            conditions.append("kind = ?")
-            params.append(kind.name)
-
-        query = f"SELECT * FROM {TRANSFERS_DB_NAME}"
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        if sort is not None:
-            query += f" ORDER BY {sort.sql_command}"
-
-        cursor.execute(query, params)
-
-        rows = cursor.fetchall()
-
-        for row in rows:
-            yield (row["id"], Transfer.get_table_row(row))
+    extra_filter = ("kind", kind) if kind is not None else None
+    return fetch_rows(year, TRANSFERS_DB_NAME, Transfer, sort=sort, month=month, extra_filter=extra_filter)

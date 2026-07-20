@@ -1,9 +1,11 @@
 """Unit tests for `database.db_operations.generic`."""
 
 import sqlite3 as sq
+from types import SimpleNamespace
 
 import pytest
 
+from _helpers.constants import EXPENSES_DB_NAME
 from database.data_structures.expense import Categories, Expense
 from database.data_structures.income import Income, Sources
 from database.data_structures.transfer import Kind, Transfer
@@ -12,6 +14,8 @@ from database.db_operations.generic import (
     add_item,
     edit_item,
     fetch_by_id,
+    fetch_monthly_totals,
+    fetch_rows,
     get_db_path,
     initialize_db,
     remove_item,
@@ -50,6 +54,69 @@ class TestGetDbPath:
     def test_different_years_map_to_different_files(self) -> None:
         """Two distinct years resolve to two distinct DB files."""
         assert get_db_path(2024) != get_db_path(2025)
+
+
+class TestFetchRows:
+    """Tests for `fetch_rows`."""
+
+    def test_yields_the_id_and_row_of_every_item(self) -> None:
+        """With no filter or sort, every row in the table is yielded."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(description="first"))
+        add_item(YEAR, make_expense(description="second"))
+
+        ids = [row_id for row_id, _ in fetch_rows(YEAR, EXPENSES_DB_NAME, Expense)]
+
+        assert ids == [1, 2]
+
+    def test_filters_by_month(self) -> None:
+        """Only rows matching the given month are yielded."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(month=1))
+        add_item(YEAR, make_expense(month=2))
+
+        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, month=2))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_filters_by_extra_filter(self) -> None:
+        """`extra_filter` restricts rows to those matching the given column/enum-member pair."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(category=Categories.FOOD_AND_DRINKS))
+        add_item(YEAR, make_expense(category=Categories.TRAVEL))
+
+        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, extra_filter=("category", Categories.TRAVEL)))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_sorts_according_to_the_given_sort_config(self) -> None:
+        """Rows are ordered per `sort.sql_command`."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(cost=30.0))
+        add_item(YEAR, make_expense(cost=10.0))
+        sort = SimpleNamespace(sql_command="cost ASC")
+
+        ids = [row_id for row_id, _ in fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, sort=sort)]
+
+        assert ids == [2, 1]
+
+
+class TestFetchMonthlyTotals:
+    """Tests for `fetch_monthly_totals`."""
+
+    def test_sums_the_column_per_month_for_the_given_filter(self) -> None:
+        """Values for the requested filter are summed per month; other values are excluded."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=10.0))
+        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=5.0))
+        add_item(YEAR, make_expense(month=3, category=Categories.FOOD_AND_DRINKS, cost=7.0))
+        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL, cost=100.0))
+
+        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost", "category", Categories.FOOD_AND_DRINKS)
+
+        assert totals[0] == pytest.approx(15.0)
+        assert totals[1] == pytest.approx(0.0)
+        assert totals[2] == pytest.approx(7.0)
 
 
 class TestInitializeDb:

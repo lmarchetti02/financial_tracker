@@ -11,6 +11,7 @@ from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import TRANSFERS_DB_NAME
+from _helpers.formatting import enum_label
 
 from .base import DataContainer
 
@@ -69,11 +70,7 @@ class Transfer(DataContainer):
         logger.info("Called 'Transfer.get_table_columns'")
 
         return [
-            DataColumn2(
-                label=ft.Row(controls=[ft.Text("M")], tight=True, spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-                numeric=True,
-                fixed_width=80,
-            ),
+            Transfer.month_column(),
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=80),
             DataColumn2(label=ft.Row(controls=[ft.Text("Kind")], tight=True, spacing=5), fixed_width=150),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
@@ -89,9 +86,9 @@ class Transfer(DataContainer):
         source = row["source"] if row["source"] is not None else "—"
         destination = row["destination"] if row["destination"] is not None else "—"
         return [
-            ft.DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER)),
+            Transfer.month_cell(row),
             ft.DataCell(ft.Container(ft.Text(str(row["day"])), alignment=ft.Alignment.CENTER)),
-            ft.DataCell(ft.Text(str(row["kind"]).lower().capitalize().replace("_", " "))),
+            ft.DataCell(ft.Text(enum_label(Kind[row["kind"]]))),
             ft.DataCell(ft.Text(f"{row['description']}")),
             ft.DataCell(ft.Text(source)),
             ft.DataCell(ft.Text(destination)),

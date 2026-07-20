@@ -1,6 +1,5 @@
 """Implementation of the main operations on the expenses database."""
 
-import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
@@ -9,7 +8,7 @@ import numpy as np
 from _helpers.constants import EXPENSES_DB_NAME
 
 from ..data_structures import Categories, Expense
-from .generic import get_db_path
+from .generic import fetch_monthly_totals, fetch_rows
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -20,17 +19,7 @@ class ExpensesSortingConfig(SortingConfig):
     """Defines how the expenses are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
-        if self.ascending:
-            order = "ASC"
-        else:
-            order = "DESC"
-
-        if self.col_id == 0:
-            self.sql_command = f"month {order}, day_start {order}"
-        elif self.col_id == 4:
-            self.sql_command = f"cost {order}"
-        else:
-            raise ValueError("You cannot sort this column.")
+        self._resolve({0: "month, day_start", 4: "cost"})
 
 
 type ESC = ExpensesSortingConfig
@@ -54,32 +43,8 @@ def fetch_expenses(
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
-    with sq.connect(get_db_path(year)) as connection:
-        # enable column access by name
-        connection.row_factory = sq.Row
-        cursor = connection.cursor()
-
-        conditions: list[str] = []
-        params: list[int | str] = []
-        if month is not None:
-            conditions.append("month = ?")
-            params.append(month)
-        if category is not None:
-            conditions.append("category = ?")
-            params.append(category.name)
-
-        query = f"SELECT * FROM {EXPENSES_DB_NAME}"
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        if sort is not None:
-            query += f" ORDER BY {sort.sql_command}"
-
-        cursor.execute(query, params)
-
-        rows = cursor.fetchall()
-
-        for row in rows:
-            yield (row["id"], Expense.get_table_row(row))
+    extra_filter = ("category", category) if category is not None else None
+    return fetch_rows(year, EXPENSES_DB_NAME, Expense, sort=sort, month=month, extra_filter=extra_filter)
 
 
 def fetch_category(year: int, category: Categories) -> np.ndarray:
@@ -94,21 +59,4 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
     """
     logger.info("Called 'fetch_category'")
 
-    with sq.connect(get_db_path(year)) as connection:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            f"""
-            SELECT month, SUM(cost) FROM {EXPENSES_DB_NAME} 
-            WHERE category = ?
-            GROUP BY month
-            ORDER BY month ASC
-            """,
-            (category.name,),
-        )
-
-        monthly_total = np.zeros(12, dtype=np.float32)
-        for row in cursor.fetchall():
-            monthly_total[row[0] - 1] = row[1]
-
-        return monthly_total
+    return fetch_monthly_totals(year, EXPENSES_DB_NAME, "cost", "category", category)

@@ -8,6 +8,7 @@ from sqlite3 import Cursor, Row
 from types import UnionType
 from typing import ClassVar, Self, get_args, get_origin, get_type_hints
 
+import flet as ft
 from flet import DataCell
 from flet_datatable2 import DataColumn2
 from pydantic.dataclasses import dataclass
@@ -144,3 +145,17 @@ class DataContainer(ABC):
     @abstractmethod
     def get_table_columns() -> list[DataColumn2]:
         """Returns the flet columns to be used to display the database."""
+
+    @staticmethod
+    def month_column() -> DataColumn2:
+        """Returns the `:class:DataColumn2` shared by every subclass for the `month` field."""
+        return DataColumn2(
+            label=ft.Row(controls=[ft.Text("M")], tight=True, spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+            numeric=True,
+            fixed_width=80,
+        )
+
+    @staticmethod
+    def month_cell(row: Row) -> DataCell:
+        """Returns the `:class:DataCell` shared by every subclass for the `month` field."""
+        return DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER))

@@ -7,9 +7,12 @@ from logging import getLogger
 from pathlib import Path
 from typing import Literal, overload
 
+import numpy as np
+
 from _helpers.constants import APP_DIRECTORY
 
 from ..data_structures import DataContainer, Expense, Income, Transfer
+from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
 
@@ -36,6 +39,93 @@ def get_db_path(year: int) -> Path:
         Path: The path to the database file for `year`.
     """
     return APP_DIRECTORY / f"{year}_data.db"
+
+
+def fetch_rows(
+    year: int,
+    table_name: str,
+    target_cls: type[DataContainer],
+    sort: SortingConfig | None = None,
+    month: int | None = None,
+    extra_filter: tuple[str, Enum] | None = None,
+) -> RowGenerator:
+    """Fetches all the rows of a domain table, optionally filtered and sorted.
+
+    Args:
+        year (int): The year of the database to query.
+        table_name (str): The name of the table to query.
+        target_cls (type[`:class:DataContainer`]): The class whose `get_table_row` renders each row.
+        sort (`:class:SortingConfig` | None): If given, the rows get sorted accordingly.
+            Defaults to `None`.
+        month (int | None): The month to filter the table by. Defaults to `None`.
+        extra_filter (tuple[str, Enum] | None): An optional `(column_name, enum_member)` pair used
+            as an additional equality filter. Defaults to `None`.
+
+    Returns:
+        RowGenerator: The generator that yields the rows and the id of each item in the database.
+    """
+    with sq.connect(get_db_path(year)) as connection:
+        # enable column access by name
+        connection.row_factory = sq.Row
+        cursor = connection.cursor()
+
+        conditions: list[str] = []
+        params: list[int | str] = []
+        if month is not None:
+            conditions.append("month = ?")
+            params.append(month)
+        if extra_filter is not None:
+            column_name, value = extra_filter
+            conditions.append(f"{column_name} = ?")
+            params.append(value.name)
+
+        query = f"SELECT * FROM {table_name}"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        if sort is not None:
+            query += f" ORDER BY {sort.sql_command}"
+
+        cursor.execute(query, params)
+
+        for row in cursor.fetchall():
+            yield (row["id"], target_cls.get_table_row(row))
+
+
+def fetch_monthly_totals(
+    year: int, table_name: str, sum_column: str, filter_column: str, filter_value: Enum
+) -> np.ndarray:
+    """Fetches the per-month total of a numeric column, filtered by one enum column.
+
+    Args:
+        year (int): The year of the database to query.
+        table_name (str): The name of the table to query.
+        sum_column (str): The numeric column to sum.
+        filter_column (str): The enum column to filter by.
+        filter_value (Enum): The value to filter `filter_column` by.
+
+    Returns:
+        np.ndarray: An array of shape (12,) with the totals per month.
+    """
+    logger.info("Called 'fetch_monthly_totals'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"""
+            SELECT month, SUM({sum_column}) FROM {table_name}
+            WHERE {filter_column} = ?
+            GROUP BY month
+            ORDER BY month ASC
+            """,
+            (filter_value.name,),
+        )
+
+        monthly_total = np.zeros(12, dtype=np.float32)
+        for row in cursor.fetchall():
+            monthly_total[row[0] - 1] = row[1]
+
+        return monthly_total
 
 
 def initialize_db(year: int, db: WhichDb) -> None:
