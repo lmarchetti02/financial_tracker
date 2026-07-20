@@ -9,7 +9,7 @@ import numpy as np
 from _helpers.constants import EXPENSES_DB_NAME
 
 from ..data_structures import Categories, Expense
-from .generic import WhichDb, get_db_path
+from .generic import get_db_path
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -50,7 +50,7 @@ def fetch_expenses(year: int, sort: ESC | None = None, month: int | None = None)
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
-    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row
         cursor = connection.cursor()
@@ -82,7 +82,7 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
     """
     logger.info("Called 'fetch_category'")
 
-    with sq.connect(get_db_path(year, WhichDb.EXPENSES)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(

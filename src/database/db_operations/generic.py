@@ -26,17 +26,16 @@ _DB_TO_CLASS = {WhichDb.EXPENSES: Expense, WhichDb.INCOMES: Income, WhichDb.TRAN
 _CLASS_TO_DB = {Expense: WhichDb.EXPENSES, Income: WhichDb.INCOMES, Transfer: WhichDb.TRANSFERS}
 
 
-def get_db_path(year: int, db: WhichDb) -> Path:
-    """Returns the path to the desired database for the current year.
+def get_db_path(year: int) -> Path:
+    """Returns the path to the shared database file for the given year.
 
     Args:
         year (int): The desired year.
-        db (`:enum:WhichDb`): The db to fetch.
 
     Returns:
-        Path: The path to the desired database.
+        Path: The path to the database file for `year`.
     """
-    return Path.home() / APP_DIRECTORY / f"{year}_data.db"
+    return APP_DIRECTORY / f"{year}_data.db"
 
 
 def initialize_db(year: int, db: WhichDb) -> None:
@@ -49,7 +48,7 @@ def initialize_db(year: int, db: WhichDb) -> None:
     logger.info(f"Called 'initialize_db' for {db}.")
 
     # create database
-    db_path = get_db_path(year, db)
+    db_path = get_db_path(year)
     with sq.connect(db_path) as connection:
         # create cursor
         cursor = connection.cursor()
@@ -92,14 +91,20 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
 
     Returns:
         `:class:DataContainer`: The desired object.
+
+    Raises:
+        ValueError: If no row with `row_id` exists in the given db.
     """
     logger.info("Called 'fetch_by_id'")
 
-    with sq.connect(get_db_path(year, db)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(f"SELECT * FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ?", (row_id,))  # type: ignore
         fields = cursor.fetchone()
+
+        if fields is None:
+            raise ValueError(f"No item with id {row_id} found in '{_DB_TO_CLASS[db].db_name}'.")
 
         if db == WhichDb.EXPENSES:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
@@ -125,7 +130,7 @@ def add_item(year: int, item: DataContainer) -> None:
     if not db_enum:
         raise ValueError(f"Unsupported item type: {type(item)}")
 
-    with sq.connect(get_db_path(year, db_enum)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
 
         # get names and values
@@ -162,7 +167,7 @@ def remove_item(year: int, db: WhichDb, row_id: int) -> bool:
     """
     logger.info("Called 'remove_expense'")
 
-    with sq.connect(get_db_path(year, db)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
         cursor.execute(f"DELETE FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ? RETURNING *", (row_id,))  # type: ignore
 
@@ -182,7 +187,8 @@ def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) ->
         new (`:class:DataContainer`): The modified item.
 
     Returns:
-        bool: `True` if the operation succeeded, `False` if it didn't.
+        bool: `True` if the operation succeeded (including a no-op edit where nothing
+            differed between `old` and `new`), `False` if it didn't.
     """
     logger.info("Called 'edit_expense'")
 
@@ -197,7 +203,11 @@ def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) ->
     differences = old - new
     logger.debug(f"Differences:\n{differences}")
 
-    with sq.connect(get_db_path(year, db_enum)) as connection:
+    if not differences:
+        logger.debug("No differences between old and new; nothing to update.")
+        return True
+
+    with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
 
         # construct command based on differences

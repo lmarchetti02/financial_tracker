@@ -38,3 +38,62 @@ class TestTransfer:
         """A transfer without a source or a destination is rejected."""
         with pytest.raises(ValueError, match="source or a destination"):
             make_transfer(source=None, destination=None)
+
+    @pytest.mark.parametrize("month", [0, 13])
+    def test_construction_fails_for_out_of_range_month(self, month: int) -> None:
+        """A month outside 1-12 is rejected."""
+        with pytest.raises(ValueError):
+            make_transfer(month=month)
+
+    def test_construction_fails_for_non_positive_amount(self) -> None:
+        """An `amount` of zero (or below) is rejected."""
+        with pytest.raises(ValueError):
+            make_transfer(amount=0.0)
+
+
+class TestGetTableColumns:
+    """Tests for `Transfer.get_table_columns`."""
+
+    def test_returns_one_column_per_displayed_field(self) -> None:
+        """The table has one column each for month, kind, description, source, destination and amount."""
+        assert len(Transfer.get_table_columns()) == 6
+
+
+class TestGetTableRow:
+    """Tests for `Transfer.get_table_row`."""
+
+    def test_formats_a_transfer_with_a_source_and_destination(self) -> None:
+        """The kind, source and destination are all formatted for display."""
+        row = {
+            "month": 3,
+            "kind": "LOAN",
+            "description": "borrowed money",
+            "source": "Bank A",
+            "destination": "Bank B",
+            "amount": 100.0,
+        }
+
+        cells = Transfer.get_table_row(row)
+
+        assert cells[0].content.content.value == "3"
+        assert cells[1].content.value == "Loan"
+        assert cells[2].content.value == "borrowed money"
+        assert cells[3].content.value == "Bank a"
+        assert cells[4].content.value == "Bank b"
+        assert cells[5].content.value == "100.00"
+
+    def test_formats_a_missing_source_or_destination_as_an_em_dash(self) -> None:
+        """A `None` source or destination renders as an em dash rather than the string "None"."""
+        row = {
+            "month": 3,
+            "kind": "CREDIT",
+            "description": "borrowed money",
+            "source": None,
+            "destination": "Bank B",
+            "amount": 100.0,
+        }
+
+        cells = Transfer.get_table_row(row)
+
+        assert cells[3].content.value == "—"
+        assert cells[4].content.value == "Bank b"

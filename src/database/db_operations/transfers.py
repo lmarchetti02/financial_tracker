@@ -7,7 +7,7 @@ from logging import getLogger
 from _helpers.constants import TRANSFERS_DB_NAME
 
 from ..data_structures import Transfer
-from .generic import WhichDb, get_db_path
+from .generic import get_db_path
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -49,7 +49,7 @@ def fetch_transfers(year: int, sort: TSC | None = None, month: int | None = None
             and the id of the transfers in the database.
     """
     logger.info("Called 'fetch_transfers'")
-    with sq.connect(get_db_path(year, WhichDb.TRANSFERS)) as connection:
+    with sq.connect(get_db_path(year)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row
         cursor = connection.cursor()
