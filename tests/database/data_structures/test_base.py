@@ -4,7 +4,7 @@ import sqlite3 as sq
 
 from database.data_structures.expense import Categories, Expense
 from database.data_structures.income import Income, Sources
-from database.data_structures.transfer import Transfer
+from database.data_structures.transfer import Kind, Transfer
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -153,6 +153,34 @@ class TestMonthCell:
         cell = Expense.month_cell({"month": 6})
 
         assert cell.content.content.value == "6"
+
+
+class TestStrFieldWhitespace:
+    """Tests for leading/trailing whitespace stripping on `str` fields."""
+
+    def test_strips_a_required_str_field(self) -> None:
+        """Leading/trailing whitespace is stripped from a required `str` field."""
+        expense = make_expense(description="  groceries  ")
+
+        assert expense.description == "groceries"
+
+    def test_strips_an_optional_str_field(self) -> None:
+        """Leading/trailing whitespace is stripped from an `str | None` field."""
+        transfer = Transfer(month=1, kind=Kind.LOAN, description="loan", source="  Bank A  ", amount=50.0)
+
+        assert transfer.source == "Bank A"
+
+    def test_leaves_a_none_optional_str_field_untouched(self) -> None:
+        """A `None` value for an `str | None` field is left as `None`."""
+        transfer = Transfer(month=1, kind=Kind.LOAN, description="loan", source="Bank A", destination=None, amount=50.0)
+
+        assert transfer.destination is None
+
+    def test_preserves_internal_whitespace(self) -> None:
+        """Only leading/trailing whitespace is stripped; internal whitespace is untouched."""
+        expense = make_expense(description="  weekly  groceries  ")
+
+        assert expense.description == "weekly  groceries"
 
 
 class TestSub:

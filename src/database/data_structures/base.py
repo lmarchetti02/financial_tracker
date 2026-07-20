@@ -11,6 +11,7 @@ from typing import ClassVar, Self, get_args, get_origin, get_type_hints
 import flet as ft
 from flet import DataCell
 from flet_datatable2 import DataColumn2
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
@@ -44,7 +45,7 @@ def _convert_types(t: type) -> str:
     return " ".join(sqlite_str)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(config=ConfigDict(str_strip_whitespace=True), frozen=True, kw_only=True)
 class DataContainer(ABC):
     """Class representing a generic data container used in the app."""
 

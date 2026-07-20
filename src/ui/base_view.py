@@ -85,6 +85,7 @@ class BaseCrudView(ft.Column, ABC):
             horizontal_lines=v_lines,
             heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
             heading_row_color=self._heading_color,
+            sort_arrow_icon_color=ft.Colors.WHITE,
             heading_row_height=35,
             horizontal_margin=0,
             column_spacing=15,

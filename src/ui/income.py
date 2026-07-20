@@ -60,7 +60,7 @@ class IncomeView(BaseCrudView):
         columns = db.Income.get_table_columns()
         columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
         columns[0].on_sort = self.sort_columns
-        columns[2].on_sort = self.sort_columns
+        columns[3].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
         columns[2].label.controls.append(self._build_enum_filter_menu(db.Sources, "Filter source"))  # type: ignore

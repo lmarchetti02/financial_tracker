@@ -26,13 +26,13 @@ class TestIncomesSortingConfig:
         assert config.sql_command == "month ASC"
 
     def test_sorts_by_amount_descending(self) -> None:
-        """Column 2 sorts by amount in the requested direction."""
-        config = IncomesSortingConfig(col_id=2, ascending=False)
+        """Column 3 sorts by amount in the requested direction."""
+        config = IncomesSortingConfig(col_id=3, ascending=False)
 
         assert config.sql_command == "amount DESC"
 
     def test_rejects_an_unsortable_column(self) -> None:
-        """A column ID other than 0 or 2 is not sortable."""
+        """A column ID other than 0 or 3 is not sortable."""
         with pytest.raises(ValueError, match="cannot sort"):
             IncomesSortingConfig(col_id=1, ascending=True)
 
@@ -65,7 +65,7 @@ class TestFetchIncomes:
         initialize_db(YEAR, WhichDb.INCOMES)
         add_item(YEAR, make_income(amount=300.0))
         add_item(YEAR, make_income(amount=100.0))
-        sort = IncomesSortingConfig(col_id=2, ascending=True)
+        sort = IncomesSortingConfig(col_id=3, ascending=True)
 
         ids = [row_id for row_id, _ in fetch_incomes(YEAR, sort=sort)]
 

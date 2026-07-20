@@ -19,7 +19,7 @@ class IncomesSortingConfig(SortingConfig):
     """Defines how the expenses are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
-        self._resolve({0: "month", 2: "amount"})
+        self._resolve({0: "month", 3: "amount"})
 
 
 type ISC = IncomesSortingConfig
