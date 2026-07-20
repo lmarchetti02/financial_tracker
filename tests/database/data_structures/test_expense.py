@@ -83,8 +83,8 @@ class TestGetTableRow:
 
         assert cells[0].content.content.value == "6"
         assert cells[1].content.content.value == "10"
-        assert cells[2].content.value == "groceries"
-        assert cells[3].content.value == "Food and drinks"
+        assert cells[2].content.value == "Food and drinks"
+        assert cells[3].content.value == "groceries"
         assert cells[4].content.value == "25.50"
 
     def test_formats_a_multi_day_expense_as_a_range(self) -> None:

@@ -78,8 +78,8 @@ class Expense(DataContainer):
                 fixed_width=80,
             ),
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=100),
-            DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
             DataColumn2(label=ft.Row(controls=[ft.Text("Category")], tight=True, spacing=5), fixed_width=200),
+            DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
             DataColumn2(label=ft.Text("Cost (€)"), numeric=True, fixed_width=100),
         ]
 
@@ -92,7 +92,7 @@ class Expense(DataContainer):
         return [
             ft.DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER)),
             ft.DataCell(ft.Container(ft.Text(days), alignment=ft.Alignment.CENTER)),
-            ft.DataCell(ft.Text(str(row["description"]))),
             ft.DataCell(ft.Text(str(row["category"]).lower().capitalize().replace("_", " "))),
+            ft.DataCell(ft.Text(str(row["description"]))),
             ft.DataCell(ft.Text(f"{row['cost']:.2f}")),
         ]

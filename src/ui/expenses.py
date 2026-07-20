@@ -143,7 +143,7 @@ class ExpensesView(ft.Column):
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_categories)],
         )
-        columns[3].label.controls.append(category_filter_menu)  # type: ignore
+        columns[2].label.controls.append(category_filter_menu)  # type: ignore
 
         borders = ft.BorderSide(width=2)
         v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
