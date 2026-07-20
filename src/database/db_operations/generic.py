@@ -9,7 +9,7 @@ from typing import Literal, overload
 
 from helpers.constants import APP_DIRECTORY
 
-from ..data_structures import DataContainer, Expense, Income
+from ..data_structures import DataContainer, Expense, Income, Transfer
 
 logger = getLogger("financial_tracker")
 
@@ -19,10 +19,11 @@ class WhichDb(Enum):
 
     EXPENSES = auto()
     INCOMES = auto()
+    TRANSFERS = auto()
 
 
-_DB_TO_CLASS = {WhichDb.EXPENSES: Expense, WhichDb.INCOMES: Income}
-_CLASS_TO_DB = {Expense: WhichDb.EXPENSES, Income: WhichDb.INCOMES}
+_DB_TO_CLASS = {WhichDb.EXPENSES: Expense, WhichDb.INCOMES: Income, WhichDb.TRANSFERS: Transfer}
+_CLASS_TO_DB = {Expense: WhichDb.EXPENSES, Income: WhichDb.INCOMES, Transfer: WhichDb.TRANSFERS}
 
 
 def get_db_path(year: int, db: WhichDb) -> Path:
@@ -63,6 +64,8 @@ def initialize_db(year: int, db: WhichDb) -> None:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")
         elif db == WhichDb.INCOMES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_source ON {db_name}(source)")
+        elif db == WhichDb.TRANSFERS:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_kind ON {db_name}(kind)")
 
         logger.debug(f"Created table '{db_name}' inside {db_path} if it didn't already exist.")
 
@@ -73,6 +76,10 @@ def fetch_by_id(year: int, db: Literal[WhichDb.EXPENSES], row_id: int) -> Expens
 
 @overload
 def fetch_by_id(year: int, db: Literal[WhichDb.INCOMES], row_id: int) -> Income: ...
+
+
+@overload
+def fetch_by_id(year: int, db: Literal[WhichDb.TRANSFERS], row_id: int) -> Transfer: ...
 
 
 def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
@@ -97,6 +104,8 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
         if db == WhichDb.EXPENSES:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         elif db == WhichDb.INCOMES:
+            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        elif db == WhichDb.TRANSFERS:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         logger.debug(f"Object retrieved by ID:\n{data}")
 

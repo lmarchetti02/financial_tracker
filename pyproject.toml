@@ -36,4 +36,4 @@ path = "src"
 minversion = "9.0"
 addopts = "-s -vv -x"
 testpaths = ["tests"]
-pythonpath = "."
+pythonpath = "src"

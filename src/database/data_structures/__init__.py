@@ -3,3 +3,4 @@
 from .base import DataContainer
 from .expense import Categories, Expense
 from .income import Income, Sources
+from .transfer import Kind, Transfer

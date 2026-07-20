@@ -8,5 +8,6 @@ DEBUGGING = getenv("DEBUGGING", "False").lower() == "true"
 APP_DIRECTORY = Path.home() / ".financial_tracker"
 EXPENSES_DB_NAME = "expenses"
 INCOME_DB_NAME = "income"
+TRANSFERS_DB_NAME = "transfers"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

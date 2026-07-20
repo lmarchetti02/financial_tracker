@@ -11,6 +11,7 @@ from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view
 from ui.portfolio import portfolio_view
+from ui.transfers import transfers_view
 from ui.welcome import welcome_page
 
 logger = getLogger("financial_tracker")
@@ -34,8 +35,11 @@ def startup_layout(page: ft.Page) -> None:
                 main_content.content = income_view(page)
                 logger.debug("Income view selected")
             case 3:
+                main_content.content = transfers_view(page)
+                logger.debug("Transfers view selected")
+            case 4:
                 main_content.content = portfolio_view()
-                logger.debug("Settings view selected")
+                logger.debug("Net worth view selected")
             case _:
                 return
 
