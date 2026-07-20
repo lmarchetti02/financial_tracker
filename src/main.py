@@ -5,8 +5,8 @@ from logging import getLogger
 import flet as ft
 
 from database.db_operations import WhichDb, initialize_db
-from helpers import setup_logger
-from helpers.constants import APP_DIRECTORY
+from _helpers import setup_logger
+from _helpers.constants import APP_DIRECTORY
 from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view

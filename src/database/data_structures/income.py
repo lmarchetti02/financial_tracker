@@ -9,7 +9,7 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from helpers.constants import INCOME_DB_NAME
+from _helpers.constants import INCOME_DB_NAME
 
 from .base import DataContainer
 

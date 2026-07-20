@@ -10,7 +10,7 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
-from helpers.constants import EXPENSES_DB_NAME
+from _helpers.constants import EXPENSES_DB_NAME
 
 from .base import DataContainer
 

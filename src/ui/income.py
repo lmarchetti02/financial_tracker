@@ -8,7 +8,7 @@ import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
-from helpers.constants import MONTHS
+from _helpers.constants import MONTHS
 
 logger = getLogger("financial_tracker")
 

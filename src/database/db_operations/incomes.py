@@ -4,7 +4,7 @@ import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
-from helpers.constants import INCOME_DB_NAME
+from _helpers.constants import INCOME_DB_NAME
 
 from ..data_structures import Income
 from .generic import WhichDb, get_db_path

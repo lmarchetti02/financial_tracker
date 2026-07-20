@@ -6,7 +6,7 @@ from logging import getLogger
 
 import numpy as np
 
-from helpers.constants import EXPENSES_DB_NAME
+from _helpers.constants import EXPENSES_DB_NAME
 
 from ..data_structures import Categories, Expense
 from .generic import WhichDb, get_db_path
