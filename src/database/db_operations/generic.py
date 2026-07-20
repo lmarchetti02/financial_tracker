@@ -71,16 +71,10 @@ def initialize_db(year: int, db: WhichDb) -> None:
 
 @overload
 def fetch_by_id(year: int, db: Literal[WhichDb.EXPENSES], row_id: int) -> Expense: ...
-
-
 @overload
 def fetch_by_id(year: int, db: Literal[WhichDb.INCOMES], row_id: int) -> Income: ...
-
-
 @overload
 def fetch_by_id(year: int, db: Literal[WhichDb.TRANSFERS], row_id: int) -> Transfer: ...
-
-
 def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
     """Fetches the expense with the desired ID.
 
