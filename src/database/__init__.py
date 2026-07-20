@@ -21,6 +21,7 @@ from .db_operations import edit_item as edit_item
 from .db_operations import fetch_by_id as fetch_by_id
 from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_expenses as fetch_expenses
+from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
 from .db_operations import fetch_incomes as fetch_incomes
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_transfers as fetch_transfers

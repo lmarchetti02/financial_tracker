@@ -55,6 +55,7 @@ class IncomeView(BaseCrudView):
 
         # button
         self.add_income_button = ft.Button("Add Income", on_click=self.add_new_income)
+        self.clear_button = self._build_clear_button()
 
         # data table
         columns = db.Income.get_table_columns()
@@ -100,7 +101,7 @@ class IncomeView(BaseCrudView):
             ft.Container(height=40),
             upper_row,
             self.description_text,
-            self.add_income_button,
+            ft.Row([self.add_income_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=10),
             self.table_column,
             ft.Row([self.summary_button, self.pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
@@ -216,9 +217,7 @@ class IncomeView(BaseCrudView):
                 show_alert(self._page, "Error modifying income", f"It was not possible to modify income {income_id}")
 
             self.clear_inputs()
-            self.add_income_button.content = "Add Income"
-            self.add_income_button.color = None
-            self.add_income_button.on_click = self.add_new_income
+            self.reset_add_button()
 
             self.refresh_table()
 
@@ -234,9 +233,7 @@ class IncomeView(BaseCrudView):
         income_id = e.control.data
         income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id)
 
-        self.add_income_button.content = "Add Income"
-        self.add_income_button.color = None
-        self.add_income_button.on_click = self.add_new_income
+        self.reset_add_button()
 
         self.fill_inputs_from_income(income)
 
@@ -246,6 +243,12 @@ class IncomeView(BaseCrudView):
         self.source_picker.value = str(income.source.value)
         self.amount_text.value = f"{income.amount:.2f}"
         self.description_text.value = income.description
+
+    def reset_add_button(self) -> None:
+        """Resets the add button to its base "Add Income" state."""
+        self.add_income_button.content = "Add Income"
+        self.add_income_button.color = None
+        self.add_income_button.on_click = self.add_new_income
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches incomes matching the current sort and filters."""

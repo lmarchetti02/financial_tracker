@@ -46,6 +46,7 @@ class TransfersView(BaseCrudView):
             label="Kind",
             options=KINDS,
             on_text_change=lambda _: setattr(self.kind_picker, "error_text", None),
+            on_select=self.handle_kind_change,
             width=180,
         )
 
@@ -61,9 +62,11 @@ class TransfersView(BaseCrudView):
 
         # fee
         self.fee_text = ft.TextField(label="Fee (€)", width=120)
+        self.update_fee_field_state()
 
         # button
         self.add_transfer_button = ft.Button("Add Transfer", on_click=self.add_new_transfer)
+        self.clear_button = self._build_clear_button()
 
         # data table
         columns = db.Transfer.get_table_columns()
@@ -113,7 +116,7 @@ class TransfersView(BaseCrudView):
             upper_row,
             source_destination_row,
             description_row,
-            self.add_transfer_button,
+            ft.Row([self.add_transfer_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=10),
             self.table_column,
         ]
@@ -126,6 +129,20 @@ class TransfersView(BaseCrudView):
         """Updates the button text when a user picks a date."""
         if self.date_picker.value:
             self.date_button.content = self.date_picker.value.astimezone().strftime("%d/%m")
+        self._page.update()
+
+    def update_fee_field_state(self) -> None:
+        """Enables the fee field only when the selected kind is `:enum:Kind.INVESTMENT`."""
+        self.fee_text.disabled = self.kind_picker.value != str(db.Kind.INVESTMENT.value)
+
+    def handle_kind_change(self, _: ft.Event) -> None:
+        """Clears the kind error text and updates the fee field's enabled state."""
+        self.kind_picker.error_text = None
+
+        self.update_fee_field_state()
+        if self.fee_text.disabled:
+            self.fee_text.value = ""
+
         self._page.update()
 
     def get_transfer_from_inputs(self) -> db.Transfer | None:
@@ -210,6 +227,7 @@ class TransfersView(BaseCrudView):
         self.kind_picker.value = None
         self.amount_text.value = ""
         self.fee_text.value = ""
+        self.update_fee_field_state()
         self.source_text.value = ""
         self.destination_text.value = ""
         logger.debug("Cleared transfer data")
@@ -318,9 +336,7 @@ class TransfersView(BaseCrudView):
                 )
 
             self.clear_inputs()
-            self.add_transfer_button.content = "Add Transfer"
-            self.add_transfer_button.color = None
-            self.add_transfer_button.on_click = self.add_new_transfer
+            self.reset_add_button()
 
             self.refresh_table()
 
@@ -336,22 +352,27 @@ class TransfersView(BaseCrudView):
         transfer_id = e.control.data
         transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id)
 
+        self.reset_add_button()
+
+        self.fill_inputs_from_transfer(transfer, e)
+
+    def reset_add_button(self) -> None:
+        """Resets the add button to its base "Add Transfer" state."""
         self.add_transfer_button.content = "Add Transfer"
         self.add_transfer_button.color = None
         self.add_transfer_button.on_click = self.add_new_transfer
 
-        self.fill_inputs_from_transfer(transfer, e)
-
     def fill_inputs_from_transfer(self, transfer: db.Transfer, e: ft.Event) -> None:
         """Populates the add-transfer controls with an existing transfer's values."""
         self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
-        self.update_date_text(e)
         self.kind_picker.value = str(transfer.kind.value)
+        self.update_fee_field_state()
         self.amount_text.value = f"{transfer.amount:.2f}"
         self.fee_text.value = f"{transfer.fee:.2f}" if transfer.fee is not None else ""
         self.description_text.value = transfer.description
         self.source_text.value = transfer.source or ""
         self.destination_text.value = transfer.destination or ""
+        self.update_date_text(e)
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches transfers matching the current sort and filters."""

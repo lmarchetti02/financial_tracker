@@ -73,6 +73,24 @@ class BaseCrudView(ft.Column, ABC):
     def copy_this_item(self, e: ft.Event) -> None:
         """Prefills the add form from the row identified by `e.control.data`."""
 
+    @abstractmethod
+    def clear_inputs(self) -> None:
+        """Clears the add-item input controls."""
+
+    @abstractmethod
+    def reset_add_button(self) -> None:
+        """Resets the add button to its base "Add ..." label, color, and click handler."""
+
+    def _handle_clear_click(self, _: ft.Event) -> None:
+        """Clears the add-item inputs, resets the add button, and pushes the change to the page."""
+        self.clear_inputs()
+        self.reset_add_button()
+        self._page.update()
+
+    def _build_clear_button(self) -> ft.Button:
+        """Builds the "Clear Fields" button shared by every subclass."""
+        return ft.Button("Clear Fields", on_click=self._handle_clear_click)
+
     def _build_data_table(self, columns: list[DataColumn2]) -> DataTable2:
         """Builds the `:class:DataTable2` shared by every subclass, styled with `_heading_color`."""
         borders = ft.BorderSide(width=2)
@@ -126,15 +144,44 @@ class BaseCrudView(ft.Column, ABC):
             + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_enum)],
         )
 
+    def _is_readonly(self, row_id: int) -> bool:
+        """Whether the row's edit/copy/delete buttons should be disabled. Overridable per domain."""
+        return False
+
     def _build_action_buttons(self, row_id: int) -> list[ft.Control]:
         """Builds the edit/copy/delete button triplet shared by every subclass's rows."""
+        disabled = self._is_readonly(row_id)
+        tooltip = "Managed from the Transfers page" if disabled else None
+
         edit_btn = ft.Button(
-            icon=ft.Icons.EDIT, width=50, height=30, data=row_id, on_click=self.edit_this_item, color=ft.Colors.BLUE
+            icon=ft.Icons.EDIT,
+            width=50,
+            height=30,
+            data=row_id,
+            on_click=self.edit_this_item,
+            color=None if disabled else ft.Colors.BLUE,
+            disabled=disabled,
+            tooltip=tooltip,
         )
         copy_btn = ft.Button(
-            icon=ft.Icons.COPY, width=50, height=30, data=row_id, on_click=self.copy_this_item, color=ft.Colors.GREEN
+            icon=ft.Icons.COPY,
+            width=50,
+            height=30,
+            data=row_id,
+            on_click=self.copy_this_item,
+            color=None if disabled else ft.Colors.GREEN,
+            disabled=disabled,
+            tooltip=tooltip,
         )
-        delete_btn = ft.Button(icon=ft.Icons.DELETE, width=50, height=30, data=row_id, on_click=self.delete_item)
+        delete_btn = ft.Button(
+            icon=ft.Icons.DELETE,
+            width=50,
+            height=30,
+            data=row_id,
+            on_click=self.delete_item,
+            disabled=disabled,
+            tooltip=tooltip,
+        )
         return [edit_btn, copy_btn, delete_btn]
 
     def refresh_table(self) -> None:

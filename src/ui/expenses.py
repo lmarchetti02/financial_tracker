@@ -66,6 +66,7 @@ class ExpensesView(BaseCrudView):
 
         # button
         self.add_expense_button = ft.Button("Add Expense", on_click=self.add_new_expense)
+        self.clear_button = self._build_clear_button()
 
         # data table
         columns = db.Expense.get_table_columns()
@@ -112,7 +113,7 @@ class ExpensesView(BaseCrudView):
             ft.Container(height=40),
             upper_row,
             self.description_text,
-            self.add_expense_button,
+            ft.Row([self.add_expense_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=10),
             self.table_column,
             ft.Row([self.summary_button, self.pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
@@ -291,9 +292,7 @@ class ExpensesView(BaseCrudView):
                 show_alert(self._page, "Error modifying expense", f"It was not possible to modify expense {expense_id}")
 
             self.clear_inputs()
-            self.add_expense_button.content = "Add Expense"
-            self.add_expense_button.color = None
-            self.add_expense_button.on_click = self.add_new_expense
+            self.reset_add_button()
 
             self.refresh_table()
 
@@ -309,11 +308,15 @@ class ExpensesView(BaseCrudView):
         expense_id = e.control.data
         expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
 
+        self.reset_add_button()
+
+        self.fill_inputs_from_expense(expense, e)
+
+    def reset_add_button(self) -> None:
+        """Resets the add button to its base "Add Expense" state."""
         self.add_expense_button.content = "Add Expense"
         self.add_expense_button.color = None
         self.add_expense_button.on_click = self.add_new_expense
-
-        self.fill_inputs_from_expense(expense, e)
 
     def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
         """Populates the add-expense controls with an existing expense's values."""
@@ -333,7 +336,12 @@ class ExpensesView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches expenses matching the current sort and filters."""
+        self._fee_expense_ids = db.fetch_fee_expense_ids(self.year)
         return db.fetch_expenses(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
+
+    def _is_readonly(self, row_id: int) -> bool:
+        """An expense generated from a transfer's fee is only editable from the Transfers page."""
+        return row_id in self._fee_expense_ids
 
 
 def expenses_view(page: ft.Page) -> ft.Control:
