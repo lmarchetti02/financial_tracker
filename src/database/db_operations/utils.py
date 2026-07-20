@@ -1,3 +1,5 @@
+"""Helper classes and types shared by the domain-specific `db_operations` modules."""
+
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from dataclasses import dataclass, field

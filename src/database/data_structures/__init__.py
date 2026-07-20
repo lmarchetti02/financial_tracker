@@ -1,6 +1,9 @@
 """Implementation of the necessary data structures."""
 
-from .base import DataContainer
-from .expense import Categories, Expense
-from .income import Income, Sources
-from .transfer import Kind, Transfer
+from .base import DataContainer as DataContainer
+from .expense import Categories as Categories
+from .expense import Expense as Expense
+from .income import Income as Income
+from .income import Sources as Sources
+from .transfer import Kind as Kind
+from .transfer import Transfer as Transfer

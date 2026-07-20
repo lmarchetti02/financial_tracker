@@ -1,4 +1,28 @@
 """Handles the backend of the application."""
 
-from .data_structures import *
-from .db_operations import *
+from .data_structures import Categories as Categories
+from .data_structures import DataContainer as DataContainer
+from .data_structures import Expense as Expense
+from .data_structures import Income as Income
+from .data_structures import Kind as Kind
+from .data_structures import Sources as Sources
+from .data_structures import Transfer as Transfer
+from .db_operations import ESC as ESC
+from .db_operations import ISC as ISC
+from .db_operations import RowGenerator as RowGenerator
+from .db_operations import TSC as TSC
+from .db_operations import ExpensesSortingConfig as ExpensesSortingConfig
+from .db_operations import IncomesSortingConfig as IncomesSortingConfig
+from .db_operations import SortingConfig as SortingConfig
+from .db_operations import TransfersSortingConfig as TransfersSortingConfig
+from .db_operations import WhichDb as WhichDb
+from .db_operations import add_item as add_item
+from .db_operations import edit_item as edit_item
+from .db_operations import fetch_by_id as fetch_by_id
+from .db_operations import fetch_category as fetch_category
+from .db_operations import fetch_expenses as fetch_expenses
+from .db_operations import fetch_incomes as fetch_incomes
+from .db_operations import fetch_source as fetch_source
+from .db_operations import fetch_transfers as fetch_transfers
+from .db_operations import initialize_db as initialize_db
+from .db_operations import remove_item as remove_item
