@@ -78,7 +78,7 @@ class IncomeView(ft.Column):
 
         # source
         self.source_picker = ft.Dropdown(
-            label="Category",
+            label="Source",
             options=SOURCES,
             on_text_change=lambda _: setattr(self.source_picker, "error_text", None),
             width=220,
