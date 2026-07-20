@@ -75,16 +75,11 @@ class Transfer(DataContainer):
 
     @staticmethod
     def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
-        source = str(row["source"]).lower().capitalize().replace("_", " ") if row["source"] is not None else "—"
-        destination = (
-            str(row["destination"]).lower().capitalize().replace("_", " ") if row["destination"] is not None else "—"
-        )
-
         return [
             ft.DataCell(ft.Container(ft.Text(str(row["month"])), alignment=ft.Alignment.CENTER)),
             ft.DataCell(ft.Text(str(row["kind"]).lower().capitalize().replace("_", " "))),
             ft.DataCell(ft.Text(f"{row['description']}")),
-            ft.DataCell(ft.Text(source)),
-            ft.DataCell(ft.Text(destination)),
+            ft.DataCell(ft.Text(row["source"])),
+            ft.DataCell(ft.Text(row["destination"])),
             ft.DataCell(ft.Text(f"{row['amount']:.2f}")),
         ]
