@@ -1,7 +1,10 @@
 """Unit tests for the `:class:DataContainer` class."""
 
+import sqlite3 as sq
+
 from database.data_structures.expense import Categories, Expense
 from database.data_structures.income import Income, Sources
+from database.data_structures.transfer import Transfer
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -44,6 +47,64 @@ class TestCreateTable:
 
         assert "day_end INTEGER" in cmd
         assert "day_end INTEGER NOT NULL" not in cmd
+
+
+class TestAddMissingColumns:
+    """Tests for `DataContainer.add_missing_columns`."""
+
+    def _legacy_transfers_table(self, cursor: sq.Cursor) -> None:
+        """Creates a `transfers` table using the schema that predates `day`/`fee`/`fee_expense_id`."""
+        cursor.execute(
+            "CREATE TABLE transfers ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "month INTEGER NOT NULL, "
+            "kind TEXT NOT NULL, "
+            "description TEXT NOT NULL, "
+            "source TEXT, "
+            "destination TEXT, "
+            "amount REAL NOT NULL)"
+        )
+        cursor.execute(
+            "INSERT INTO transfers (month, kind, description, source, destination, amount) "
+            "VALUES (3, 'LOAN', 'legacy transfer', 'Bank A', NULL, 50.0)"
+        )
+
+    def test_adds_columns_missing_from_an_existing_table(self) -> None:
+        """Fields present on the dataclass but absent from the table are added."""
+        with sq.connect(":memory:") as connection:
+            cursor = connection.cursor()
+            self._legacy_transfers_table(cursor)
+
+            Transfer.add_missing_columns(cursor)
+
+            columns = {row[1] for row in cursor.execute("PRAGMA table_info(transfers)")}
+
+        assert {"day", "fee", "fee_expense_id"} <= columns
+
+    def test_is_idempotent(self) -> None:
+        """Calling it again once the columns already exist does not raise."""
+        with sq.connect(":memory:") as connection:
+            cursor = connection.cursor()
+            self._legacy_transfers_table(cursor)
+
+            Transfer.add_missing_columns(cursor)
+            Transfer.add_missing_columns(cursor)  # must not raise
+
+    def test_backfills_a_not_null_column_with_its_dataclass_default(self) -> None:
+        """A `NOT NULL` column added via migration is backfilled so existing rows stay valid."""
+        with sq.connect(":memory:") as connection:
+            connection.row_factory = sq.Row
+            cursor = connection.cursor()
+            self._legacy_transfers_table(cursor)
+
+            Transfer.add_missing_columns(cursor)
+
+            row = cursor.execute("SELECT * FROM transfers WHERE id = 1").fetchone()
+
+        transfer = Transfer.init_from_tuple(tuple(row)[1:])
+        assert transfer.day == 1
+        assert transfer.fee is None
+        assert transfer.fee_expense_id is None
 
 
 class TestInitFromTuple:

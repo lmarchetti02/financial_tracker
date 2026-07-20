@@ -45,55 +45,97 @@ class TestTransfer:
         with pytest.raises(ValueError):
             make_transfer(month=month)
 
+    @pytest.mark.parametrize("day", [0, 32])
+    def test_construction_fails_for_out_of_range_day(self, day: int) -> None:
+        """A day outside 1-31 is rejected."""
+        with pytest.raises(ValueError):
+            make_transfer(day=day)
+
     def test_construction_fails_for_non_positive_amount(self) -> None:
         """An `amount` of zero (or below) is rejected."""
         with pytest.raises(ValueError):
             make_transfer(amount=0.0)
+
+    def test_construction_fails_for_non_positive_fee(self) -> None:
+        """A `fee` of zero (or below) is rejected."""
+        with pytest.raises(ValueError):
+            make_transfer(fee=0.0)
+
+    def test_day_fee_and_fee_expense_id_default_sensibly(self) -> None:
+        """`day` defaults to 1 and `fee`/`fee_expense_id` default to `None` when omitted."""
+        transfer = make_transfer()
+
+        assert transfer.day == 1
+        assert transfer.fee is None
+        assert transfer.fee_expense_id is None
 
 
 class TestGetTableColumns:
     """Tests for `Transfer.get_table_columns`."""
 
     def test_returns_one_column_per_displayed_field(self) -> None:
-        """The table has one column each for month, kind, description, source, destination and amount."""
-        assert len(Transfer.get_table_columns()) == 6
+        """The table has one column each for month, day, kind, description, source, destination, amount and fee."""
+        assert len(Transfer.get_table_columns()) == 8
 
 
 class TestGetTableRow:
     """Tests for `Transfer.get_table_row`."""
 
     def test_formats_a_transfer_with_a_source_and_destination(self) -> None:
-        """The kind, source and destination are all formatted for display."""
+        """The day, kind, source and destination are all formatted for display."""
         row = {
             "month": 3,
+            "day": 15,
             "kind": "LOAN",
             "description": "borrowed money",
             "source": "Bank A",
             "destination": "Bank B",
             "amount": 100.0,
+            "fee": None,
         }
 
         cells = Transfer.get_table_row(row)
 
         assert cells[0].content.content.value == "3"
-        assert cells[1].content.value == "Loan"
-        assert cells[2].content.value == "borrowed money"
-        assert cells[3].content.value == "Bank a"
-        assert cells[4].content.value == "Bank b"
-        assert cells[5].content.value == "100.00"
+        assert cells[1].content.content.value == "15"
+        assert cells[2].content.value == "Loan"
+        assert cells[3].content.value == "borrowed money"
+        assert cells[4].content.value == "Bank A"
+        assert cells[5].content.value == "Bank B"
+        assert cells[6].content.value == "100.00"
+        assert cells[7].content.value == "—"
 
     def test_formats_a_missing_source_or_destination_as_an_em_dash(self) -> None:
         """A `None` source or destination renders as an em dash rather than the string "None"."""
         row = {
             "month": 3,
+            "day": 15,
             "kind": "CREDIT",
             "description": "borrowed money",
             "source": None,
             "destination": "Bank B",
             "amount": 100.0,
+            "fee": None,
         }
 
         cells = Transfer.get_table_row(row)
 
-        assert cells[3].content.value == "—"
-        assert cells[4].content.value == "Bank b"
+        assert cells[4].content.value == "—"
+        assert cells[5].content.value == "Bank B"
+
+    def test_formats_a_set_fee(self) -> None:
+        """A non-`None` fee is formatted like any other currency value."""
+        row = {
+            "month": 3,
+            "day": 15,
+            "kind": "INVESTMENT",
+            "description": "bought shares",
+            "source": "Bank A",
+            "destination": None,
+            "amount": 100.0,
+            "fee": 1.5,
+        }
+
+        cells = Transfer.get_table_row(row)
+
+        assert cells[7].content.value == "1.50"

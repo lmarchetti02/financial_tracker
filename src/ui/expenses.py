@@ -107,7 +107,7 @@ class ExpensesView(ft.Column):
 
         # data table
         columns = db.Expense.get_table_columns()
-        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
+        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
         columns[0].on_sort = self.sort_columns
         columns[4].on_sort = self.sort_columns
 
@@ -366,16 +366,32 @@ class ExpensesView(ft.Column):
         self.add_expense_button.color = ft.Colors.PURPLE
         self.add_expense_button.on_click = modify
 
-        self.category_picker.value = str(old_expense.category.value)
-        self.cost_text.value = f"{old_expense.cost:.2f}"
-        self.description_text.value = old_expense.description
+        self.fill_inputs_from_expense(old_expense, e)
 
-        if old_expense.day_end is not None:
+    def copy_this_expense(self, e: ft.Event) -> None:
+        """Prefills the add-expense form from an existing expense, to add it as a new entry."""
+        logger.info("Called 'copy_this_expense'")
+        expense_id = e.control.data
+        expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
+
+        self.add_expense_button.content = "Add Expense"
+        self.add_expense_button.color = None
+        self.add_expense_button.on_click = self.add_new_expense
+
+        self.fill_inputs_from_expense(expense, e)
+
+    def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
+        """Populates the add-expense controls with an existing expense's values."""
+        self.category_picker.value = str(expense.category.value)
+        self.cost_text.value = f"{expense.cost:.2f}"
+        self.description_text.value = expense.description
+
+        if expense.day_end is not None:
             self.date_options_dropdown.value = "range"
-            self.range_picker.start_value = datetime(year=self.year, month=old_expense.month, day=old_expense.day_start)
-            self.range_picker.end_value = datetime(year=self.year, month=old_expense.month, day=old_expense.day_end)
+            self.range_picker.start_value = datetime(year=self.year, month=expense.month, day=expense.day_start)
+            self.range_picker.end_value = datetime(year=self.year, month=expense.month, day=expense.day_end)
         else:
-            self.date_picker.value = datetime(year=self.year, month=old_expense.month, day=old_expense.day_start)
+            self.date_picker.value = datetime(year=self.year, month=expense.month, day=expense.day_start)
             self.date_options_dropdown.value = "day"
 
         self.update_date_text(e)
@@ -396,7 +412,15 @@ class ExpensesView(ft.Column):
                 on_click=self.edit_this_expense,
                 color=ft.Colors.BLUE,
             )
-            row_data.append(ft.DataCell(ft.Row(controls=[edit_btn, delete_btn])))
+            copy_btn = ft.Button(
+                icon=ft.Icons.COPY,
+                width=50,
+                height=30,
+                data=row_id,
+                on_click=self.copy_this_expense,
+                color=ft.Colors.GREEN,
+            )
+            row_data.append(ft.DataCell(ft.Row(controls=[edit_btn, copy_btn, delete_btn])))
             self.data_table.rows.append(ft.DataRow(cells=row_data))
 
         row_count = len(self.data_table.rows)

@@ -25,7 +25,7 @@ class TransfersSortingConfig(SortingConfig):
 
         if self.col_id == 0:
             self.sql_command = f"month {order}"
-        elif self.col_id == 5:
+        elif self.col_id == 6:
             self.sql_command = f"amount {order}"
         else:
             raise ValueError("You cannot sort this column.")

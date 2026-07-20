@@ -56,6 +56,9 @@ def initialize_db(year: int, db: WhichDb) -> None:
         # create table
         cursor.execute(_DB_TO_CLASS[db].create_table())
 
+        # backfill any columns added to the dataclass since the table was created
+        _DB_TO_CLASS[db].add_missing_columns(cursor)
+
         # create index on categories for more efficient filtering
         db_name = _DB_TO_CLASS[db].db_name
         cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
@@ -111,12 +114,15 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
         return data
 
 
-def add_item(year: int, item: DataContainer) -> None:
+def add_item(year: int, item: DataContainer) -> int:
     """Adds a `:class:DataContainer` subclass instance to the database.
 
     Args:
         year (int): The desired year.
         item (`:class:DataContainer`): The item to add.
+
+    Returns:
+        int: The id of the newly inserted row.
     """
     logger.info("Called 'add_item'.")
 
@@ -146,6 +152,8 @@ def add_item(year: int, item: DataContainer) -> None:
 
         cursor.execute(query, tuple(values))
         logger.debug(f"Added item to the database:\n{item}.")
+
+        return cursor.lastrowid
 
 
 def remove_item(year: int, db: WhichDb, row_id: int) -> bool:

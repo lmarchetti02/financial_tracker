@@ -33,13 +33,13 @@ class TestTransfersSortingConfig:
         assert config.sql_command == "month ASC"
 
     def test_sorts_by_amount_descending(self) -> None:
-        """Column 5 sorts by amount in the requested direction."""
-        config = TransfersSortingConfig(col_id=5, ascending=False)
+        """Column 6 sorts by amount in the requested direction."""
+        config = TransfersSortingConfig(col_id=6, ascending=False)
 
         assert config.sql_command == "amount DESC"
 
     def test_rejects_an_unsortable_column(self) -> None:
-        """A column ID other than 0 or 5 is not sortable."""
+        """A column ID other than 0 or 6 is not sortable."""
         with pytest.raises(ValueError, match="cannot sort"):
             TransfersSortingConfig(col_id=1, ascending=True)
 
@@ -72,7 +72,7 @@ class TestFetchTransfers:
         initialize_db(YEAR, WhichDb.TRANSFERS)
         add_item(YEAR, make_transfer(amount=300.0))
         add_item(YEAR, make_transfer(amount=100.0))
-        sort = TransfersSortingConfig(col_id=5, ascending=True)
+        sort = TransfersSortingConfig(col_id=6, ascending=True)
 
         ids = [row_id for row_id, _ in fetch_transfers(YEAR, sort=sort)]
 

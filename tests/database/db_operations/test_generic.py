@@ -92,6 +92,31 @@ class TestInitializeDb:
 
         assert index_name in indexes
 
+    def test_backfills_columns_missing_from_an_already_existing_table(self) -> None:
+        """A `transfers` table created before `day`/`fee`/`fee_expense_id` existed gets them added."""
+        with sq.connect(get_db_path(YEAR)) as connection:
+            connection.execute(
+                "CREATE TABLE transfers ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "month INTEGER NOT NULL, "
+                "kind TEXT NOT NULL, "
+                "description TEXT NOT NULL, "
+                "source TEXT, "
+                "destination TEXT, "
+                "amount REAL NOT NULL)"
+            )
+            connection.execute(
+                "INSERT INTO transfers (month, kind, description, source, destination, amount) "
+                "VALUES (3, 'LOAN', 'legacy transfer', 'Bank A', NULL, 50.0)"
+            )
+
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+
+        transfer = fetch_by_id(YEAR, WhichDb.TRANSFERS, 1)
+        assert transfer.day == 1
+        assert transfer.fee is None
+        assert transfer.fee_expense_id is None
+
 
 class TestAddItem:
     """Tests for `add_item`."""

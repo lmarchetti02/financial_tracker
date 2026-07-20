@@ -95,7 +95,7 @@ class IncomeView(ft.Column):
 
         # data table
         columns = db.Income.get_table_columns()
-        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
+        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
         columns[0].on_sort = self.sort_columns
         columns[2].on_sort = self.sort_columns
 
@@ -274,10 +274,26 @@ class IncomeView(ft.Column):
         self.add_income_button.color = ft.Colors.PURPLE
         self.add_income_button.on_click = modify
 
-        self.month_picker.value = str(old_income.month)
-        self.source_picker.value = str(old_income.source.value)
-        self.amount_text.value = f"{old_income.amount:.2f}"
-        self.description_text.value = old_income.description
+        self.fill_inputs_from_income(old_income)
+
+    def copy_this_income(self, e: ft.Event) -> None:
+        """Prefills the add-income form from an existing income, to add it as a new entry."""
+        logger.info("Called 'copy_this_income'")
+        income_id = e.control.data
+        income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id)
+
+        self.add_income_button.content = "Add Income"
+        self.add_income_button.color = None
+        self.add_income_button.on_click = self.add_new_income
+
+        self.fill_inputs_from_income(income)
+
+    def fill_inputs_from_income(self, income: db.Income) -> None:
+        """Populates the add-income controls with an existing income's values."""
+        self.month_picker.value = str(income.month)
+        self.source_picker.value = str(income.source.value)
+        self.amount_text.value = f"{income.amount:.2f}"
+        self.description_text.value = income.description
 
     def refresh_table(self) -> None:
         """Refreshes the table that displays the database."""
@@ -301,7 +317,15 @@ class IncomeView(ft.Column):
                 on_click=self.edit_this_income,
                 color=ft.Colors.BLUE,
             )
-            row_data.append(ft.DataCell(ft.Row(controls=[edit_btn, delete_btn])))
+            copy_btn = ft.Button(
+                icon=ft.Icons.COPY,
+                width=50,
+                height=30,
+                data=row_id,
+                on_click=self.copy_this_income,
+                color=ft.Colors.GREEN,
+            )
+            row_data.append(ft.DataCell(ft.Row(controls=[edit_btn, copy_btn, delete_btn])))
             self.data_table.rows.append(ft.DataRow(cells=row_data))
 
         row_count = len(self.data_table.rows)
