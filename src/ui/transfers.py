@@ -53,6 +53,7 @@ class TransfersView(ft.Column):
         self.year = int(year)
 
         self.current_month_filter: int | None = None
+        self.current_kind_filter: db.Kind | None = None
         self.current_sort: db.TSC | None = None
         self.default_date = datetime.today()
 
@@ -123,6 +124,24 @@ class TransfersView(ft.Column):
             + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
         )
         columns[0].label.controls.append(filter_menu)  # type: ignore
+
+        kind_filter_menu = ft.PopupMenuButton(
+            icon=ft.Icons.FILTER_ALT,
+            icon_color=ft.Colors.WHITE,
+            icon_size=20,
+            padding=0,
+            menu_padding=0,
+            tooltip="Filter kind",
+            items=[
+                ft.PopupMenuItem(
+                    kind.name.lower().capitalize().replace("_", " "), data=kind, on_click=self.filter_kinds
+                )
+                for kind in sorted(db.Kind, key=lambda k: k.name)
+            ]
+            + [ft.PopupMenuItem()]
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_kinds)],
+        )
+        columns[2].label.controls.append(kind_filter_menu)  # type: ignore
 
         borders = ft.BorderSide(width=2)
         v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
@@ -423,7 +442,7 @@ class TransfersView(ft.Column):
         logger.info("Called 'refresh_table'")
         self.data_table.rows.clear()
 
-        rows = db.fetch_transfers(self.year, self.current_sort, self.current_month_filter)
+        rows = db.fetch_transfers(self.year, self.current_sort, self.current_month_filter, self.current_kind_filter)
         for row_id, row_data in rows:
             delete_btn = ft.Button(
                 icon=ft.Icons.DELETE,
@@ -473,6 +492,11 @@ class TransfersView(ft.Column):
         else:
             self.current_month_filter = None
 
+        self.refresh_table()
+
+    def filter_kinds(self, e: ft.Event) -> None:
+        """Filters the kind column."""
+        self.current_kind_filter = e.control.data
         self.refresh_table()
 
 

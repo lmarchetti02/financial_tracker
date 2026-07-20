@@ -36,7 +36,9 @@ class ExpensesSortingConfig(SortingConfig):
 type ESC = ExpensesSortingConfig
 
 
-def fetch_expenses(year: int, sort: ESC | None = None, month: int | None = None) -> RowGenerator:
+def fetch_expenses(
+    year: int, sort: ESC | None = None, month: int | None = None, category: Categories | None = None
+) -> RowGenerator:
     """Fetches all the expenses.
 
     Args:
@@ -44,6 +46,8 @@ def fetch_expenses(year: int, sort: ESC | None = None, month: int | None = None)
         sort (ExpensesSortingConfig | None): If given, the rows gets sorted (see `ExpensesSortingConfig`).
             Defaults to `None`.
         month (int | None): The month to filter the table by.
+            Defaults to `None`.
+        category (Categories | None): The category to filter the table by. See `:enum:Categories`.
             Defaults to `None`.
 
     Returns:
@@ -55,14 +59,22 @@ def fetch_expenses(year: int, sort: ESC | None = None, month: int | None = None)
         connection.row_factory = sq.Row
         cursor = connection.cursor()
 
-        if month is None and sort is not None:
-            cursor.execute(f"SELECT * FROM {EXPENSES_DB_NAME} ORDER BY {sort.sql_command}")
-        elif sort is None and month is not None:
-            cursor.execute(f"SELECT * FROM {EXPENSES_DB_NAME} WHERE month = ?", (month,))
-        elif sort is not None and month is not None:
-            cursor.execute(f"SELECT * FROM {EXPENSES_DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", (month,))
-        else:
-            cursor.execute(f"SELECT * FROM {EXPENSES_DB_NAME}")
+        conditions: list[str] = []
+        params: list[int | str] = []
+        if month is not None:
+            conditions.append("month = ?")
+            params.append(month)
+        if category is not None:
+            conditions.append("category = ?")
+            params.append(category.name)
+
+        query = f"SELECT * FROM {EXPENSES_DB_NAME}"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        if sort is not None:
+            query += f" ORDER BY {sort.sql_command}"
+
+        cursor.execute(query, params)
 
         rows = cursor.fetchall()
 

@@ -6,7 +6,7 @@ from logging import getLogger
 
 from _helpers.constants import INCOME_DB_NAME
 
-from ..data_structures import Income
+from ..data_structures import Income, Sources
 from .generic import get_db_path
 from .utils import RowGenerator, SortingConfig
 
@@ -34,7 +34,9 @@ class IncomesSortingConfig(SortingConfig):
 type ISC = IncomesSortingConfig
 
 
-def fetch_incomes(year: int, sort: ISC | None = None, month: int | None = None) -> RowGenerator:
+def fetch_incomes(
+    year: int, sort: ISC | None = None, month: int | None = None, source: Sources | None = None
+) -> RowGenerator:
     """Fetches all the incomes.
 
     Args:
@@ -42,6 +44,8 @@ def fetch_incomes(year: int, sort: ISC | None = None, month: int | None = None) 
         sort (IncomesSortingConfig | None): If given, the rows gets sorted (see `IncomesSortingConfig`).
             Defaults to `None`.
         month (int | None): The month to filter the table by.
+            Defaults to `None`.
+        source (Sources | None): The source to filter the table by. See `:enum:Sources`.
             Defaults to `None`.
 
     Returns:
@@ -54,14 +58,22 @@ def fetch_incomes(year: int, sort: ISC | None = None, month: int | None = None) 
         connection.row_factory = sq.Row
         cursor = connection.cursor()
 
-        if month is None and sort is not None:
-            cursor.execute(f"SELECT * FROM {INCOME_DB_NAME} ORDER BY {sort.sql_command}")
-        elif sort is None and month is not None:
-            cursor.execute(f"SELECT * FROM {INCOME_DB_NAME} WHERE month = ?", (month,))
-        elif sort is not None and month is not None:
-            cursor.execute(f"SELECT * FROM {INCOME_DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", (month,))
-        else:
-            cursor.execute(f"SELECT * FROM {INCOME_DB_NAME}")
+        conditions: list[str] = []
+        params: list[int | str] = []
+        if month is not None:
+            conditions.append("month = ?")
+            params.append(month)
+        if source is not None:
+            conditions.append("source = ?")
+            params.append(source.name)
+
+        query = f"SELECT * FROM {INCOME_DB_NAME}"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        if sort is not None:
+            query += f" ORDER BY {sort.sql_command}"
+
+        cursor.execute(query, params)
 
         rows = cursor.fetchall()
 

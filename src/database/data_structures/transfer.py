@@ -75,7 +75,7 @@ class Transfer(DataContainer):
                 fixed_width=80,
             ),
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=80),
-            DataColumn2(label=ft.Text("Kind"), fixed_width=150),
+            DataColumn2(label=ft.Row(controls=[ft.Text("Kind")], tight=True, spacing=5), fixed_width=150),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
             DataColumn2(label=ft.Text("Source"), fixed_width=150),
             DataColumn2(label=ft.Text("Destination"), fixed_width=150),

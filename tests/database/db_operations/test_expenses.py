@@ -89,6 +89,27 @@ class TestFetchExpenses:
 
         assert ids == [3, 2]
 
+    def test_filters_by_category(self) -> None:
+        """Only expenses matching the given category are yielded."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(category=Categories.FOOD_AND_DRINKS))
+        add_item(YEAR, make_expense(category=Categories.TRAVEL))
+
+        results = list(fetch_expenses(YEAR, category=Categories.TRAVEL))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_combines_month_and_category_filters(self) -> None:
+        """Filtering by month and category can be applied together."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL))
+        add_item(YEAR, make_expense(month=2, category=Categories.FOOD_AND_DRINKS))
+        add_item(YEAR, make_expense(month=2, category=Categories.TRAVEL))
+
+        results = list(fetch_expenses(YEAR, month=2, category=Categories.TRAVEL))
+
+        assert [row_id for row_id, _ in results] == [3]
+
 
 class TestFetchCategory:
     """Tests for `fetch_category`."""

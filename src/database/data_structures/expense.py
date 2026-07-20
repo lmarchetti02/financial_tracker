@@ -79,7 +79,7 @@ class Expense(DataContainer):
             ),
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=100),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
-            DataColumn2(label=ft.Text("Category"), fixed_width=200),
+            DataColumn2(label=ft.Row(controls=[ft.Text("Category")], tight=True, spacing=5), fixed_width=200),
             DataColumn2(label=ft.Text("Cost (€)"), numeric=True, fixed_width=100),
         ]
 

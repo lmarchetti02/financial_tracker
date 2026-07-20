@@ -77,3 +77,24 @@ class TestFetchTransfers:
         ids = [row_id for row_id, _ in fetch_transfers(YEAR, sort=sort)]
 
         assert ids == [2, 1]
+
+    def test_filters_by_kind(self) -> None:
+        """Only transfers matching the given kind are yielded."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(kind=Kind.LOAN))
+        add_item(YEAR, make_transfer(kind=Kind.INVESTMENT))
+
+        results = list(fetch_transfers(YEAR, kind=Kind.INVESTMENT))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_combines_month_and_kind_filters(self) -> None:
+        """Filtering by month and kind can be applied together."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(month=1, kind=Kind.INVESTMENT))
+        add_item(YEAR, make_transfer(month=2, kind=Kind.LOAN))
+        add_item(YEAR, make_transfer(month=2, kind=Kind.INVESTMENT))
+
+        results = list(fetch_transfers(YEAR, month=2, kind=Kind.INVESTMENT))
+
+        assert [row_id for row_id, _ in results] == [3]

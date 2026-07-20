@@ -70,3 +70,24 @@ class TestFetchIncomes:
         ids = [row_id for row_id, _ in fetch_incomes(YEAR, sort=sort)]
 
         assert ids == [2, 1]
+
+    def test_filters_by_source(self) -> None:
+        """Only incomes matching the given source are yielded."""
+        initialize_db(YEAR, WhichDb.INCOMES)
+        add_item(YEAR, make_income(source=Sources.SALARY))
+        add_item(YEAR, make_income(source=Sources.INVESTMENTS))
+
+        results = list(fetch_incomes(YEAR, source=Sources.INVESTMENTS))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_combines_month_and_source_filters(self) -> None:
+        """Filtering by month and source can be applied together."""
+        initialize_db(YEAR, WhichDb.INCOMES)
+        add_item(YEAR, make_income(month=1, source=Sources.INVESTMENTS))
+        add_item(YEAR, make_income(month=2, source=Sources.SALARY))
+        add_item(YEAR, make_income(month=2, source=Sources.INVESTMENTS))
+
+        results = list(fetch_incomes(YEAR, month=2, source=Sources.INVESTMENTS))
+
+        assert [row_id for row_id, _ in results] == [3]

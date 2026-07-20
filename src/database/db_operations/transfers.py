@@ -6,7 +6,7 @@ from logging import getLogger
 
 from _helpers.constants import TRANSFERS_DB_NAME
 
-from ..data_structures import Transfer
+from ..data_structures import Kind, Transfer
 from .generic import get_db_path
 from .utils import RowGenerator, SortingConfig
 
@@ -34,7 +34,9 @@ class TransfersSortingConfig(SortingConfig):
 type TSC = TransfersSortingConfig
 
 
-def fetch_transfers(year: int, sort: TSC | None = None, month: int | None = None) -> RowGenerator:
+def fetch_transfers(
+    year: int, sort: TSC | None = None, month: int | None = None, kind: Kind | None = None
+) -> RowGenerator:
     """Fetches all the transfers.
 
     Args:
@@ -42,6 +44,8 @@ def fetch_transfers(year: int, sort: TSC | None = None, month: int | None = None
         sort (TransfersSortingConfig | None): If given, the rows gets sorted (see `TransfersSortingConfig`).
             Defaults to `None`.
         month (int | None): The month to filter the table by.
+            Defaults to `None`.
+        kind (Kind | None): The kind to filter the table by. See `:enum:Kind`.
             Defaults to `None`.
 
     Returns:
@@ -54,14 +58,22 @@ def fetch_transfers(year: int, sort: TSC | None = None, month: int | None = None
         connection.row_factory = sq.Row
         cursor = connection.cursor()
 
-        if month is None and sort is not None:
-            cursor.execute(f"SELECT * FROM {TRANSFERS_DB_NAME} ORDER BY {sort.sql_command}")
-        elif sort is None and month is not None:
-            cursor.execute(f"SELECT * FROM {TRANSFERS_DB_NAME} WHERE month = ?", (month,))
-        elif sort is not None and month is not None:
-            cursor.execute(f"SELECT * FROM {TRANSFERS_DB_NAME} WHERE month = ? ORDER BY {sort.sql_command}", (month,))
-        else:
-            cursor.execute(f"SELECT * FROM {TRANSFERS_DB_NAME}")
+        conditions: list[str] = []
+        params: list[int | str] = []
+        if month is not None:
+            conditions.append("month = ?")
+            params.append(month)
+        if kind is not None:
+            conditions.append("kind = ?")
+            params.append(kind.name)
+
+        query = f"SELECT * FROM {TRANSFERS_DB_NAME}"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        if sort is not None:
+            query += f" ORDER BY {sort.sql_command}"
+
+        cursor.execute(query, params)
 
         rows = cursor.fetchall()
 

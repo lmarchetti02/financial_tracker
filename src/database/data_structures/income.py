@@ -54,7 +54,7 @@ class Income(DataContainer):
                 fixed_width=80,
             ),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
-            DataColumn2(label=ft.Text("Source"), fixed_width=200),
+            DataColumn2(label=ft.Row(controls=[ft.Text("Source")], tight=True, spacing=5), fixed_width=200),
             DataColumn2(label=ft.Text("Amount (€)"), numeric=True, fixed_width=150),
         ]
 

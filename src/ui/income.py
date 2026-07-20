@@ -52,6 +52,7 @@ class IncomeView(ft.Column):
         self.year = int(year)
 
         self.current_month_filter: int | None = None
+        self.current_source_filter: db.Sources | None = None
         self.current_sort: db.ISC | None = None
         self.default_date = datetime.today()
 
@@ -113,6 +114,24 @@ class IncomeView(ft.Column):
             + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
         )
         columns[0].label.controls.append(filter_menu)  # type: ignore
+
+        source_filter_menu = ft.PopupMenuButton(
+            icon=ft.Icons.FILTER_ALT,
+            icon_color=ft.Colors.WHITE,
+            icon_size=20,
+            padding=0,
+            menu_padding=0,
+            tooltip="Filter source",
+            items=[
+                ft.PopupMenuItem(
+                    src.name.lower().capitalize().replace("_", " "), data=src, on_click=self.filter_sources
+                )
+                for src in sorted(db.Sources, key=lambda s: s.name)
+            ]
+            + [ft.PopupMenuItem()]
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_sources)],
+        )
+        columns[2].label.controls.append(source_filter_menu)  # type: ignore
 
         borders = ft.BorderSide(width=2)
         v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
@@ -300,7 +319,7 @@ class IncomeView(ft.Column):
         logger.info("Called 'refresh_table'")
         self.data_table.rows.clear()
 
-        rows = db.fetch_incomes(self.year, self.current_sort, self.current_month_filter)
+        rows = db.fetch_incomes(self.year, self.current_sort, self.current_month_filter, self.current_source_filter)
         for row_id, row_data in rows:
             delete_btn = ft.Button(
                 icon=ft.Icons.DELETE,
@@ -350,6 +369,11 @@ class IncomeView(ft.Column):
         else:
             self.current_month_filter = None
 
+        self.refresh_table()
+
+    def filter_sources(self, e: ft.Event) -> None:
+        """Filters the source column."""
+        self.current_source_filter = e.control.data
         self.refresh_table()
 
 
