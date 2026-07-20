@@ -4,6 +4,8 @@ import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
+import numpy as np
+
 from _helpers.constants import INCOME_DB_NAME
 
 from ..data_structures import Income, Sources
@@ -79,3 +81,35 @@ def fetch_incomes(
 
         for row in rows:
             yield (row["id"], Income.get_table_row(row))
+
+
+def fetch_source(year: int, source: Sources) -> np.ndarray:
+    """Fetch the total income per month for a specified source.
+
+    Args:
+        year (int): The year of the incomes.
+        source (Sources): The desired source (see `:enum:Sources`).
+
+    Returns:
+        np.ndarray: An array of shape (12,) with the totals per month.
+    """
+    logger.info("Called 'fetch_source'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            f"""
+            SELECT month, SUM(amount) FROM {INCOME_DB_NAME}
+            WHERE source = ?
+            GROUP BY month
+            ORDER BY month ASC
+            """,
+            (source.name,),
+        )
+
+        monthly_total = np.zeros(12, dtype=np.float32)
+        for row in cursor.fetchall():
+            monthly_total[row[0] - 1] = row[1]
+
+        return monthly_total

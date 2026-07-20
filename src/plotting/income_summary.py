@@ -1,4 +1,4 @@
-"""Plots summaries of the expenses."""
+"""Plots summaries of the incomes."""
 
 from itertools import cycle
 from logging import getLogger
@@ -10,16 +10,16 @@ import numpy as np
 from matplotlib.colors import TABLEAU_COLORS
 
 from _helpers.constants import MONTHS
-from database import Categories, fetch_category
+from database import Sources, fetch_source
 
 logger = getLogger("financial_tracker")
 
-CAT_NAMES = np.array([cat.name.capitalize().replace("_", " ") for cat in Categories], dtype=str)
+SOURCE_NAMES = np.array([src.name.capitalize().replace("_", " ") for src in Sources], dtype=str)
 
 
-def show_expenses_summary(page: ft.Page) -> None:
-    """Generates the plot showing a summary of the expenses."""
-    logger.info("Called 'show_expenses_summary'")
+def show_income_summary(page: ft.Page) -> None:
+    """Generates the plot showing a summary of the incomes."""
+    logger.info("Called 'show_income_summary'")
 
     if (year := page.session.store.get("selected_year")) is None:
         raise RuntimeError("Cannot retireve the current year.")
@@ -27,9 +27,9 @@ def show_expenses_summary(page: ft.Page) -> None:
 
     # get data
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    totals = np.zeros((len(months), len(Categories)), dtype=np.float32)
-    for i, category in enumerate(Categories):
-        totals[:, i] = fetch_category(year, category)
+    totals = np.zeros((len(months), len(Sources)), dtype=np.float32)
+    for i, source in enumerate(Sources):
+        totals[:, i] = fetch_source(year, source)
 
     # plot
     fig = plt.figure()
@@ -38,11 +38,11 @@ def show_expenses_summary(page: ft.Page) -> None:
     markers = cycle(["o", "s", "^", "D", "v", "p", "*"])
     colors = cycle(TABLEAU_COLORS)
 
-    for i in range(len(Categories)):
+    for i in range(len(Sources)):
         plt.plot(
             months,
             totals[:, i],
-            label=CAT_NAMES[i],
+            label=SOURCE_NAMES[i],
             linestyle=next(linestyles),
             marker=next(markers),
             color=next(colors),
@@ -56,7 +56,7 @@ def show_expenses_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Expenses Summary {year}")
+    plt.title(f"Income Summary {year}")
     plt.ylabel("Total (€)", fontsize=12)
     plt.legend()
 
@@ -76,18 +76,18 @@ def show_expenses_summary(page: ft.Page) -> None:
     page.update()
 
 
-def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
-    """Generates the plot showing a pie chart summary of the expenses."""
-    logger.info("Called 'show_expenses_pie'")
+def show_income_pie(page: ft.Page, month: int | None = None) -> None:
+    """Generates the plot showing a pie chart summary of the incomes."""
+    logger.info("Called 'show_income_pie'")
 
     if (year := page.session.store.get("selected_year")) is None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
     # get data
-    totals = np.zeros((12, len(Categories)), dtype=np.float32)
-    for i, category in enumerate(Categories):
-        totals[:, i] = fetch_category(year, category)
+    totals = np.zeros((12, len(Sources)), dtype=np.float32)
+    for i, source in enumerate(Sources):
+        totals[:, i] = fetch_source(year, source)
 
     if month is None:
         totals = totals.sum(axis=0)
@@ -97,11 +97,11 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     # remove zeros
     mask = totals > 0
     totals = totals[mask]
-    names = CAT_NAMES[mask]
+    names = SOURCE_NAMES[mask]
     if not totals.size > 0:
         page.show_dialog(
             ft.AlertDialog(
-                ft.Text("Empty monthly expenses"),
+                ft.Text("Empty monthly income"),
                 actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
             )
         )
@@ -112,14 +112,14 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     fig = plt.figure()
 
     title = year if month is None else MONTHS[month - 1]
-    plt.title(f"Expenses Pie Chart ({title})")
+    plt.title(f"Income Pie Chart ({title})")
     patches, *_ = plt.pie(totals, labels=names, autopct="%1.1f%%")  # type: ignore
 
-    legend_labels = [f"{cat}: € {val:.2f}" for cat, val in zip(names, totals)]
+    legend_labels = [f"{src}: € {val:.2f}" for src, val in zip(names, totals)]
     plt.legend(
         patches,
         legend_labels,
-        title="Expenses",
+        title="Income",
         title_fontproperties={"weight": "bold"},
         loc="center left",
         bbox_to_anchor=(1.2, 0, 0.5, 1),

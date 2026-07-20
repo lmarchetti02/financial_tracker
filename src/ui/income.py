@@ -9,6 +9,7 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 from _helpers.constants import MONTHS
+from plotting import show_income_pie, show_income_summary
 
 logger = getLogger("financial_tracker")
 
@@ -151,6 +152,21 @@ class IncomeView(ft.Column):
         )
         self.table_column = ft.Column(controls=[self.data_table])
 
+        # plotting
+        self.summary_button = ft.Button(
+            "Show Summary",
+            icon=ft.Icons.BAR_CHART,
+            color="#006400",
+            on_click=lambda _: show_income_summary(self._page),
+        )
+
+        self.pie_chart_button = ft.Button(
+            "Show Pie Chart",
+            icon=ft.Icons.BAR_CHART,
+            color="#000096",
+            on_click=lambda _: show_income_pie(self._page, self.current_month_filter),
+        )
+
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
         upper_row = ft.Row(
@@ -171,6 +187,7 @@ class IncomeView(ft.Column):
             self.add_income_button,
             ft.Container(height=10),
             self.table_column,
+            ft.Row([self.summary_button, self.pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
         ]
 
     def get_income_from_inputs(self) -> db.Income | None:

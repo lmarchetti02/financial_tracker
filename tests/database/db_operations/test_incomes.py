@@ -4,7 +4,7 @@ import pytest
 
 from database.data_structures.income import Income, Sources
 from database.db_operations.generic import WhichDb, add_item, initialize_db
-from database.db_operations.incomes import IncomesSortingConfig, fetch_incomes
+from database.db_operations.incomes import IncomesSortingConfig, fetch_incomes, fetch_source
 
 YEAR = 2024
 
@@ -91,3 +91,30 @@ class TestFetchIncomes:
         results = list(fetch_incomes(YEAR, month=2, source=Sources.INVESTMENTS))
 
         assert [row_id for row_id, _ in results] == [3]
+
+
+class TestFetchSource:
+    """Tests for `fetch_source`."""
+
+    def test_sums_amount_per_month_for_the_given_source(self) -> None:
+        """Amounts for the requested source are summed per month; other sources are excluded."""
+        initialize_db(YEAR, WhichDb.INCOMES)
+        add_item(YEAR, make_income(month=1, source=Sources.SALARY, amount=100.0))
+        add_item(YEAR, make_income(month=1, source=Sources.SALARY, amount=50.0))
+        add_item(YEAR, make_income(month=3, source=Sources.SALARY, amount=70.0))
+        add_item(YEAR, make_income(month=1, source=Sources.INVESTMENTS, amount=1000.0))
+
+        totals = fetch_source(YEAR, Sources.SALARY)
+
+        assert totals[0] == pytest.approx(150.0)
+        assert totals[1] == pytest.approx(0.0)
+        assert totals[2] == pytest.approx(70.0)
+
+    def test_returns_all_zeros_when_no_incomes_match(self) -> None:
+        """An empty table yields a 12-month array of zeros rather than an error."""
+        initialize_db(YEAR, WhichDb.INCOMES)
+
+        totals = fetch_source(YEAR, Sources.OTHER)
+
+        assert totals.shape == (12,)
+        assert (totals == 0).all()
