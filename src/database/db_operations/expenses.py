@@ -60,3 +60,17 @@ def fetch_category(year: int, category: Categories) -> np.ndarray:
     logger.info("Called 'fetch_category'")
 
     return fetch_monthly_totals(year, EXPENSES_DB_NAME, "cost", "category", category)
+
+
+def fetch_expense_totals(year: int) -> np.ndarray:
+    """Fetch the total expense per month across all categories.
+
+    Args:
+        year (int): The year of the expenses.
+
+    Returns:
+        np.ndarray: An array of shape (12,) with the totals per month.
+    """
+    logger.info("Called 'fetch_expense_totals'")
+
+    return fetch_monthly_totals(year, EXPENSES_DB_NAME, "cost")

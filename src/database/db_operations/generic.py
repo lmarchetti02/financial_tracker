@@ -92,21 +92,25 @@ def fetch_rows(
 
 
 def fetch_monthly_totals(
-    year: int, table_name: str, sum_column: str, filter_column: str, filter_value: Enum
+    year: int, table_name: str, sum_column: str, filter_column: str | None = None, filter_value: Enum | None = None
 ) -> np.ndarray:
-    """Fetches the per-month total of a numeric column, filtered by one enum column.
+    """Fetches the per-month total of a numeric column, optionally filtered by one enum column.
 
     Args:
         year (int): The year of the database to query.
         table_name (str): The name of the table to query.
         sum_column (str): The numeric column to sum.
-        filter_column (str): The enum column to filter by.
-        filter_value (Enum): The value to filter `filter_column` by.
+        filter_column (str | None): The enum column to filter by. If omitted, the column is
+            summed across the whole table. Defaults to `None`.
+        filter_value (Enum | None): The value to filter `filter_column` by. Defaults to `None`.
 
     Returns:
         np.ndarray: An array of shape (12,) with the totals per month.
     """
     logger.info("Called 'fetch_monthly_totals'")
+
+    where_clause = f"WHERE {filter_column} = ?" if filter_column is not None else ""
+    params = (filter_value.name,) if filter_value is not None else ()
 
     with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()
@@ -114,11 +118,11 @@ def fetch_monthly_totals(
         cursor.execute(
             f"""
             SELECT month, SUM({sum_column}) FROM {table_name}
-            WHERE {filter_column} = ?
+            {where_clause}
             GROUP BY month
             ORDER BY month ASC
             """,
-            (filter_value.name,),
+            params,
         )
 
         monthly_total = np.zeros(12, dtype=np.float32)

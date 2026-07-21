@@ -61,3 +61,17 @@ def fetch_source(year: int, source: Sources) -> np.ndarray:
     logger.info("Called 'fetch_source'")
 
     return fetch_monthly_totals(year, INCOME_DB_NAME, "amount", "source", source)
+
+
+def fetch_income_totals(year: int) -> np.ndarray:
+    """Fetch the total income per month across all sources.
+
+    Args:
+        year (int): The year of the incomes.
+
+    Returns:
+        np.ndarray: An array of shape (12,) with the totals per month.
+    """
+    logger.info("Called 'fetch_income_totals'")
+
+    return fetch_monthly_totals(year, INCOME_DB_NAME, "amount")

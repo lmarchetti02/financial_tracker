@@ -14,6 +14,8 @@ import database as db
 from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label
 
+from .common import build_styled_data_table
+
 logger = getLogger("financial_tracker")
 
 
@@ -93,23 +95,7 @@ class BaseCrudView(ft.Column, ABC):
 
     def _build_data_table(self, columns: list[DataColumn2]) -> DataTable2:
         """Builds the `:class:DataTable2` shared by every subclass, styled with `_heading_color`."""
-        borders = ft.BorderSide(width=2)
-        v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
-
-        return DataTable2(
-            fixed_top_rows=1,
-            border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
-            vertical_lines=v_lines,
-            horizontal_lines=v_lines,
-            heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
-            heading_row_color=self._heading_color,
-            sort_arrow_icon_color=ft.Colors.WHITE,
-            heading_row_height=35,
-            horizontal_margin=0,
-            column_spacing=15,
-            columns=columns,  # type: ignore
-            rows=[],
-        )
+        return build_styled_data_table(columns, [], self._heading_color)
 
     def _build_month_filter_menu(self) -> ft.PopupMenuButton:
         """Builds the "Filter month" popup menu shared by every subclass."""

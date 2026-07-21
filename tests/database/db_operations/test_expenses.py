@@ -3,7 +3,7 @@
 import pytest
 
 from database.data_structures.expense import Categories, Expense
-from database.db_operations.expenses import ExpensesSortingConfig, fetch_category, fetch_expenses
+from database.db_operations.expenses import ExpensesSortingConfig, fetch_category, fetch_expense_totals, fetch_expenses
 from database.db_operations.generic import WhichDb, add_item, initialize_db
 
 YEAR = 2024
@@ -133,6 +133,32 @@ class TestFetchCategory:
         initialize_db(YEAR, WhichDb.EXPENSES)
 
         totals = fetch_category(YEAR, Categories.OTHER)
+
+        assert totals.shape == (12,)
+        assert (totals == 0).all()
+
+
+class TestFetchExpenseTotals:
+    """Tests for `fetch_expense_totals`."""
+
+    def test_sums_cost_per_month_across_all_categories(self) -> None:
+        """Costs are summed per month regardless of category."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=10.0))
+        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL, cost=5.0))
+        add_item(YEAR, make_expense(month=3, category=Categories.TRAVEL, cost=7.0))
+
+        totals = fetch_expense_totals(YEAR)
+
+        assert totals[0] == pytest.approx(15.0)
+        assert totals[1] == pytest.approx(0.0)
+        assert totals[2] == pytest.approx(7.0)
+
+    def test_returns_all_zeros_when_no_expenses_exist(self) -> None:
+        """An empty table yields a 12-month array of zeros rather than an error."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+
+        totals = fetch_expense_totals(YEAR)
 
         assert totals.shape == (12,)
         assert (totals == 0).all()

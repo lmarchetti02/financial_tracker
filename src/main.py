@@ -26,7 +26,7 @@ def startup_layout(page: ft.Page) -> None:
 
         match index:
             case 0:
-                main_content.content = home_view()
+                main_content.content = home_view(page)
                 logger.debug("Home view selected")
             case 1:
                 main_content.content = expenses_view(page)
@@ -59,7 +59,7 @@ def startup_layout(page: ft.Page) -> None:
         on_change=menu_change,
     )
 
-    main_content = ft.Container(content=home_view(), expand=True, padding=20)
+    main_content = ft.Container(content=home_view(page), expand=True, padding=20)
 
     home_layout = ft.Row(
         controls=[

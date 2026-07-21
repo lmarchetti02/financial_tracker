@@ -1,6 +1,37 @@
 """Shared UI helpers used across views."""
 
 import flet as ft
+from flet_datatable2 import DataColumn2, DataTable2
+
+
+def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], heading_color: str) -> DataTable2:
+    """Builds a `:class:DataTable2` styled consistently with every other table in the app.
+
+    Args:
+        columns (list[DataColumn2]): The columns of the table.
+        rows (list[ft.DataRow]): The rows of the table.
+        heading_color (str): The background color of the heading row.
+
+    Returns:
+        DataTable2: The styled table.
+    """
+    borders = ft.BorderSide(width=2)
+    v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
+
+    return DataTable2(
+        fixed_top_rows=1,
+        border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
+        vertical_lines=v_lines,
+        horizontal_lines=v_lines,
+        heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
+        heading_row_color=heading_color,
+        sort_arrow_icon_color=ft.Colors.WHITE,
+        heading_row_height=35,
+        horizontal_margin=10,
+        column_spacing=15,
+        columns=columns,  # type: ignore
+        rows=rows,
+    )
 
 
 def show_alert(page: ft.Page, title: str, content: str) -> None:

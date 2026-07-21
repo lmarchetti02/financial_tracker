@@ -118,6 +118,19 @@ class TestFetchMonthlyTotals:
         assert totals[1] == pytest.approx(0.0)
         assert totals[2] == pytest.approx(7.0)
 
+    def test_sums_the_column_across_all_values_when_no_filter_is_given(self) -> None:
+        """Omitting `filter_column`/`filter_value` sums the column across every row."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=10.0))
+        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL, cost=5.0))
+        add_item(YEAR, make_expense(month=3, category=Categories.TRAVEL, cost=7.0))
+
+        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost")
+
+        assert totals[0] == pytest.approx(15.0)
+        assert totals[1] == pytest.approx(0.0)
+        assert totals[2] == pytest.approx(7.0)
+
 
 class TestInitializeDb:
     """Tests for `initialize_db`."""
