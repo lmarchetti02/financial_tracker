@@ -1,5 +1,8 @@
 """Implementation of the necessary data structures."""
 
+from .account import Account as Account
+from .account import AccountBalance as AccountBalance
+from .account import AccountKind as AccountKind
 from .base import DataContainer as DataContainer
 from .expense import Categories as Categories
 from .expense import Expense as Expense

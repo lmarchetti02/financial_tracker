@@ -44,12 +44,12 @@ def show_savings_summary(page: ft.Page) -> None:
     fig.tight_layout()
 
     # show popup
-    if page.window.width is None or page.window.height is None:
-        raise RuntimeError("Cannot retrieve the window size.")
+    if page.width is None or page.height is None:
+        raise RuntimeError("Cannot retrieve the page size.")
 
     chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.window.width * 0.9, height=page.window.height * 0.8),
+        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
         actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
     )
 
@@ -109,15 +109,15 @@ def show_savings_pie(page: ft.Page) -> None:
     fig.tight_layout()
 
     # show popup
-    if page.window.width is None or page.window.height is None:
-        raise RuntimeError("Cannot retrieve the window size.")
+    if page.width is None or page.height is None:
+        raise RuntimeError("Cannot retrieve the page size.")
 
     chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     popup = ft.AlertDialog(
         content=ft.Container(
             chart,
-            width=page.window.width * 0.9,
-            height=page.window.height * 0.8,
+            width=page.width * 0.9,
+            height=page.height * 0.8,
         ),
         actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
     )

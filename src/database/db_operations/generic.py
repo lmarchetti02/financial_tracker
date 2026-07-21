@@ -11,7 +11,7 @@ import numpy as np
 
 from _helpers.constants import APP_DIRECTORY
 
-from ..data_structures import DataContainer, Expense, Income, Transfer
+from ..data_structures import Account, AccountBalance, DataContainer, Expense, Income, Transfer
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -23,10 +23,24 @@ class WhichDb(Enum):
     EXPENSES = auto()
     INCOMES = auto()
     TRANSFERS = auto()
+    ACCOUNTS = auto()
+    ACCOUNT_BALANCES = auto()
 
 
-_DB_TO_CLASS = {WhichDb.EXPENSES: Expense, WhichDb.INCOMES: Income, WhichDb.TRANSFERS: Transfer}
-_CLASS_TO_DB = {Expense: WhichDb.EXPENSES, Income: WhichDb.INCOMES, Transfer: WhichDb.TRANSFERS}
+_DB_TO_CLASS = {
+    WhichDb.EXPENSES: Expense,
+    WhichDb.INCOMES: Income,
+    WhichDb.TRANSFERS: Transfer,
+    WhichDb.ACCOUNTS: Account,
+    WhichDb.ACCOUNT_BALANCES: AccountBalance,
+}
+_CLASS_TO_DB = {
+    Expense: WhichDb.EXPENSES,
+    Income: WhichDb.INCOMES,
+    Transfer: WhichDb.TRANSFERS,
+    Account: WhichDb.ACCOUNTS,
+    AccountBalance: WhichDb.ACCOUNT_BALANCES,
+}
 
 
 def get_db_path(year: int) -> Path:
@@ -155,13 +169,17 @@ def initialize_db(year: int, db: WhichDb) -> None:
 
         # create index on categories for more efficient filtering
         db_name = _DB_TO_CLASS[db].db_name
-        cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
+        if db != WhichDb.ACCOUNTS:
+            # `Account` has no `month` column, unlike every other domain
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
         if db == WhichDb.EXPENSES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")
         elif db == WhichDb.INCOMES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_source ON {db_name}(source)")
         elif db == WhichDb.TRANSFERS:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_kind ON {db_name}(kind)")
+        elif db == WhichDb.ACCOUNT_BALANCES:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_account_id ON {db_name}(account_id)")
 
         logger.debug(f"Created table '{db_name}' inside {db_path} if it didn't already exist.")
 
@@ -172,6 +190,10 @@ def fetch_by_id(year: int, db: Literal[WhichDb.EXPENSES], row_id: int) -> Expens
 def fetch_by_id(year: int, db: Literal[WhichDb.INCOMES], row_id: int) -> Income: ...
 @overload
 def fetch_by_id(year: int, db: Literal[WhichDb.TRANSFERS], row_id: int) -> Transfer: ...
+@overload
+def fetch_by_id(year: int, db: Literal[WhichDb.ACCOUNTS], row_id: int) -> Account: ...
+@overload
+def fetch_by_id(year: int, db: Literal[WhichDb.ACCOUNT_BALANCES], row_id: int) -> AccountBalance: ...
 def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
     """Fetches the expense with the desired ID.
 
@@ -202,6 +224,10 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
         elif db == WhichDb.INCOMES:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         elif db == WhichDb.TRANSFERS:
+            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        elif db == WhichDb.ACCOUNTS:
+            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        elif db == WhichDb.ACCOUNT_BALANCES:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         logger.debug(f"Object retrieved by ID:\n{data}")
 

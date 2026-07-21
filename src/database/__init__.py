@@ -1,5 +1,8 @@
 """Handles the backend of the application."""
 
+from .data_structures import Account as Account
+from .data_structures import AccountBalance as AccountBalance
+from .data_structures import AccountKind as AccountKind
 from .data_structures import Categories as Categories
 from .data_structures import DataContainer as DataContainer
 from .data_structures import Expense as Expense
@@ -17,7 +20,12 @@ from .db_operations import SortingConfig as SortingConfig
 from .db_operations import TransfersSortingConfig as TransfersSortingConfig
 from .db_operations import WhichDb as WhichDb
 from .db_operations import add_item as add_item
+from .db_operations import delete_account as delete_account
+from .db_operations import delete_balance as delete_balance
+from .db_operations import delete_previous_year_end_balance as delete_previous_year_end_balance
 from .db_operations import edit_item as edit_item
+from .db_operations import fetch_account_balances as fetch_account_balances
+from .db_operations import fetch_account_definitions as fetch_account_definitions
 from .db_operations import fetch_by_id as fetch_by_id
 from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_expense_totals as fetch_expense_totals
@@ -25,7 +33,12 @@ from .db_operations import fetch_expenses as fetch_expenses
 from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
 from .db_operations import fetch_income_totals as fetch_income_totals
 from .db_operations import fetch_incomes as fetch_incomes
+from .db_operations import fetch_previous_year_account_ids as fetch_previous_year_account_ids
+from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_transfers as fetch_transfers
 from .db_operations import initialize_db as initialize_db
 from .db_operations import remove_item as remove_item
+from .db_operations import save_balance as save_balance
+from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
+from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year

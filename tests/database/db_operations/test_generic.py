@@ -161,16 +161,30 @@ class TestInitializeDb:
 
     @pytest.mark.parametrize(
         ("db", "index_name"),
-        [(WhichDb.EXPENSES, "idx_category"), (WhichDb.INCOMES, "idx_source"), (WhichDb.TRANSFERS, "idx_kind")],
+        [
+            (WhichDb.EXPENSES, "idx_category"),
+            (WhichDb.INCOMES, "idx_source"),
+            (WhichDb.TRANSFERS, "idx_kind"),
+            (WhichDb.ACCOUNT_BALANCES, "idx_account_id"),
+        ],
     )
     def test_creates_the_domain_specific_index(self, db: WhichDb, index_name: str) -> None:
-        """Each DB kind gets its own extra index (category/source/kind)."""
+        """Each DB kind gets its own extra index (category/source/kind/account_id)."""
         initialize_db(YEAR, db)
 
         with sq.connect(get_db_path(YEAR)) as connection:
             indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
 
         assert index_name in indexes
+
+    def test_does_not_create_a_month_index_for_accounts(self) -> None:
+        """`Account` has no `month` column, so it must not get an `idx_month`."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+
+        with sq.connect(get_db_path(YEAR)) as connection:
+            indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+
+        assert "idx_month" not in indexes
 
     def test_backfills_columns_missing_from_an_already_existing_table(self) -> None:
         """A `transfers` table created before `day`/`fee`/`fee_expense_id` existed gets them added."""

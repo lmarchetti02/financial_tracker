@@ -6,11 +6,12 @@ import flet as ft
 
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-from database.db_operations import WhichDb, initialize_db
+from database.db_operations import (WhichDb, initialize_db,
+                                    seed_accounts_for_new_year)
+from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view
-from ui.portfolio import portfolio_view
 from ui.transfers import transfers_view
 from ui.welcome import welcome_page
 
@@ -38,8 +39,8 @@ def startup_layout(page: ft.Page) -> None:
                 main_content.content = transfers_view(page)
                 logger.debug("Transfers view selected")
             case 4:
-                main_content.content = portfolio_view()
-                logger.debug("Net worth view selected")
+                main_content.content = accounts_view(page)
+                logger.debug("Accounts view selected")
             case _:
                 return
 
@@ -53,7 +54,7 @@ def startup_layout(page: ft.Page) -> None:
             ft.NavigationRailDestination(icon=ft.Icons.CREDIT_CARD_OUTLINED, label="Expenses"),
             ft.NavigationRailDestination(icon=ft.Icons.MONEY, label="Income"),
             ft.NavigationRailDestination(icon=ft.Icons.PEOPLE, label="Transfers"),
-            ft.NavigationRailDestination(icon=ft.Icons.PIE_CHART, label="Net Worth"),
+            ft.NavigationRailDestination(icon=ft.Icons.ACCOUNT_BALANCE_OUTLINED, label="Accounts"),
             ft.NavigationRailDestination(icon=ft.Icons.SETTINGS, label="Settings"),
         ],
         on_change=menu_change,
@@ -96,6 +97,9 @@ def main(page: ft.Page):
         # create db if it doesn't exists
         for db in WhichDb:
             initialize_db(selected_year, db)
+
+        # carry over accounts (not balances) from the most recent prior year, if any
+        seed_accounts_for_new_year(selected_year)
 
         # start home
         startup_layout(page)

@@ -9,7 +9,7 @@ import flet as ft
 logger = getLogger("financial_tracker")
 
 
-YEAR_OPTIONS = [ft.dropdown.Option("2026")]
+YEAR_OPTIONS = [ft.dropdown.Option("2026"), ft.dropdown.Option(key="9999", text="9999 (Demo)")]
 
 
 def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> None:
@@ -43,7 +43,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
 
         on_start_callback(selected_year)
 
-    if page.window.height is None:
+    if page.height is None:
         raise RuntimeError("Cannot retrieve page height.")
 
     years_dropdown = ft.Dropdown(
@@ -57,10 +57,10 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int], None]) -> Non
     layout = ft.Column(
         controls=[
             # title
-            ft.Container(height=page.window.height * 0.1),
+            ft.Container(height=page.height * 0.1),
             ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
             ft.Text("by Luca Marchetti", size=22),
-            ft.Container(height=page.window.height * 0.2),
+            ft.Container(height=page.height * 0.2),
             # year selection
             ft.Row(
                 controls=[
