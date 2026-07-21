@@ -3,6 +3,8 @@
 import sqlite3 as sq
 from logging import getLogger
 
+import numpy as np
+
 from _helpers.constants import ACCOUNT_BALANCES_DB_NAME, ACCOUNTS_DB_NAME
 
 from ..data_structures import Account, AccountBalance, AccountKind
@@ -43,6 +45,37 @@ def fetch_account_balances(year: int) -> dict[tuple[int, int], float]:
         rows = connection.execute(f"SELECT account_id, month, balance FROM {ACCOUNT_BALANCES_DB_NAME}").fetchall()
 
     return {(row[0], row[1]): row[2] for row in rows}
+
+
+def fetch_balances_by_kind(year: int) -> dict[AccountKind, np.ndarray]:
+    """Fetches the total balance per month for each account kind that has any balance logged.
+
+    Args:
+        year (int): The year of the accounts in the database.
+
+    Returns:
+        dict[AccountKind, np.ndarray]: Maps each `:enum:AccountKind` present in the data to an
+            array of shape (12,) with its combined balance per month, summed across every
+            account of that kind. A kind with no balances logged at all is omitted.
+    """
+    logger.info("Called 'fetch_balances_by_kind'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT a.kind, b.month, SUM(b.balance)
+            FROM {ACCOUNT_BALANCES_DB_NAME} b
+            JOIN {ACCOUNTS_DB_NAME} a ON a.id = b.account_id
+            GROUP BY a.kind, b.month
+            """
+        ).fetchall()
+
+    totals: dict[AccountKind, np.ndarray] = {}
+    for kind_name, month, total in rows:
+        kind = AccountKind[kind_name]
+        totals.setdefault(kind, np.zeros(12, dtype=np.float32))[month - 1] = total
+
+    return totals
 
 
 def _fetch_balance_id(year: int, account_id: int, month: int) -> int | None:

@@ -27,6 +27,15 @@ class AccountKind(Enum):
     PENSION = auto()
 
 
+ACCOUNT_KIND_COLORS = {
+    AccountKind.CASH: "#C80000",
+    AccountKind.CRYPTO: "#FF8F00",
+    AccountKind.EMERGENCY: "#0D47A1",
+    AccountKind.INVESTMENTS: "#4CAF50",
+    AccountKind.PENSION: "#6A1B9A",
+}
+
+
 @dataclass(frozen=True, kw_only=True)
 class Account(DataContainer):
     """Account blueprint.

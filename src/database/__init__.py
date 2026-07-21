@@ -1,5 +1,6 @@
 """Handles the backend of the application."""
 
+from .data_structures import ACCOUNT_KIND_COLORS as ACCOUNT_KIND_COLORS
 from .data_structures import Account as Account
 from .data_structures import AccountBalance as AccountBalance
 from .data_structures import AccountKind as AccountKind
@@ -26,6 +27,7 @@ from .db_operations import delete_previous_year_end_balance as delete_previous_y
 from .db_operations import edit_item as edit_item
 from .db_operations import fetch_account_balances as fetch_account_balances
 from .db_operations import fetch_account_definitions as fetch_account_definitions
+from .db_operations import fetch_balances_by_kind as fetch_balances_by_kind
 from .db_operations import fetch_by_id as fetch_by_id
 from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_expense_totals as fetch_expense_totals

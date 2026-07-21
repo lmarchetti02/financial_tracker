@@ -9,6 +9,7 @@ from database.db_operations.accounts import (
     delete_previous_year_end_balance,
     fetch_account_balances,
     fetch_account_definitions,
+    fetch_balances_by_kind,
     fetch_previous_year_account_ids,
     fetch_previous_year_end_balances,
     save_balance,
@@ -65,6 +66,57 @@ class TestFetchAccountBalances:
         save_balance(YEAR, account_id, 2, 200.0)
 
         assert fetch_account_balances(YEAR) == {(account_id, 1): 100.0, (account_id, 2): 200.0}
+
+
+class TestFetchBalancesByKind:
+    """Tests for `fetch_balances_by_kind`."""
+
+    def test_is_empty_when_no_balances_are_logged(self) -> None:
+        """With no balances at all, there is nothing to report."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+
+        assert fetch_balances_by_kind(YEAR) == {}
+
+    def test_sums_balances_across_every_account_of_the_same_kind(self) -> None:
+        """Two accounts of the same kind contribute to a single combined series."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        first_id = add_item(YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        second_id = add_item(YEAR, make_account(name="Wallet", kind=AccountKind.CASH))
+        save_balance(YEAR, first_id, 1, 100.0)
+        save_balance(YEAR, second_id, 1, 50.0)
+
+        totals = fetch_balances_by_kind(YEAR)
+
+        assert totals.keys() == {AccountKind.CASH}
+        assert totals[AccountKind.CASH][0] == pytest.approx(150.0)
+
+    def test_keeps_different_kinds_in_separate_series(self) -> None:
+        """Accounts of different kinds contribute to independent series."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        cash_id = add_item(YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        pension_id = add_item(YEAR, make_account(name="Pension Fund", kind=AccountKind.PENSION))
+        save_balance(YEAR, cash_id, 3, 100.0)
+        save_balance(YEAR, pension_id, 3, 900.0)
+
+        totals = fetch_balances_by_kind(YEAR)
+
+        assert totals[AccountKind.CASH][2] == pytest.approx(100.0)
+        assert totals[AccountKind.PENSION][2] == pytest.approx(900.0)
+
+    def test_unlogged_months_default_to_zero(self) -> None:
+        """A month with no logged balance for a kind stays at zero, not missing."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        account_id = add_item(YEAR, make_account(kind=AccountKind.CASH))
+        save_balance(YEAR, account_id, 6, 100.0)
+
+        totals = fetch_balances_by_kind(YEAR)
+
+        assert totals[AccountKind.CASH][0] == 0.0
+        assert totals[AccountKind.CASH][5] == pytest.approx(100.0)
 
 
 class TestSaveBalance:

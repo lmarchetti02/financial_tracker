@@ -42,7 +42,7 @@ def startup_layout(page: ft.Page) -> None:
                 main_content.content = accounts_view(page)
                 logger.debug("Accounts view selected")
             case _:
-                return
+                main_content.content = ft.Text("Work in progress...")
 
         page.update()
 

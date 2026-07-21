@@ -8,6 +8,7 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label
+from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
 from .common import build_styled_data_table, show_alert
 
@@ -18,13 +19,6 @@ _ACCOUNT_COLUMN_WIDTH = 180
 _ACCOUNT_DIVIDER = ft.Border(right=ft.BorderSide(width=2))
 _HEADING_ROW_HEIGHT = 35
 _BALANCE_ROW_HEIGHT = 48
-_ACCOUNT_COLORS = {
-    db.AccountKind.CASH: "#C80000",
-    db.AccountKind.CRYPTO: "#FF8F00",
-    db.AccountKind.EMERGENCY: "#0D47A1",
-    db.AccountKind.INVESTMENTS: "#4CAF50",
-    db.AccountKind.PENSION: "#6A1B9A",
-}
 
 _KIND_OPTIONS = [
     ft.DropdownOption(key=str(kind.value), text=enum_label(kind))
@@ -67,12 +61,26 @@ class AccountsView(ft.Column):
         )
         self.balance_grid_container = ft.Column()
 
+        self.allocation_summary_button = ft.Button(
+            "Liquid Asset Allocation",
+            icon=ft.Icons.BAR_CHART,
+            color=_HEADING_COLOR,
+            on_click=lambda _: show_asset_allocation_summary(self._page),
+        )
+        self.allocation_pie_button = ft.Button(
+            "Current Month Pie",
+            icon=ft.Icons.PIE_CHART,
+            color="#000096",
+            on_click=lambda _: show_asset_allocation_pie(self._page),
+        )
+
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
         return [
             ft.Container(height=20),
             ft.Text("Monthly balances (€)", size=20, weight=ft.FontWeight.BOLD),
             self.balance_grid_container,
+            ft.Row([self.allocation_summary_button, self.allocation_pie_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=20),
             ft.Text("Accounts", size=20, weight=ft.FontWeight.BOLD),
             ft.Row(
@@ -204,7 +212,7 @@ class AccountsView(ft.Column):
                     cells=[
                         ft.DataCell(ft.Text(account.name)),
                         ft.DataCell(
-                            ft.Text(enum_label(account.kind), color=_ACCOUNT_COLORS.get(account.kind, "#000000"))
+                            ft.Text(enum_label(account.kind), color=db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000"))
                         ),
                         ft.DataCell(delete_button),
                     ]
@@ -236,7 +244,7 @@ class AccountsView(ft.Column):
         for account_id, account in self.accounts:
             account_cell = ft.DataCell(
                 ft.Container(
-                    ft.Text(account.name, color=_ACCOUNT_COLORS.get(account.kind, "#000000")),
+                    ft.Text(account.name, color=db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000")),
                     width=_ACCOUNT_COLUMN_WIDTH,
                     height=_BALANCE_ROW_HEIGHT,
                     alignment=ft.Alignment.CENTER_LEFT,
