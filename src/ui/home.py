@@ -8,6 +8,7 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
+from plotting import show_savings_pie, show_savings_summary
 
 from .common import build_styled_data_table
 
@@ -52,11 +53,26 @@ def home_view(page: ft.Page) -> ft.Control:
     ]
     table = build_styled_data_table(columns, rows, _HEADING_COLOR)
 
+    summary_button = ft.Button(
+        "Show Summary",
+        icon=ft.Icons.BAR_CHART,
+        color="#006400",
+        on_click=lambda _: show_savings_summary(page),
+    )
+    pie_chart_button = ft.Button(
+        "Show Pie Chart",
+        icon=ft.Icons.BAR_CHART,
+        color="#000096",
+        on_click=lambda _: show_savings_pie(page),
+    )
+
     return ft.Column(
         controls=[
             ft.Text("Home", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=30),
             table,
+            ft.Container(height=10),
+            ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         expand=True,
