@@ -6,8 +6,7 @@ import flet as ft
 
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-from database.db_operations import (WhichDb, initialize_db,
-                                    seed_accounts_for_new_year)
+from database.db_operations import WhichDb, initialize_db, seed_accounts_for_new_year
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view

@@ -103,6 +103,11 @@ class AccountsView(ft.Column):
             show_alert(self._page, "Missing kind", "You must choose a kind for the account.")
             return
 
+        existing_names = {account.name.lower() for _, account in self.accounts}
+        if name.lower() in existing_names:
+            show_alert(self._page, "Duplicate account", f"An account named '{name}' already exists.")
+            return
+
         account = db.Account(name=name, kind=db.AccountKind(int(self.kind_dropdown.value)))
         db.add_item(self.year, account)
         logger.debug(f"Added account:\n{account}")
