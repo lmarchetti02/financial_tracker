@@ -35,8 +35,10 @@ from .db_operations import fetch_expenses as fetch_expenses
 from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
 from .db_operations import fetch_income_totals as fetch_income_totals
 from .db_operations import fetch_incomes as fetch_incomes
+from .db_operations import fetch_net_worth_components as fetch_net_worth_components
 from .db_operations import fetch_previous_year_account_ids as fetch_previous_year_account_ids
 from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
+from .db_operations import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_transfers as fetch_transfers
 from .db_operations import initialize_db as initialize_db

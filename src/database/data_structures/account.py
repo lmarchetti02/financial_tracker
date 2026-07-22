@@ -25,6 +25,8 @@ class AccountKind(Enum):
     INVESTMENTS = auto()
     CRYPTO = auto()
     PENSION = auto()
+    DEBT = auto()
+    CREDIT = auto()
 
 
 ACCOUNT_KIND_COLORS = {
@@ -33,6 +35,7 @@ ACCOUNT_KIND_COLORS = {
     AccountKind.EMERGENCY: "#0D47A1",
     AccountKind.INVESTMENTS: "#4CAF50",
     AccountKind.PENSION: "#6A1B9A",
+    AccountKind.CREDIT: "#FDD835",
 }
 
 

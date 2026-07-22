@@ -78,6 +78,53 @@ def fetch_balances_by_kind(year: int) -> dict[AccountKind, np.ndarray]:
     return totals
 
 
+def fetch_net_worth_components(year: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Splits each month's account balances into the components of net worth.
+
+    Args:
+        year (int): The year of the accounts in the database.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: Four arrays of shape (12,):
+            liquid assets (every kind except pension, credit and debt), the pension fund,
+            credits, and debts.
+    """
+    logger.info("Called 'fetch_net_worth_components'")
+
+    totals_by_kind = fetch_balances_by_kind(year)
+    pension = totals_by_kind.pop(AccountKind.PENSION, np.zeros(12, dtype=np.float32))
+    credits = totals_by_kind.pop(AccountKind.CREDIT, np.zeros(12, dtype=np.float32))
+    debts = totals_by_kind.pop(AccountKind.DEBT, np.zeros(12, dtype=np.float32))
+    liquid_assets = sum(totals_by_kind.values(), start=np.zeros(12, dtype=np.float32))
+
+    return liquid_assets, pension, credits, debts
+
+
+def fetch_previous_year_end_net_worth_components(year: int) -> tuple[float, float, float, float]:
+    """Splits `year - 1`'s December account balances into the components of net worth.
+
+    Args:
+        year (int): The current year; balances are looked up in `year - 1`.
+
+    Returns:
+        tuple[float, float, float, float]: The previous year's December liquid assets, pension
+            fund, credits, and debts. Every value defaults to 0.0 if the previous year has no
+            database, or it predates the `accounts`/`account_balances` tables.
+    """
+    logger.info("Called 'fetch_previous_year_end_net_worth_components'")
+
+    previous_year = year - 1
+    if not get_db_path(previous_year).exists():
+        return 0.0, 0.0, 0.0, 0.0
+
+    try:
+        liquid_assets, pension, credits, debts = fetch_net_worth_components(previous_year)
+    except sq.OperationalError:
+        return 0.0, 0.0, 0.0, 0.0
+
+    return float(liquid_assets[11]), float(pension[11]), float(credits[11]), float(debts[11])
+
+
 def _fetch_balance_id(year: int, account_id: int, month: int) -> int | None:
     """Fetches the id of the balance row for `account_id`/`month`, if any."""
     with sq.connect(get_db_path(year)) as connection:

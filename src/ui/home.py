@@ -8,13 +8,15 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
-from plotting import show_savings_pie, show_savings_summary
+from plotting import (show_net_worth_summary, show_savings_pie,
+                      show_savings_summary)
 
 from .common import build_styled_data_table
 
 logger = getLogger("financial_tracker")
 
 _HEADING_COLOR = "#FBC02D"
+_NET_WORTH_HEADING_COLOR = "#64B5F6"
 
 
 def home_view(page: ft.Page) -> ft.Control:
@@ -42,9 +44,27 @@ def home_view(page: ft.Page) -> ft.Control:
         """Builds a `:class:DataRow` with a label cell followed by one formatted cell per month."""
         return ft.DataRow(cells=[ft.DataCell(ft.Text(label))] + [ft.DataCell(ft.Text(fmt.format(v))) for v in values])
 
-    columns = [DataColumn2(label=ft.Text(""), fixed_width=150)] + [
-        DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS
-    ]
+    def build_month_columns() -> list[DataColumn2]:
+        """Builds a blank label column followed by one numeric column per month."""
+        return [DataColumn2(label=ft.Text(""), fixed_width=170)] + [
+            DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS
+        ]
+
+    def build_net_worth_columns() -> list[DataColumn2]:
+        """Builds a blank label column, the previous year, then one numeric column per month."""
+        return [
+            DataColumn2(label=ft.Text(""), fixed_width=170),
+            DataColumn2(label=ft.Text(str(year - 1)), numeric=True),
+        ] + [DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS]
+
+    def build_net_worth_row(label: str, previous_year_value: float, values: np.ndarray, fmt: str) -> ft.DataRow:
+        """Builds a `:class:DataRow` with a label, the previous year's value, then one cell per month."""
+        return ft.DataRow(
+            cells=[ft.DataCell(ft.Text(label)), ft.DataCell(ft.Text(fmt.format(previous_year_value)))]
+            + [ft.DataCell(ft.Text(fmt.format(v))) for v in values]
+        )
+
+    columns = build_month_columns()
     rows = [
         build_row("Income (€)", income, "{:.2f}"),
         build_row("Expenses (€)", expenses, "{:.2f}"),
@@ -52,6 +72,27 @@ def home_view(page: ft.Page) -> ft.Control:
         build_row("Savings Rate (%)", savings_rate, "{:.1f}"),
     ]
     table = build_styled_data_table(columns, rows, _HEADING_COLOR)
+
+    liquid_assets, pension, credits, debts = db.fetch_net_worth_components(year)
+    net_worth = liquid_assets + pension + credits - debts
+
+    prev_liquid_assets, prev_pension, prev_credits, prev_debts = db.fetch_previous_year_end_net_worth_components(year)
+    prev_net_worth = prev_liquid_assets + prev_pension + prev_credits - prev_debts
+
+    logger.debug(f"Liquid assets per month:\n{liquid_assets}")
+    logger.debug(f"Pension fund per month:\n{pension}")
+    logger.debug(f"Credits per month:\n{credits}")
+    logger.debug(f"Debts per month:\n{debts}")
+    logger.debug(f"Net worth per month:\n{net_worth}")
+
+    net_worth_rows = [
+        build_net_worth_row("Liquid Assets (€)", prev_liquid_assets, liquid_assets, "{:.2f}"),
+        build_net_worth_row("Pension Fund (€)", prev_pension, pension, "{:.2f}"),
+        build_net_worth_row("Credits (€)", prev_credits, credits, "{:.2f}"),
+        build_net_worth_row("Debts (€)", prev_debts, debts, "{:.2f}"),
+        build_net_worth_row("Total (€)", prev_net_worth, net_worth, "{:.2f}"),
+    ]
+    net_worth_table = build_styled_data_table(build_net_worth_columns(), net_worth_rows, _NET_WORTH_HEADING_COLOR)
 
     summary_button = ft.Button(
         "Show Summary",
@@ -65,14 +106,27 @@ def home_view(page: ft.Page) -> ft.Control:
         color="#000096",
         on_click=lambda _: show_savings_pie(page),
     )
+    net_worth_summary_button = ft.Button(
+        "Show Summary",
+        icon=ft.Icons.BAR_CHART,
+        color="#1565C0",
+        on_click=lambda _: show_net_worth_summary(page),
+    )
 
     return ft.Column(
         controls=[
             ft.Text("Home", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=30),
+            ft.Text("Savings", size=20, weight=ft.FontWeight.BOLD),
             table,
             ft.Container(height=10),
             ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Container(height=30),
+            ft.Text("Net Worth", size=20, weight=ft.FontWeight.BOLD),
+            ft.Container(height=10),
+            net_worth_table,
+            ft.Container(height=10),
+            ft.Row([net_worth_summary_button], alignment=ft.MainAxisAlignment.CENTER),
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         expand=True,

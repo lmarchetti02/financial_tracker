@@ -6,8 +6,10 @@ from .accounts import delete_previous_year_end_balance as delete_previous_year_e
 from .accounts import fetch_account_balances as fetch_account_balances
 from .accounts import fetch_account_definitions as fetch_account_definitions
 from .accounts import fetch_balances_by_kind as fetch_balances_by_kind
+from .accounts import fetch_net_worth_components as fetch_net_worth_components
 from .accounts import fetch_previous_year_account_ids as fetch_previous_year_account_ids
 from .accounts import fetch_previous_year_end_balances as fetch_previous_year_end_balances
+from .accounts import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
 from .accounts import save_balance as save_balance
 from .accounts import save_previous_year_end_balance as save_previous_year_end_balance
 from .accounts import seed_accounts_for_new_year as seed_accounts_for_new_year

@@ -10,8 +10,10 @@ from database.db_operations.accounts import (
     fetch_account_balances,
     fetch_account_definitions,
     fetch_balances_by_kind,
+    fetch_net_worth_components,
     fetch_previous_year_account_ids,
     fetch_previous_year_end_balances,
+    fetch_previous_year_end_net_worth_components,
     save_balance,
     save_previous_year_end_balance,
     seed_accounts_for_new_year,
@@ -117,6 +119,90 @@ class TestFetchBalancesByKind:
 
         assert totals[AccountKind.CASH][0] == 0.0
         assert totals[AccountKind.CASH][5] == pytest.approx(100.0)
+
+
+class TestFetchNetWorthComponents:
+    """Tests for `fetch_net_worth_components`."""
+
+    def test_splits_balances_into_liquid_assets_pension_credits_and_debts(self) -> None:
+        """Each special kind's balance lands in its own matching component array."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        cash_id = add_item(YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        pension_id = add_item(YEAR, make_account(name="Pension", kind=AccountKind.PENSION))
+        credit_id = add_item(YEAR, make_account(name="Owed to me", kind=AccountKind.CREDIT))
+        debt_id = add_item(YEAR, make_account(name="Owed by me", kind=AccountKind.DEBT))
+        save_balance(YEAR, cash_id, 1, 100.0)
+        save_balance(YEAR, pension_id, 1, 200.0)
+        save_balance(YEAR, credit_id, 1, 50.0)
+        save_balance(YEAR, debt_id, 1, 25.0)
+
+        liquid_assets, pension, credits, debts = fetch_net_worth_components(YEAR)
+
+        assert liquid_assets[0] == pytest.approx(100.0)
+        assert pension[0] == pytest.approx(200.0)
+        assert credits[0] == pytest.approx(50.0)
+        assert debts[0] == pytest.approx(25.0)
+
+    def test_sums_every_non_special_kind_into_liquid_assets(self) -> None:
+        """Kinds other than pension, credit and debt are combined into liquid assets."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        cash_id = add_item(YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        crypto_id = add_item(YEAR, make_account(name="Wallet", kind=AccountKind.CRYPTO))
+        save_balance(YEAR, cash_id, 1, 100.0)
+        save_balance(YEAR, crypto_id, 1, 50.0)
+
+        liquid_assets, *_ = fetch_net_worth_components(YEAR)
+
+        assert liquid_assets[0] == pytest.approx(150.0)
+
+    def test_returns_all_zeros_when_no_balances_are_logged(self) -> None:
+        """With nothing logged, every component is a 12-month array of zeros."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+
+        components = fetch_net_worth_components(YEAR)
+
+        for component in components:
+            assert component.shape == (12,)
+            assert (component == 0).all()
+
+
+class TestFetchPreviousYearEndNetWorthComponents:
+    """Tests for `fetch_previous_year_end_net_worth_components`."""
+
+    def test_returns_all_zeros_when_the_previous_year_has_no_database(self) -> None:
+        """With no `year - 1` database file at all, there is nothing to report."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+
+        assert fetch_previous_year_end_net_worth_components(YEAR) == (0.0, 0.0, 0.0, 0.0)
+
+    def test_returns_decembers_totals_from_the_previous_year(self) -> None:
+        """The previous year's December balances are split into the same four components."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
+        cash_id = add_item(PRIOR_YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        pension_id = add_item(PRIOR_YEAR, make_account(name="Pension", kind=AccountKind.PENSION))
+        credit_id = add_item(PRIOR_YEAR, make_account(name="Owed to me", kind=AccountKind.CREDIT))
+        debt_id = add_item(PRIOR_YEAR, make_account(name="Owed by me", kind=AccountKind.DEBT))
+        save_balance(PRIOR_YEAR, cash_id, 12, 100.0)
+        save_balance(PRIOR_YEAR, pension_id, 12, 200.0)
+        save_balance(PRIOR_YEAR, credit_id, 12, 50.0)
+        save_balance(PRIOR_YEAR, debt_id, 12, 25.0)
+
+        assert fetch_previous_year_end_net_worth_components(YEAR) == (100.0, 200.0, 50.0, 25.0)
+
+    def test_ignores_months_other_than_december(self) -> None:
+        """Only the December snapshot counts, not other months' balances."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
+        cash_id = add_item(PRIOR_YEAR, make_account(kind=AccountKind.CASH))
+        save_balance(PRIOR_YEAR, cash_id, 6, 999.0)
+
+        liquid_assets, *_ = fetch_previous_year_end_net_worth_components(YEAR)
+
+        assert liquid_assets == 0.0
 
 
 class TestSaveBalance:
