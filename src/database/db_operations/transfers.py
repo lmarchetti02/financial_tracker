@@ -62,3 +62,20 @@ def fetch_fee_expense_ids(year: int) -> set[int]:
         cursor = connection.cursor()
         cursor.execute(f"SELECT fee_expense_id FROM {TRANSFERS_DB_NAME} WHERE fee_expense_id IS NOT NULL")
         return {row[0] for row in cursor.fetchall()}
+
+
+def fetch_profit_income_ids(year: int) -> set[int]:
+    """Fetches the ids of every `:class:Income` currently linked to a transfer's profit.
+
+    Args:
+        year (int): The year of the transfers in the database.
+
+    Returns:
+        set[int]: The ids of the `:class:Income` rows referenced by some transfer's `profit_income_id`.
+    """
+    logger.info("Called 'fetch_profit_income_ids'")
+
+    with sq.connect(get_db_path(year)) as connection:
+        cursor = connection.cursor()
+        cursor.execute(f"SELECT profit_income_id FROM {TRANSFERS_DB_NAME} WHERE profit_income_id IS NOT NULL")
+        return {row[0] for row in cursor.fetchall()}

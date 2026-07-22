@@ -153,7 +153,7 @@ class DataContainer(ABC):
         return DataColumn2(
             label=ft.Row(controls=[ft.Text("M")], tight=True, spacing=0, alignment=ft.MainAxisAlignment.CENTER),
             numeric=True,
-            fixed_width=80,
+            fixed_width=70,
         )
 
     @staticmethod

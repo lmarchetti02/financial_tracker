@@ -33,5 +33,6 @@ from .incomes import fetch_source as fetch_source
 from .transfers import TSC as TSC
 from .transfers import TransfersSortingConfig as TransfersSortingConfig
 from .transfers import fetch_fee_expense_ids as fetch_fee_expense_ids
+from .transfers import fetch_profit_income_ids as fetch_profit_income_ids
 from .transfers import fetch_transfers as fetch_transfers
 from .utils import RowGenerator as RowGenerator

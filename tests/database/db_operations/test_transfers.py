@@ -4,7 +4,12 @@ import pytest
 
 from database.data_structures.transfer import Kind, Transfer
 from database.db_operations.generic import WhichDb, add_item, initialize_db
-from database.db_operations.transfers import TransfersSortingConfig, fetch_fee_expense_ids, fetch_transfers
+from database.db_operations.transfers import (
+    TransfersSortingConfig,
+    fetch_fee_expense_ids,
+    fetch_profit_income_ids,
+    fetch_transfers,
+)
 
 YEAR = 2024
 
@@ -125,3 +130,30 @@ class TestFetchFeeExpenseIds:
         add_item(YEAR, make_transfer())
 
         assert fetch_fee_expense_ids(YEAR) == {1, 2}
+
+
+class TestFetchProfitIncomeIds:
+    """Tests for `fetch_profit_income_ids`."""
+
+    def test_returns_the_ids_referenced_by_a_transfer_s_profit(self) -> None:
+        """A transfer with a `profit_income_id` set contributes that id to the result."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(profit_income_id=42))
+
+        assert fetch_profit_income_ids(YEAR) == {42}
+
+    def test_excludes_transfers_without_a_profit(self) -> None:
+        """A transfer with no `profit_income_id` does not contribute `None` to the result."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer())
+
+        assert fetch_profit_income_ids(YEAR) == set()
+
+    def test_combines_ids_from_multiple_transfers(self) -> None:
+        """Ids from every transfer with a profit are included."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(profit_income_id=1))
+        add_item(YEAR, make_transfer(profit_income_id=2))
+        add_item(YEAR, make_transfer())
+
+        assert fetch_profit_income_ids(YEAR) == {1, 2}

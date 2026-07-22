@@ -252,7 +252,12 @@ class IncomeView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches incomes matching the current sort and filters."""
+        self._profit_income_ids = db.fetch_profit_income_ids(self.year)
         return db.fetch_incomes(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
+
+    def _is_readonly(self, row_id: int) -> bool:
+        """An income generated from a transfer's profit is only editable from the Transfers page."""
+        return row_id in self._profit_income_ids
 
 
 def income_view(page: ft.Page) -> ft.Control:

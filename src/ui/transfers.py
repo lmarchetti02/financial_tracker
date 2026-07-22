@@ -47,22 +47,23 @@ class TransfersView(BaseCrudView):
             options=KINDS,
             on_text_change=lambda _: setattr(self.kind_picker, "error_text", None),
             on_select=self.handle_kind_change,
-            width=180,
+            width=200,
         )
 
         # amount
-        self.amount_text = ft.TextField(label="Amount (€)", width=150)
+        self.amount_text = ft.TextField(label="Amount (€)", width=170)
 
         # source / destination
-        self.source_text = ft.TextField(label="Source", width=260)
-        self.destination_text = ft.TextField(label="Destination", width=260)
+        self.source_text = ft.TextField(label="Source", width=290)
+        self.destination_text = ft.TextField(label="Destination", width=290)
 
         # description
-        self.description_text = ft.TextField(label="Description", width=400, multiline=True)
+        self.description_text = ft.TextField(label="Description", width=350, multiline=True)
 
-        # fee
-        self.fee_text = ft.TextField(label="Fee (€)", width=120)
-        self.update_fee_field_state()
+        # fee / profit
+        self.fee_text = ft.TextField(label="Fee", width=120)
+        self.profit_text = ft.TextField(label="Profit", width=120)
+        self.update_investment_fields_state()
 
         # button
         self.add_transfer_button = ft.Button("Add Transfer", on_click=self.add_new_transfer)
@@ -85,9 +86,9 @@ class TransfersView(BaseCrudView):
         upper_row = ft.Row(
             controls=[
                 self.date_button,
-                ft.Container(width=20),
+                ft.Container(width=40),
                 self.kind_picker,
-                ft.Container(width=20),
+                ft.Container(width=40),
                 self.amount_text,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
@@ -96,7 +97,7 @@ class TransfersView(BaseCrudView):
         source_destination_row = ft.Row(
             controls=[
                 self.source_text,
-                ft.Container(width=20),
+                ft.Container(width=40),
                 self.destination_text,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
@@ -105,8 +106,10 @@ class TransfersView(BaseCrudView):
         description_row = ft.Row(
             controls=[
                 self.description_text,
-                ft.Container(width=20),
+                ft.Container(width=5),
                 self.fee_text,
+                ft.Container(width=5),
+                self.profit_text,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
         )
@@ -131,17 +134,21 @@ class TransfersView(BaseCrudView):
             self.date_button.content = self.date_picker.value.astimezone().strftime("%d/%m")
         self._page.update()
 
-    def update_fee_field_state(self) -> None:
-        """Enables the fee field only when the selected kind is `:enum:Kind.INVESTMENT`."""
-        self.fee_text.disabled = self.kind_picker.value != str(db.Kind.INVESTMENT.value)
+    def update_investment_fields_state(self) -> None:
+        """Enables the fee/profit fields only when the selected kind is `:enum:Kind.INVESTMENT`."""
+        is_investment = self.kind_picker.value == str(db.Kind.INVESTMENT.value)
+        self.fee_text.disabled = not is_investment
+        self.profit_text.disabled = not is_investment
 
     def handle_kind_change(self, _: ft.Event) -> None:
-        """Clears the kind error text and updates the fee field's enabled state."""
+        """Clears the kind error text and updates the fee/profit fields' enabled state."""
         self.kind_picker.error_text = None
 
-        self.update_fee_field_state()
+        self.update_investment_fields_state()
         if self.fee_text.disabled:
             self.fee_text.value = ""
+        if self.profit_text.disabled:
+            self.profit_text.value = ""
 
         self._page.update()
 
@@ -201,6 +208,22 @@ class TransfersView(BaseCrudView):
                 self._page.update()
                 return None
 
+        profit = None
+        if self.profit_text.value:
+            try:
+                profit = float(self.profit_text.value.replace(",", "."))
+            except ValueError:
+                show_alert(
+                    self._page, "Invalid profit", "The profit must be a real number (comma for decimals allowed)."
+                )
+                self._page.update()
+                return None
+
+            if profit <= 0:
+                show_alert(self._page, "Invalid profit", "The profit must be greater than zero.")
+                self._page.update()
+                return None
+
         date_local = self.date_picker.value.astimezone()
 
         transfer = db.Transfer(
@@ -212,6 +235,7 @@ class TransfersView(BaseCrudView):
             destination=destination,
             amount=amount,
             fee=fee,
+            profit=profit,
         )
         logger.debug(f"Reconstructed transfer:\n{transfer}")
 
@@ -227,7 +251,8 @@ class TransfersView(BaseCrudView):
         self.kind_picker.value = None
         self.amount_text.value = ""
         self.fee_text.value = ""
-        self.update_fee_field_state()
+        self.profit_text.value = ""
+        self.update_investment_fields_state()
         self.source_text.value = ""
         self.destination_text.value = ""
         logger.debug("Cleared transfer data")
@@ -253,6 +278,16 @@ class TransfersView(BaseCrudView):
             expense_id = db.add_item(self.year, fee_expense)
             db.edit_item(self.year, transfer_id, transfer, replace(transfer, fee_expense_id=expense_id))
 
+        if transfer.profit is not None:
+            profit_income = db.Income(
+                month=transfer.month,
+                source=db.Sources.INVESTMENTS,
+                description=transfer.description,
+                amount=transfer.profit,
+            )
+            income_id = db.add_item(self.year, profit_income)
+            db.edit_item(self.year, transfer_id, transfer, replace(transfer, profit_income_id=income_id))
+
         self.clear_inputs()
         self.refresh_table()
 
@@ -269,8 +304,11 @@ class TransfersView(BaseCrudView):
                 show_alert(
                     self._page, "Error deleting transfer", f"It was not possible to delete transfer {transfer_id}"
                 )
-            elif transfer.fee_expense_id is not None:
-                db.remove_item(self.year, db.WhichDb.EXPENSES, transfer.fee_expense_id)
+            else:
+                if transfer.fee_expense_id is not None:
+                    db.remove_item(self.year, db.WhichDb.EXPENSES, transfer.fee_expense_id)
+                if transfer.profit_income_id is not None:
+                    db.remove_item(self.year, db.WhichDb.INCOMES, transfer.profit_income_id)
 
             self._page.pop_dialog()
             self.refresh_table()
@@ -323,7 +361,29 @@ class TransfersView(BaseCrudView):
                 )
                 db.edit_item(self.year, old_transfer.fee_expense_id, old_fee_expense, new_fee_expense)
 
-            new_transfer = replace(new_transfer, fee_expense_id=fee_expense_id)
+            profit_income_id = old_transfer.profit_income_id
+            if old_transfer.profit is None and new_transfer.profit is not None:
+                profit_income = db.Income(
+                    month=new_transfer.month,
+                    source=db.Sources.INVESTMENTS,
+                    description=new_transfer.description,
+                    amount=new_transfer.profit,
+                )
+                profit_income_id = db.add_item(self.year, profit_income)
+            elif old_transfer.profit is not None and new_transfer.profit is None:
+                db.remove_item(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id)
+                profit_income_id = None
+            elif old_transfer.profit is not None and new_transfer.profit is not None:
+                old_profit_income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id)
+                new_profit_income = db.Income(
+                    month=new_transfer.month,
+                    source=db.Sources.INVESTMENTS,
+                    description=new_transfer.description,
+                    amount=new_transfer.profit,
+                )
+                db.edit_item(self.year, old_transfer.profit_income_id, old_profit_income, new_profit_income)
+
+            new_transfer = replace(new_transfer, fee_expense_id=fee_expense_id, profit_income_id=profit_income_id)
 
             if new_transfer == old_transfer:
                 show_alert(self._page, "Unchanged transfer", "You did not modify the transfer.")
@@ -366,9 +426,10 @@ class TransfersView(BaseCrudView):
         """Populates the add-transfer controls with an existing transfer's values."""
         self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
         self.kind_picker.value = str(transfer.kind.value)
-        self.update_fee_field_state()
+        self.update_investment_fields_state()
         self.amount_text.value = f"{transfer.amount:.2f}"
         self.fee_text.value = f"{transfer.fee:.2f}" if transfer.fee is not None else ""
+        self.profit_text.value = f"{transfer.profit:.2f}" if transfer.profit is not None else ""
         self.description_text.value = transfer.description
         self.source_text.value = transfer.source or ""
         self.destination_text.value = transfer.destination or ""

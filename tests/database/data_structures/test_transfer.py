@@ -61,21 +61,28 @@ class TestTransfer:
         with pytest.raises(ValueError):
             make_transfer(fee=0.0)
 
-    def test_day_fee_and_fee_expense_id_default_sensibly(self) -> None:
-        """`day` defaults to 1 and `fee`/`fee_expense_id` default to `None` when omitted."""
+    def test_construction_fails_for_non_positive_profit(self) -> None:
+        """A `profit` of zero (or below) is rejected."""
+        with pytest.raises(ValueError):
+            make_transfer(profit=0.0)
+
+    def test_day_fee_profit_and_generated_ids_default_sensibly(self) -> None:
+        """`day` defaults to 1 and `fee`/`fee_expense_id`/`profit`/`profit_income_id` default to `None`."""
         transfer = make_transfer()
 
         assert transfer.day == 1
         assert transfer.fee is None
         assert transfer.fee_expense_id is None
+        assert transfer.profit is None
+        assert transfer.profit_income_id is None
 
 
 class TestGetTableColumns:
     """Tests for `Transfer.get_table_columns`."""
 
     def test_returns_one_column_per_displayed_field(self) -> None:
-        """The table has one column each for month, day, kind, description, source, destination, amount and fee."""
-        assert len(Transfer.get_table_columns()) == 8
+        """The table has one column each for month, day, kind, description, source, destination, amount, fee, profit."""
+        assert len(Transfer.get_table_columns()) == 9
 
 
 class TestGetTableRow:
@@ -92,6 +99,7 @@ class TestGetTableRow:
             "destination": "Bank B",
             "amount": 100.0,
             "fee": None,
+            "profit": None,
         }
 
         cells = Transfer.get_table_row(row)
@@ -104,6 +112,7 @@ class TestGetTableRow:
         assert cells[5].content.value == "Bank B"
         assert cells[6].content.value == "100.00"
         assert cells[7].content.value == "—"
+        assert cells[8].content.value == "—"
 
     def test_formats_a_missing_source_or_destination_as_an_em_dash(self) -> None:
         """A `None` source or destination renders as an em dash rather than the string "None"."""
@@ -116,6 +125,7 @@ class TestGetTableRow:
             "destination": "Bank B",
             "amount": 100.0,
             "fee": None,
+            "profit": None,
         }
 
         cells = Transfer.get_table_row(row)
@@ -134,8 +144,27 @@ class TestGetTableRow:
             "destination": None,
             "amount": 100.0,
             "fee": 1.5,
+            "profit": None,
         }
 
         cells = Transfer.get_table_row(row)
 
         assert cells[7].content.value == "1.50"
+
+    def test_formats_a_set_profit(self) -> None:
+        """A non-`None` profit is formatted like any other currency value."""
+        row = {
+            "month": 3,
+            "day": 15,
+            "kind": "INVESTMENT",
+            "description": "sold shares",
+            "source": None,
+            "destination": "Bank A",
+            "amount": 100.0,
+            "fee": 1.5,
+            "profit": 25.0,
+        }
+
+        cells = Transfer.get_table_row(row)
+
+        assert cells[8].content.value == "25.00"

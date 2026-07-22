@@ -30,6 +30,7 @@ class Categories(Enum):
     PRESENTS = auto()
     TRAVEL = auto()
     TRADING_FEE = auto()
+    CAPITAL_LOSS = auto()
     TAXES = auto()
     INTEREST_ON_DEBT = auto()
     OTHER = auto()

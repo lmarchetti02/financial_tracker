@@ -39,6 +39,7 @@ from .db_operations import fetch_net_worth_components as fetch_net_worth_compone
 from .db_operations import fetch_previous_year_account_ids as fetch_previous_year_account_ids
 from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .db_operations import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
+from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_transfers as fetch_transfers
 from .db_operations import initialize_db as initialize_db
