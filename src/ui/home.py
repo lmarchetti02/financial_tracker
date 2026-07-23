@@ -10,7 +10,8 @@ from flet_datatable2 import DataColumn2
 import database as db
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
-from plotting import show_net_worth_summary, show_savings_pie, show_savings_summary
+from plotting import (show_net_worth_summary, show_savings_pie,
+                      show_savings_summary)
 
 from .common import build_styled_data_table
 
@@ -41,15 +42,15 @@ def home_view(page: ft.Page) -> ft.Control:
     logger.debug(f"Net savings per month:\n{net_savings}")
     logger.debug(f"Savings rate per month:\n{savings_rate}")
 
-    def build_row(label: str, values: np.ndarray, formatter: Callable[[float], str]) -> ft.DataRow:
-        """Builds a `:class:DataRow` with a label cell followed by one formatted cell per month."""
-        return ft.DataRow(cells=[ft.DataCell(ft.Text(label))] + [ft.DataCell(ft.Text(formatter(v))) for v in values])
-
-    def build_month_columns() -> list[DataColumn2]:
+    def build_savings_columns() -> list[DataColumn2]:
         """Builds a blank label column followed by one numeric column per month."""
         return [DataColumn2(label=ft.Text(""), fixed_width=170)] + [
             DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS
         ]
+
+    def build_savings_row(label: str, values: np.ndarray, formatter: Callable[[float], str]) -> ft.DataRow:
+        """Builds a `:class:DataRow` with a label cell followed by one formatted cell per month."""
+        return ft.DataRow(cells=[ft.DataCell(ft.Text(label))] + [ft.DataCell(ft.Text(formatter(v))) for v in values])
 
     def build_net_worth_columns() -> list[DataColumn2]:
         """Builds a blank label column, the previous year, then one numeric column per month."""
@@ -59,26 +60,34 @@ def home_view(page: ft.Page) -> ft.Control:
         ] + [DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS]
 
     def build_net_worth_row(
-        label: str, previous_year_value: float, values: np.ndarray, formatter: Callable[[float], str]
+        label: str,
+        previous_year_value: float,
+        values: np.ndarray,
+        formatter: Callable[[float], str],
+        bold: bool = False,
     ) -> ft.DataRow:
         """Builds a `:class:DataRow` with a label, the previous year's value, then one cell per month."""
+        weight = ft.FontWeight.BOLD if bold else None
         return ft.DataRow(
-            cells=[ft.DataCell(ft.Text(label)), ft.DataCell(ft.Text(formatter(previous_year_value)))]
-            + [ft.DataCell(ft.Text(formatter(v))) for v in values]
+            cells=[
+                ft.DataCell(ft.Text(label, weight=weight)),
+                ft.DataCell(ft.Text(formatter(previous_year_value), weight=weight)),
+            ]
+            + [ft.DataCell(ft.Text(formatter(v), weight=weight)) for v in values]
         )
 
     def format_eur(value: float) -> str:
         """Formats a home-page EUR value, rounded to whole euros."""
         return format_amount(value, decimals=0)
 
-    columns = build_month_columns()
-    rows = [
-        build_row("Income (€)", income, format_eur),
-        build_row("Expenses (€)", expenses, format_eur),
-        build_row("Net Savings (€)", net_savings, format_eur),
-        build_row("Savings Rate (%)", savings_rate, lambda v: f"{v:.1f}"),
+    savings_columns = build_savings_columns()
+    savings_rows = [
+        build_savings_row("Income (€)", income, format_eur),
+        build_savings_row("Expenses (€)", expenses, format_eur),
+        build_savings_row("Net Savings (€)", net_savings, format_eur),
+        build_savings_row("Savings Rate (%)", savings_rate, lambda v: f"{v:.1f}"),
     ]
-    table = build_styled_data_table(columns, rows, _HEADING_COLOR)
+    savings_table = build_styled_data_table(savings_columns, savings_rows, _HEADING_COLOR)
 
     liquid_assets, pension, credits, debts = db.fetch_net_worth_components(year)
     net_worth = liquid_assets + pension + credits - debts
@@ -97,7 +106,7 @@ def home_view(page: ft.Page) -> ft.Control:
         build_net_worth_row("Pension Fund (€)", prev_pension, pension, format_eur),
         build_net_worth_row("Credits (€)", prev_credits, credits, format_eur),
         build_net_worth_row("Debts (€)", prev_debts, debts, format_eur),
-        build_net_worth_row("Total (€)", prev_net_worth, net_worth, format_eur),
+        build_net_worth_row("Total (€)", prev_net_worth, net_worth, format_eur, bold=True),
     ]
     net_worth_table = build_styled_data_table(build_net_worth_columns(), net_worth_rows, _NET_WORTH_HEADING_COLOR)
 
@@ -125,7 +134,7 @@ def home_view(page: ft.Page) -> ft.Control:
             ft.Text("Home", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=30),
             ft.Text("Savings", size=20, weight=ft.FontWeight.BOLD),
-            table,
+            savings_table,
             ft.Container(height=10),
             ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=30),

@@ -142,7 +142,7 @@ class TestMonthColumn:
         column = Expense.month_column()
 
         assert column.numeric is True
-        assert column.fixed_width == 80
+        assert column.fixed_width == 70
 
 
 class TestMonthCell:

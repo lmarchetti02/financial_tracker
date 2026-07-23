@@ -91,7 +91,7 @@ def show_savings_pie(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    color_map = {"Saved": "darkgreen", "Spent": "firebrick"}
+    color_map = {"Saved": "green", "Spent": "red"}
     colors = [color_map[name] for name in names]
 
     plt.title(f"Savings Pie Chart ({year})")
