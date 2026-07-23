@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from _helpers.constants import MONTHS
-from database import (fetch_net_worth_components,
-                      fetch_previous_year_end_net_worth_components)
+from database import fetch_net_worth_components, fetch_previous_year_end_net_worth_components
 
 logger = getLogger("financial_tracker")
 

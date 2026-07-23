@@ -11,7 +11,7 @@ from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import EXPENSES_DB_NAME
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount
 
 from .base import DataContainer
 
@@ -92,5 +92,5 @@ class Expense(DataContainer):
             ft.DataCell(ft.Container(ft.Text(days), alignment=ft.Alignment.CENTER)),
             ft.DataCell(ft.Text(enum_label(Categories[row["category"]]))),
             ft.DataCell(ft.Text(str(row["description"]))),
-            ft.DataCell(ft.Text(f"{row['cost']:.2f}")),
+            ft.DataCell(ft.Text(format_amount(row["cost"]))),
         ]

@@ -85,7 +85,7 @@ class TestGetTableRow:
         assert cells[1].content.content.value == "10"
         assert cells[2].content.value == "Food and drinks"
         assert cells[3].content.value == "groceries"
-        assert cells[4].content.value == "25.50"
+        assert cells[4].content.value == "25,50"
 
     def test_formats_a_multi_day_expense_as_a_range(self) -> None:
         """A multi-day row shows the days as a `start-end` range."""

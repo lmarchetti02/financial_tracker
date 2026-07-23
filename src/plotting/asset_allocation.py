@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from _helpers.constants import MONTHS
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount
 from database import ACCOUNT_KIND_COLORS, AccountKind, fetch_balances_by_kind
 
 logger = getLogger("financial_tracker")
 
 _DEFAULT_COLOR = "#808080"
-_EXCLUDED_KINDS = {AccountKind.PENSION}
+_EXCLUDED_KINDS = {AccountKind.PENSION, AccountKind.CREDIT, AccountKind.DEBT}
 
 
 def _fetch_allocation_totals(year: int) -> dict[AccountKind, np.ndarray]:
@@ -130,7 +130,7 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     plt.title(f"Asset Allocation ({MONTHS[month - 1]} {year})")
     patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
 
-    legend_labels = [f"{name}: € {val:.2f}" for name, val in zip(names, values)]
+    legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]
     plt.legend(
         patches,
         legend_labels,

@@ -8,7 +8,7 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount, parse_amount
 
 from .base_view import BaseCrudView
 from .common import show_alert
@@ -177,7 +177,7 @@ class TransfersView(BaseCrudView):
             return None
 
         try:
-            amount = float(self.amount_text.value.replace(",", "."))
+            amount = parse_amount(self.amount_text.value)
         except ValueError:
             show_alert(self._page, "Invalid amount", "The amount must be a real number (comma for decimals allowed).")
             self._page.update()
@@ -197,7 +197,7 @@ class TransfersView(BaseCrudView):
         fee = None
         if self.fee_text.value:
             try:
-                fee = float(self.fee_text.value.replace(",", "."))
+                fee = parse_amount(self.fee_text.value)
             except ValueError:
                 show_alert(self._page, "Invalid fee", "The fee must be a real number (comma for decimals allowed).")
                 self._page.update()
@@ -211,7 +211,7 @@ class TransfersView(BaseCrudView):
         profit = None
         if self.profit_text.value:
             try:
-                profit = float(self.profit_text.value.replace(",", "."))
+                profit = parse_amount(self.profit_text.value)
             except ValueError:
                 show_alert(
                     self._page, "Invalid profit", "The profit must be a real number (comma for decimals allowed)."
@@ -427,9 +427,9 @@ class TransfersView(BaseCrudView):
         self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
         self.kind_picker.value = str(transfer.kind.value)
         self.update_investment_fields_state()
-        self.amount_text.value = f"{transfer.amount:.2f}"
-        self.fee_text.value = f"{transfer.fee:.2f}" if transfer.fee is not None else ""
-        self.profit_text.value = f"{transfer.profit:.2f}" if transfer.profit is not None else ""
+        self.amount_text.value = format_amount(transfer.amount)
+        self.fee_text.value = format_amount(transfer.fee) if transfer.fee is not None else ""
+        self.profit_text.value = format_amount(transfer.profit) if transfer.profit is not None else ""
         self.description_text.value = transfer.description
         self.source_text.value = transfer.source or ""
         self.destination_text.value = transfer.destination or ""

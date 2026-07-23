@@ -11,7 +11,7 @@ from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import TRANSFERS_DB_NAME
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount
 
 from .base import DataContainer
 
@@ -89,8 +89,8 @@ class Transfer(DataContainer):
 
     @staticmethod
     def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
-        fee = f"{row['fee']:.2f}" if row["fee"] is not None else "—"
-        profit = f"{row['profit']:.2f}" if row["profit"] is not None else "—"
+        fee = format_amount(row["fee"]) if row["fee"] is not None else "—"
+        profit = format_amount(row["profit"]) if row["profit"] is not None else "—"
         source = row["source"] if row["source"] is not None else "—"
         destination = row["destination"] if row["destination"] is not None else "—"
         return [
@@ -100,7 +100,7 @@ class Transfer(DataContainer):
             ft.DataCell(ft.Text(f"{row['description']}")),
             ft.DataCell(ft.Text(source)),
             ft.DataCell(ft.Text(destination)),
-            ft.DataCell(ft.Text(f"{row['amount']:.2f}")),
+            ft.DataCell(ft.Text(format_amount(row["amount"]))),
             ft.DataCell(ft.Text(fee)),
             ft.DataCell(ft.Text(profit)),
         ]

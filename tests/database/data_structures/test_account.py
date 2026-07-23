@@ -79,10 +79,10 @@ class TestAccountBalanceGetTableRow:
     """Tests for `AccountBalance.get_table_row`."""
 
     def test_formats_the_month_and_balance(self) -> None:
-        """The month and balance are formatted for display."""
-        row = {"month": 3, "balance": 1234.5}
+        """The month and balance are formatted for display, rounded to whole euros."""
+        row = {"month": 3, "balance": 1234567.6}
 
         cells = AccountBalance.get_table_row(row)
 
         assert cells[0].content.content.value == "3"
-        assert cells[1].content.value == "1234.50"
+        assert cells[1].content.value == "1.234.568"

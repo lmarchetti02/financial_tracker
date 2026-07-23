@@ -52,4 +52,4 @@ class TestGetTableRow:
         assert cells[0].content.content.value == "6"
         assert cells[1].content.value == "paycheck"
         assert cells[2].content.value == "Investments"
-        assert cells[3].content.value == "1234.50"
+        assert cells[3].content.value == "1.234,50"

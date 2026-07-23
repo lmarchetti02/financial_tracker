@@ -10,6 +10,7 @@ import numpy as np
 from matplotlib.colors import TABLEAU_COLORS
 
 from _helpers.constants import MONTHS
+from _helpers.formatting import format_amount
 from database import Sources, fetch_source
 
 logger = getLogger("financial_tracker")
@@ -115,7 +116,7 @@ def show_income_pie(page: ft.Page, month: int | None = None) -> None:
     plt.title(f"Income Pie Chart ({title})")
     patches, *_ = plt.pie(totals, labels=names, autopct="%1.1f%%")  # type: ignore
 
-    legend_labels = [f"{src}: € {val:.2f}" for src, val in zip(names, totals)]
+    legend_labels = [f"{src}: € {format_amount(val)}" for src, val in zip(names, totals)]
     plt.legend(
         patches,
         legend_labels,

@@ -10,7 +10,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import INCOME_DB_NAME
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount
 
 from .base import DataContainer
 
@@ -61,5 +61,5 @@ class Income(DataContainer):
             Income.month_cell(row),
             ft.DataCell(ft.Text(f"{row['description']}")),
             ft.DataCell(ft.Text(enum_label(Sources[row["source"]]))),
-            ft.DataCell(ft.Text(f"{row['amount']:.2f}")),
+            ft.DataCell(ft.Text(format_amount(row["amount"]))),
         ]

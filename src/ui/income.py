@@ -7,7 +7,7 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_income_pie, show_income_summary
 
 from .base_view import BaseCrudView
@@ -132,7 +132,7 @@ class IncomeView(BaseCrudView):
             return None
 
         try:
-            cost = float(self.amount_text.value.replace(",", "."))
+            cost = parse_amount(self.amount_text.value)
         except ValueError:
             show_alert(self._page, "Invalid cost", "The cost must be a real number (comma for decimals allowed).")
             self._page.update()
@@ -241,7 +241,7 @@ class IncomeView(BaseCrudView):
         """Populates the add-income controls with an existing income's values."""
         self.month_picker.value = str(income.month)
         self.source_picker.value = str(income.source.value)
-        self.amount_text.value = f"{income.amount:.2f}"
+        self.amount_text.value = format_amount(income.amount)
         self.description_text.value = income.description
 
     def reset_add_button(self) -> None:

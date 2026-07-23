@@ -7,7 +7,7 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
 from .common import build_styled_data_table, show_alert
@@ -150,11 +150,11 @@ class AccountsView(ft.Column):
             return
 
         try:
-            balance = float(raw_value.replace(",", "."))
+            balance = parse_amount(raw_value)
         except ValueError:
             show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
             old_value = self.balances.get((account_id, month))
-            e.control.value = f"{old_value:.0f}" if old_value is not None else ""
+            e.control.value = format_amount(old_value, decimals=0) if old_value is not None else ""
             self._page.update()
             return
 
@@ -162,7 +162,7 @@ class AccountsView(ft.Column):
         logger.debug(f"Saved balance for account {account_id}, month {month}: {balance}")
 
         self.balances[(account_id, month)] = balance
-        e.control.value = f"{balance:.0f}"
+        e.control.value = format_amount(balance, decimals=0)
         self._page.update()
 
     def commit_previous_year_cell(self, e: ft.Event) -> None:
@@ -177,11 +177,11 @@ class AccountsView(ft.Column):
             return
 
         try:
-            balance = float(raw_value.replace(",", "."))
+            balance = parse_amount(raw_value)
         except ValueError:
             show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
             old_value = self.previous_year_balances.get(account_name)
-            e.control.value = f"{old_value:.0f}" if old_value is not None else ""
+            e.control.value = format_amount(old_value, decimals=0) if old_value is not None else ""
             self._page.update()
             return
 
@@ -189,7 +189,7 @@ class AccountsView(ft.Column):
         logger.debug(f"Saved {self.year - 1} December balance for '{account_name}': {balance}")
 
         self.previous_year_balances[account_name] = balance
-        e.control.value = f"{balance:.0f}"
+        e.control.value = format_amount(balance, decimals=0)
         self._page.update()
 
     def refresh(self) -> None:
@@ -261,7 +261,7 @@ class AccountsView(ft.Column):
             previous_year_value = self.previous_year_balances.get(account.name)
             previous_year_cell = ft.DataCell(
                 ft.TextField(
-                    value=f"{previous_year_value:.0f}" if previous_year_value is not None else "",
+                    value=format_amount(previous_year_value, decimals=0) if previous_year_value is not None else "",
                     text_align=ft.TextAlign.RIGHT,
                     border=ft.InputBorder.NONE,
                     content_padding=6,
@@ -278,7 +278,7 @@ class AccountsView(ft.Column):
                 cells.append(
                     ft.DataCell(
                         ft.TextField(
-                            value=f"{value:.0f}" if value is not None else "",
+                            value=format_amount(value, decimals=0) if value is not None else "",
                             text_align=ft.TextAlign.RIGHT,
                             border=ft.InputBorder.NONE,
                             content_padding=6,

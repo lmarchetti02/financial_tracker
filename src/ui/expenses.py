@@ -7,7 +7,7 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_expenses_pie, show_expenses_summary
 
 from .base_view import BaseCrudView
@@ -167,7 +167,7 @@ class ExpensesView(BaseCrudView):
             return None
 
         try:
-            cost = float(self.cost_text.value.replace(",", "."))
+            cost = parse_amount(self.cost_text.value)
         except ValueError:
             show_alert(self._page, "Invalid cost", "The cost must be a real number (comma for decimals allowed).")
             self._page.update()
@@ -321,7 +321,7 @@ class ExpensesView(BaseCrudView):
     def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
         """Populates the add-expense controls with an existing expense's values."""
         self.category_picker.value = str(expense.category.value)
-        self.cost_text.value = f"{expense.cost:.2f}"
+        self.cost_text.value = format_amount(expense.cost)
         self.description_text.value = expense.description
 
         if expense.day_end is not None:

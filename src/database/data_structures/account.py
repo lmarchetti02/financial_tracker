@@ -10,7 +10,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import ACCOUNT_BALANCES_DB_NAME, ACCOUNTS_DB_NAME
-from _helpers.formatting import enum_label
+from _helpers.formatting import enum_label, format_amount
 
 from .base import DataContainer
 
@@ -99,5 +99,5 @@ class AccountBalance(DataContainer):
     def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
         return [
             AccountBalance.month_cell(row),
-            ft.DataCell(ft.Text(f"{row['balance']:.2f}")),
+            ft.DataCell(ft.Text(format_amount(row["balance"], decimals=0))),
         ]

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from _helpers.constants import MONTHS
+from _helpers.formatting import format_amount
 from database import fetch_expense_totals, fetch_income_totals
 
 logger = getLogger("financial_tracker")
@@ -96,7 +97,7 @@ def show_savings_pie(page: ft.Page) -> None:
     plt.title(f"Savings Pie Chart ({year})")
     patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
 
-    legend_labels = [f"{name}: € {val:.2f}" for name, val in zip(names, values)]
+    legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]
     plt.legend(
         patches,
         legend_labels,

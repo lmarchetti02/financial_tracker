@@ -110,7 +110,7 @@ class TestGetTableRow:
         assert cells[3].content.value == "borrowed money"
         assert cells[4].content.value == "Bank A"
         assert cells[5].content.value == "Bank B"
-        assert cells[6].content.value == "100.00"
+        assert cells[6].content.value == "100,00"
         assert cells[7].content.value == "—"
         assert cells[8].content.value == "—"
 
@@ -149,7 +149,7 @@ class TestGetTableRow:
 
         cells = Transfer.get_table_row(row)
 
-        assert cells[7].content.value == "1.50"
+        assert cells[7].content.value == "1,50"
 
     def test_formats_a_set_profit(self) -> None:
         """A non-`None` profit is formatted like any other currency value."""
@@ -167,4 +167,4 @@ class TestGetTableRow:
 
         cells = Transfer.get_table_row(row)
 
-        assert cells[8].content.value == "25.00"
+        assert cells[8].content.value == "25,00"
