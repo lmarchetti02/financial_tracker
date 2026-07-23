@@ -10,7 +10,7 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
-from .common import build_styled_data_table, show_alert
+from .common import show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -19,6 +19,8 @@ _ACCOUNT_COLUMN_WIDTH = 180
 _ACCOUNT_DIVIDER = ft.Border(right=ft.BorderSide(width=2))
 _HEADING_ROW_HEIGHT = 35
 _BALANCE_ROW_HEIGHT = 48
+_TILE_WIDTH = 280
+_TILE_BORDER_RADIUS = 10
 
 _KIND_OPTIONS = [
     ft.DropdownOption(key=str(kind.value), text=enum_label(kind))
@@ -54,10 +56,8 @@ class AccountsView(ft.Column):
         self.kind_dropdown = ft.Dropdown(label="Kind", options=_KIND_OPTIONS, width=200)
         self.add_account_button = ft.Button("Add account", on_click=self.add_account)
 
-        self.accounts_table = build_styled_data_table(
-            [DataColumn2(label=ft.Text("Name")), DataColumn2(label=ft.Text("Kind")), DataColumn2(label=ft.Text(""))],
-            [],
-            _HEADING_COLOR,
+        self.accounts_grid = ft.Row(
+            wrap=True, expand=True, alignment=ft.MainAxisAlignment.CENTER, spacing=25, run_spacing=25
         )
         self.balance_grid_container = ft.Column()
 
@@ -87,7 +87,7 @@ class AccountsView(ft.Column):
                 controls=[self.name_text, self.kind_dropdown, self.add_account_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            self.accounts_table,
+            self.accounts_grid,
         ]
 
     def add_account(self, _: ft.Event) -> None:
@@ -200,30 +200,48 @@ class AccountsView(ft.Column):
         self.balances = db.fetch_account_balances(self.year)
         self.previous_year_balances = db.fetch_previous_year_end_balances(self.year)
 
-        self.accounts_table.rows = self._build_accounts_rows()
+        self.accounts_grid.controls = self._build_account_tiles()
         self.balance_grid_container.controls = [self._build_balance_grid()]
 
         self._page.update()
 
-    def _build_accounts_rows(self) -> list[ft.DataRow]:
-        """Builds the rows of the accounts-management table."""
-        rows = []
+    def _build_account_tiles(self) -> list[ft.Control]:
+        """Builds the button-like tiles of the accounts-management grid."""
+        tiles = []
         for account_id, account in self.accounts:
+            kind_color = db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000")
             delete_button = ft.Button(
-                icon=ft.Icons.DELETE, width=50, height=30, data=account_id, on_click=self.delete_account
+                icon=ft.Icons.DELETE,
+                icon_color=kind_color,
+                width=50,
+                height=30,
+                data=account_id,
+                on_click=self.delete_account,
             )
-            rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(account.name)),
-                        ft.DataCell(
-                            ft.Text(enum_label(account.kind), color=db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000"))
-                        ),
-                        ft.DataCell(delete_button),
-                    ]
+            tiles.append(
+                ft.Container(
+                    width=_TILE_WIDTH,
+                    padding=ft.Padding(left=12, top=8, right=8, bottom=8),
+                    border=ft.Border.all(width=2, color=kind_color),
+                    border_radius=_TILE_BORDER_RADIUS,
+                    content=ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Column(
+                                spacing=2,
+                                tight=True,
+                                controls=[
+                                    ft.Text(account.name, weight=ft.FontWeight.BOLD),
+                                    ft.Text(enum_label(account.kind), size=12, color=kind_color),
+                                ],
+                            ),
+                            delete_button,
+                        ],
+                    ),
                 )
             )
-        return rows
+        return tiles
 
     def _build_balance_grid(self) -> ft.Control:
         """Builds the editable account x month balance grid."""
