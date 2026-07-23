@@ -2,14 +2,14 @@
 
 import pytest
 
-from database.data_structures.income import Income, Sources
+from database.data_structures.income import Income
 
 
 def make_income(**overrides: object) -> Income:
     """Builds an `:class:Income` with sensible defaults, overridden by `overrides`."""
     defaults = {
         "month": 6,
-        "source": Sources.SALARY,
+        "source": "Salary",
         "description": "paycheck",
         "amount": 2000.0,
     }
@@ -45,7 +45,7 @@ class TestGetTableRow:
 
     def test_formats_the_row(self) -> None:
         """The source enum and amount are formatted for display."""
-        row = {"month": 6, "description": "paycheck", "source": "INVESTMENTS", "amount": 1234.5}
+        row = {"month": 6, "description": "paycheck", "source": "Investments", "amount": 1234.5}
 
         cells = Income.get_table_row(row)
 

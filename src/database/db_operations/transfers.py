@@ -6,7 +6,7 @@ from logging import getLogger
 
 from _helpers.constants import TRANSFERS_DB_NAME
 
-from ..data_structures import Kind, Transfer
+from ..data_structures import Transfer
 from .generic import fetch_rows, get_db_path
 from .utils import RowGenerator, SortingConfig
 
@@ -25,7 +25,7 @@ type TSC = TransfersSortingConfig
 
 
 def fetch_transfers(
-    year: int, sort: TSC | None = None, month: int | None = None, kind: Kind | None = None
+    year: int, sort: TSC | None = None, month: int | None = None, kind: str | None = None
 ) -> RowGenerator:
     """Fetches all the transfers.
 
@@ -35,7 +35,7 @@ def fetch_transfers(
             Defaults to `None`.
         month (int | None): The month to filter the table by.
             Defaults to `None`.
-        kind (Kind | None): The kind to filter the table by. See `:enum:Kind`.
+        kind (str | None): The kind to filter the table by.
             Defaults to `None`.
 
     Returns:

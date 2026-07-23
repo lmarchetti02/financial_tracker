@@ -2,14 +2,14 @@
 
 import pytest
 
-from database.data_structures.transfer import Kind, Transfer
+from database.data_structures.transfer import Transfer
 
 
 def make_transfer(**overrides: object) -> Transfer:
     """Builds a `:class:Transfer` with sensible defaults, overridden by `overrides`."""
     defaults = {
         "month": 1,
-        "kind": Kind.LOAN,
+        "kind": "Loan",
         "description": "test transfer",
         "source": "Bank A",
         "destination": None,
@@ -93,7 +93,7 @@ class TestGetTableRow:
         row = {
             "month": 3,
             "day": 15,
-            "kind": "LOAN",
+            "kind": "Loan",
             "description": "borrowed money",
             "source": "Bank A",
             "destination": "Bank B",
@@ -119,7 +119,7 @@ class TestGetTableRow:
         row = {
             "month": 3,
             "day": 15,
-            "kind": "CREDIT",
+            "kind": "Credit",
             "description": "borrowed money",
             "source": None,
             "destination": "Bank B",
@@ -138,7 +138,7 @@ class TestGetTableRow:
         row = {
             "month": 3,
             "day": 15,
-            "kind": "INVESTMENT",
+            "kind": "Investment",
             "description": "bought shares",
             "source": "Bank A",
             "destination": None,
@@ -156,7 +156,7 @@ class TestGetTableRow:
         row = {
             "month": 3,
             "day": 15,
-            "kind": "INVESTMENT",
+            "kind": "Investment",
             "description": "sold shares",
             "source": None,
             "destination": "Bank A",

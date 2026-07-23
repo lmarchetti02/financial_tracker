@@ -7,21 +7,13 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.formatting import enum_label, format_amount, parse_amount
+from _helpers.formatting import format_amount, parse_amount
 from plotting import show_income_pie, show_income_summary
 
 from .base_view import BaseCrudView
 from .common import show_alert
 
 logger = getLogger("financial_tracker")
-
-SOURCES = [
-    ft.DropdownOption(
-        key=str(src.value),
-        text=enum_label(src),
-    )
-    for src in sorted(db.Sources, key=lambda s: s.name)
-]
 
 
 class IncomeView(BaseCrudView):
@@ -42,7 +34,7 @@ class IncomeView(BaseCrudView):
         # source
         self.source_picker = ft.Dropdown(
             label="Source",
-            options=SOURCES,
+            options=[ft.DropdownOption(key=src, text=src) for src in db.fetch_sources()],
             on_text_change=lambda _: setattr(self.source_picker, "error_text", None),
             width=220,
         )
@@ -64,7 +56,7 @@ class IncomeView(BaseCrudView):
         columns[3].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_enum_filter_menu(db.Sources, "Filter source"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_sources(), "Filter source"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table])
@@ -140,7 +132,7 @@ class IncomeView(BaseCrudView):
 
         income = db.Income(
             month=int(self.month_picker.value),
-            source=db.Sources(int(self.source_picker.value)),
+            source=self.source_picker.value,
             description=self.description_text.value,
             amount=cost,
         )
@@ -240,7 +232,7 @@ class IncomeView(BaseCrudView):
     def fill_inputs_from_income(self, income: db.Income) -> None:
         """Populates the add-income controls with an existing income's values."""
         self.month_picker.value = str(income.month)
-        self.source_picker.value = str(income.source.value)
+        self.source_picker.value = income.source
         self.amount_text.value = format_amount(income.amount)
         self.description_text.value = income.description
 

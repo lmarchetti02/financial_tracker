@@ -2,7 +2,7 @@
 
 import pytest
 
-from database.data_structures.income import Income, Sources
+from database.data_structures.income import Income
 from database.db_operations.generic import WhichDb, add_item, initialize_db
 from database.db_operations.incomes import IncomesSortingConfig, fetch_income_totals, fetch_incomes, fetch_source
 
@@ -11,7 +11,7 @@ YEAR = 2024
 
 def make_income(**overrides: object) -> Income:
     """Builds an `:class:Income` with sensible defaults, overridden by `overrides`."""
-    defaults = {"month": 1, "source": Sources.SALARY, "description": "test income", "amount": 100.0}
+    defaults = {"month": 1, "source": "Salary", "description": "test income", "amount": 100.0}
     defaults.update(overrides)
     return Income(**defaults)
 
@@ -74,21 +74,21 @@ class TestFetchIncomes:
     def test_filters_by_source(self) -> None:
         """Only incomes matching the given source are yielded."""
         initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(source=Sources.SALARY))
-        add_item(YEAR, make_income(source=Sources.INVESTMENTS))
+        add_item(YEAR, make_income(source="Salary"))
+        add_item(YEAR, make_income(source="Investments"))
 
-        results = list(fetch_incomes(YEAR, source=Sources.INVESTMENTS))
+        results = list(fetch_incomes(YEAR, source="Investments"))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_combines_month_and_source_filters(self) -> None:
         """Filtering by month and source can be applied together."""
         initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source=Sources.INVESTMENTS))
-        add_item(YEAR, make_income(month=2, source=Sources.SALARY))
-        add_item(YEAR, make_income(month=2, source=Sources.INVESTMENTS))
+        add_item(YEAR, make_income(month=1, source="Investments"))
+        add_item(YEAR, make_income(month=2, source="Salary"))
+        add_item(YEAR, make_income(month=2, source="Investments"))
 
-        results = list(fetch_incomes(YEAR, month=2, source=Sources.INVESTMENTS))
+        results = list(fetch_incomes(YEAR, month=2, source="Investments"))
 
         assert [row_id for row_id, _ in results] == [3]
 
@@ -99,12 +99,12 @@ class TestFetchSource:
     def test_sums_amount_per_month_for_the_given_source(self) -> None:
         """Amounts for the requested source are summed per month; other sources are excluded."""
         initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source=Sources.SALARY, amount=100.0))
-        add_item(YEAR, make_income(month=1, source=Sources.SALARY, amount=50.0))
-        add_item(YEAR, make_income(month=3, source=Sources.SALARY, amount=70.0))
-        add_item(YEAR, make_income(month=1, source=Sources.INVESTMENTS, amount=1000.0))
+        add_item(YEAR, make_income(month=1, source="Salary", amount=100.0))
+        add_item(YEAR, make_income(month=1, source="Salary", amount=50.0))
+        add_item(YEAR, make_income(month=3, source="Salary", amount=70.0))
+        add_item(YEAR, make_income(month=1, source="Investments", amount=1000.0))
 
-        totals = fetch_source(YEAR, Sources.SALARY)
+        totals = fetch_source(YEAR, "Salary")
 
         assert totals[0] == pytest.approx(150.0)
         assert totals[1] == pytest.approx(0.0)
@@ -114,7 +114,7 @@ class TestFetchSource:
         """An empty table yields a 12-month array of zeros rather than an error."""
         initialize_db(YEAR, WhichDb.INCOMES)
 
-        totals = fetch_source(YEAR, Sources.OTHER)
+        totals = fetch_source(YEAR, "Other")
 
         assert totals.shape == (12,)
         assert (totals == 0).all()
@@ -126,9 +126,9 @@ class TestFetchIncomeTotals:
     def test_sums_amount_per_month_across_all_sources(self) -> None:
         """Amounts are summed per month regardless of source."""
         initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source=Sources.SALARY, amount=100.0))
-        add_item(YEAR, make_income(month=1, source=Sources.INVESTMENTS, amount=50.0))
-        add_item(YEAR, make_income(month=3, source=Sources.SALARY, amount=70.0))
+        add_item(YEAR, make_income(month=1, source="Salary", amount=100.0))
+        add_item(YEAR, make_income(month=1, source="Investments", amount=50.0))
+        add_item(YEAR, make_income(month=3, source="Salary", amount=70.0))
 
         totals = fetch_income_totals(YEAR)
 

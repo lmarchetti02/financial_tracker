@@ -7,7 +7,7 @@ import numpy as np
 
 from _helpers.constants import INCOME_DB_NAME
 
-from ..data_structures import Income, Sources
+from ..data_structures import Income
 from .generic import fetch_monthly_totals, fetch_rows
 from .utils import RowGenerator, SortingConfig
 
@@ -26,7 +26,7 @@ type ISC = IncomesSortingConfig
 
 
 def fetch_incomes(
-    year: int, sort: ISC | None = None, month: int | None = None, source: Sources | None = None
+    year: int, sort: ISC | None = None, month: int | None = None, source: str | None = None
 ) -> RowGenerator:
     """Fetches all the incomes.
 
@@ -36,7 +36,7 @@ def fetch_incomes(
             Defaults to `None`.
         month (int | None): The month to filter the table by.
             Defaults to `None`.
-        source (Sources | None): The source to filter the table by. See `:enum:Sources`.
+        source (str | None): The source to filter the table by.
             Defaults to `None`.
 
     Returns:
@@ -48,12 +48,12 @@ def fetch_incomes(
     return fetch_rows(year, INCOME_DB_NAME, Income, sort=sort, month=month, extra_filter=extra_filter)
 
 
-def fetch_source(year: int, source: Sources) -> np.ndarray:
+def fetch_source(year: int, source: str) -> np.ndarray:
     """Fetch the total income per month for a specified source.
 
     Args:
         year (int): The year of the incomes.
-        source (Sources): The desired source (see `:enum:Sources`).
+        source (str): The desired source.
 
     Returns:
         np.ndarray: An array of shape (12,) with the totals per month.

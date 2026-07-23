@@ -7,10 +7,10 @@ def enum_label(value: Enum) -> str:
     """Converts an enum member into a human-readable label.
 
     Args:
-        value (Enum): The enum member to format, e.g. `Categories.FOOD_AND_DRINKS`.
+        value (Enum): The enum member to format, e.g. `AccountKind.EMERGENCY`.
 
     Returns:
-        str: The formatted label, e.g. "Food and drinks".
+        str: The formatted label, e.g. "Emergency".
     """
     return value.name.lower().capitalize().replace("_", " ")
 

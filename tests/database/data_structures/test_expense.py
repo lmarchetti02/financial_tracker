@@ -2,7 +2,7 @@
 
 import pytest
 
-from database.data_structures.expense import Categories, Expense
+from database.data_structures.expense import Expense
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -11,7 +11,7 @@ def make_expense(**overrides: object) -> Expense:
         "month": 6,
         "day_start": 10,
         "description": "groceries",
-        "category": Categories.FOOD_AND_DRINKS,
+        "category": "Food and drinks",
         "cost": 25.5,
     }
     defaults.update(overrides)
@@ -75,7 +75,7 @@ class TestGetTableRow:
             "day_start": 10,
             "day_end": None,
             "description": "groceries",
-            "category": "FOOD_AND_DRINKS",
+            "category": "Food and drinks",
             "cost": 25.5,
         }
 
@@ -94,7 +94,7 @@ class TestGetTableRow:
             "day_start": 10,
             "day_end": 12,
             "description": "trip",
-            "category": "TRAVEL",
+            "category": "Travel",
             "cost": 100.0,
         }
 

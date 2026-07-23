@@ -8,20 +8,13 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.formatting import enum_label, format_amount, parse_amount
+from _helpers.constants import SYSTEM_CATEGORY_TRADING_FEE, SYSTEM_KIND_INVESTMENT, SYSTEM_SOURCE_INVESTMENTS
+from _helpers.formatting import format_amount, parse_amount
 
 from .base_view import BaseCrudView
 from .common import show_alert
 
 logger = getLogger("financial_tracker")
-
-KINDS = [
-    ft.DropdownOption(
-        key=str(kind.value),
-        text=enum_label(kind),
-    )
-    for kind in sorted(db.Kind, key=lambda k: k.name)
-]
 
 
 class TransfersView(BaseCrudView):
@@ -44,7 +37,7 @@ class TransfersView(BaseCrudView):
         # kind
         self.kind_picker = ft.Dropdown(
             label="Kind",
-            options=KINDS,
+            options=[ft.DropdownOption(key=kind, text=kind) for kind in db.fetch_kinds()],
             on_text_change=lambda _: setattr(self.kind_picker, "error_text", None),
             on_select=self.handle_kind_change,
             width=200,
@@ -76,7 +69,7 @@ class TransfersView(BaseCrudView):
         columns[6].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_enum_filter_menu(db.Kind, "Filter kind"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_kinds(), "Filter kind"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table])
@@ -135,8 +128,8 @@ class TransfersView(BaseCrudView):
         self._page.update()
 
     def update_investment_fields_state(self) -> None:
-        """Enables the fee/profit fields only when the selected kind is `:enum:Kind.INVESTMENT`."""
-        is_investment = self.kind_picker.value == str(db.Kind.INVESTMENT.value)
+        """Enables the fee/profit fields only when the selected kind is the investment kind."""
+        is_investment = self.kind_picker.value == SYSTEM_KIND_INVESTMENT
         self.fee_text.disabled = not is_investment
         self.profit_text.disabled = not is_investment
 
@@ -229,7 +222,7 @@ class TransfersView(BaseCrudView):
         transfer = db.Transfer(
             month=date_local.month,
             day=date_local.day,
-            kind=db.Kind(int(self.kind_picker.value)),
+            kind=self.kind_picker.value,
             description=self.description_text.value,
             source=source,
             destination=destination,
@@ -272,7 +265,7 @@ class TransfersView(BaseCrudView):
                 month=transfer.month,
                 day_start=transfer.day,
                 description=transfer.description,
-                category=db.Categories.TRADING_FEE,
+                category=SYSTEM_CATEGORY_TRADING_FEE,
                 cost=transfer.fee,
             )
             expense_id = db.add_item(self.year, fee_expense)
@@ -281,7 +274,7 @@ class TransfersView(BaseCrudView):
         if transfer.profit is not None:
             profit_income = db.Income(
                 month=transfer.month,
-                source=db.Sources.INVESTMENTS,
+                source=SYSTEM_SOURCE_INVESTMENTS,
                 description=transfer.description,
                 amount=transfer.profit,
             )
@@ -343,7 +336,7 @@ class TransfersView(BaseCrudView):
                     month=new_transfer.month,
                     day_start=new_transfer.day,
                     description=new_transfer.description,
-                    category=db.Categories.TRADING_FEE,
+                    category=SYSTEM_CATEGORY_TRADING_FEE,
                     cost=new_transfer.fee,
                 )
                 fee_expense_id = db.add_item(self.year, fee_expense)
@@ -356,7 +349,7 @@ class TransfersView(BaseCrudView):
                     month=new_transfer.month,
                     day_start=new_transfer.day,
                     description=new_transfer.description,
-                    category=db.Categories.TRADING_FEE,
+                    category=SYSTEM_CATEGORY_TRADING_FEE,
                     cost=new_transfer.fee,
                 )
                 db.edit_item(self.year, old_transfer.fee_expense_id, old_fee_expense, new_fee_expense)
@@ -365,7 +358,7 @@ class TransfersView(BaseCrudView):
             if old_transfer.profit is None and new_transfer.profit is not None:
                 profit_income = db.Income(
                     month=new_transfer.month,
-                    source=db.Sources.INVESTMENTS,
+                    source=SYSTEM_SOURCE_INVESTMENTS,
                     description=new_transfer.description,
                     amount=new_transfer.profit,
                 )
@@ -377,7 +370,7 @@ class TransfersView(BaseCrudView):
                 old_profit_income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id)
                 new_profit_income = db.Income(
                     month=new_transfer.month,
-                    source=db.Sources.INVESTMENTS,
+                    source=SYSTEM_SOURCE_INVESTMENTS,
                     description=new_transfer.description,
                     amount=new_transfer.profit,
                 )
@@ -425,7 +418,7 @@ class TransfersView(BaseCrudView):
     def fill_inputs_from_transfer(self, transfer: db.Transfer, e: ft.Event) -> None:
         """Populates the add-transfer controls with an existing transfer's values."""
         self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
-        self.kind_picker.value = str(transfer.kind.value)
+        self.kind_picker.value = transfer.kind
         self.update_investment_fields_state()
         self.amount_text.value = format_amount(transfer.amount)
         self.fee_text.value = format_amount(transfer.fee) if transfer.fee is not None else ""

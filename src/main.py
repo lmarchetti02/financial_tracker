@@ -6,16 +6,40 @@ import flet as ft
 
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-from database.db_operations import (WhichDb, initialize_db,
+from database.db_operations import (WhichDb, get_theme_preference,
+                                    initialize_config_db, initialize_db,
                                     seed_accounts_for_new_year)
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view
+from ui.settings import settings_view
 from ui.transfers import transfers_view
 from ui.welcome import welcome_page
 
 logger = getLogger("financial_tracker")
+
+
+def initialize_tracker(page: ft.Page, selected_year: int) -> None:
+    """Prepares the databases for `selected_year` and renders the main layout."""
+    logger.info("Called 'initialize_tracker'")
+
+    # save selected year for current session
+    page.session.store.set("selected_year", selected_year)
+
+    # create data dir if it doesn't exist
+    APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
+
+    # create db if it doesn't exists
+    for db in WhichDb:
+        initialize_db(selected_year, db)
+
+    # carry over accounts (not balances) from the most recent prior year, if any
+    seed_accounts_for_new_year(selected_year)
+
+    # start home
+    startup_layout(page)
+    page.update()
 
 
 def startup_layout(page: ft.Page) -> None:
@@ -41,10 +65,19 @@ def startup_layout(page: ft.Page) -> None:
             case 4:
                 main_content.content = accounts_view(page)
                 logger.debug("Accounts view selected")
+            case 5:
+                main_content.content = settings_view(page, go_to_welcome)
+                logger.debug("Settings view selected")
             case _:
                 main_content.content = ft.Text("Work in progress...")
 
         page.update()
+
+    def go_to_welcome(_: ft.Event) -> None:
+        """Wipes the page and returns to the welcome/year-selection screen."""
+        page.controls.clear()
+        page.update()
+        welcome_page(page, lambda year: initialize_tracker(page, year))
 
     side_menu = ft.NavigationRail(
         selected_index=0,
@@ -77,35 +110,16 @@ def startup_layout(page: ft.Page) -> None:
 def main(page: ft.Page):
     """Entry point of the application."""
     setup_logger()
+    initialize_config_db()
 
     page.title = "Financial Tracker"
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.full_screen = True
-    page.theme_mode = ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK if get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.RED, font_family="JetBrains Mono")
 
-    def initialize_tracker(selected_year: int) -> None:
-        logger.info("Called 'initialize_tracker'")
-
-        # save selected year for current session
-        page.session.store.set("selected_year", selected_year)
-
-        # create data dir if it doesn't exist
-        APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
-
-        # create db if it doesn't exists
-        for db in WhichDb:
-            initialize_db(selected_year, db)
-
-        # carry over accounts (not balances) from the most recent prior year, if any
-        seed_accounts_for_new_year(selected_year)
-
-        # start home
-        startup_layout(page)
-        page.update()
-
-    welcome_page(page, initialize_tracker)
+    welcome_page(page, lambda year: initialize_tracker(page, year))
 
 
 ft.run(main)

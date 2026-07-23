@@ -1,6 +1,5 @@
 """Implementation of the `:class:Expense` class."""
 
-from enum import Enum, auto
 from logging import getLogger
 from sqlite3 import Row
 from typing import Self
@@ -11,29 +10,11 @@ from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import EXPENSES_DB_NAME
-from _helpers.formatting import enum_label, format_amount
+from _helpers.formatting import format_amount
 
 from .base import DataContainer
 
 logger = getLogger("financial_tracker")
-
-
-class Categories(Enum):
-    """Enum with all the possible categories of expenses."""
-
-    COUPLE = auto()
-    EDUCATION = auto()
-    ENTERTAINMENT = auto()
-    FOOD_AND_DRINKS = auto()
-    SUBSCRIPTIONS = auto()
-    PERSONAL_ITEMS = auto()
-    PRESENTS = auto()
-    TRAVEL = auto()
-    TRADING_FEE = auto()
-    CAPITAL_LOSS = auto()
-    TAXES = auto()
-    INTEREST_ON_DEBT = auto()
-    OTHER = auto()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -48,7 +29,8 @@ class Expense(DataContainer):
             of time longer than 1 day (between `day_start` and 31).
             Otherwise, defaults to `None`.
         description (str): The description of the expense.
-        category (Categories): The category of the expense. See `:enum:Categories`.
+        category (str): The category of the expense, one of the entries managed from the
+            settings page (see `database.db_operations.config`).
         cost (float): The cost of the expense (greater than zero).
     """
 
@@ -58,7 +40,7 @@ class Expense(DataContainer):
     day_start: int = Field(gt=0, lt=32)
     day_end: int | None = Field(default=None, gt=0, lt=32)
     description: str
-    category: Categories
+    category: str
     cost: float = Field(gt=0.0)
 
     @model_validator(mode="after")
@@ -90,7 +72,7 @@ class Expense(DataContainer):
         return [
             Expense.month_cell(row),
             ft.DataCell(ft.Container(ft.Text(days), alignment=ft.Alignment.CENTER)),
-            ft.DataCell(ft.Text(enum_label(Categories[row["category"]]))),
+            ft.DataCell(ft.Text(str(row["category"]))),
             ft.DataCell(ft.Text(str(row["description"]))),
             ft.DataCell(ft.Text(format_amount(row["cost"]))),
         ]

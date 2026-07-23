@@ -7,7 +7,7 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.formatting import enum_label, format_amount, parse_amount
+from _helpers.formatting import format_amount, parse_amount
 from plotting import show_expenses_pie, show_expenses_summary
 
 from .base_view import BaseCrudView
@@ -18,14 +18,6 @@ logger = getLogger("financial_tracker")
 DATE_OPTIONS = [
     ft.DropdownOption(key="day", text="Day"),
     ft.DropdownOption(key="range", text="Range"),
-]
-
-CATEGORIES = [
-    ft.DropdownOption(
-        key=str(cat.value),
-        text=enum_label(cat),
-    )
-    for cat in sorted(db.Categories, key=lambda c: c.name)
 ]
 
 
@@ -53,7 +45,7 @@ class ExpensesView(BaseCrudView):
         # category
         self.category_picker = ft.Dropdown(
             label="Category",
-            options=CATEGORIES,
+            options=[ft.DropdownOption(key=cat, text=cat) for cat in db.fetch_categories()],
             on_text_change=lambda _: setattr(self.category_picker, "error_text", None),
             width=220,
         )
@@ -75,7 +67,7 @@ class ExpensesView(BaseCrudView):
         columns[4].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_enum_filter_menu(db.Categories, "Filter category"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_categories(), "Filter category"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table])
@@ -208,7 +200,7 @@ class ExpensesView(BaseCrudView):
             day_start=day_start,
             day_end=day_end,
             description=self.description_text.value,
-            category=db.Categories(int(self.category_picker.value)),
+            category=self.category_picker.value,
             cost=cost,
         )
         logger.debug(f"Reconstructed expense:\n{expense}")
@@ -320,7 +312,7 @@ class ExpensesView(BaseCrudView):
 
     def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
         """Populates the add-expense controls with an existing expense's values."""
-        self.category_picker.value = str(expense.category.value)
+        self.category_picker.value = expense.category
         self.cost_text.value = format_amount(expense.cost)
         self.description_text.value = expense.description
 

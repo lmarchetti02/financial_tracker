@@ -11,11 +11,9 @@ from matplotlib.colors import TABLEAU_COLORS
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
-from database import Categories, fetch_category
+from database import fetch_categories, fetch_category
 
 logger = getLogger("financial_tracker")
-
-CAT_NAMES = np.array([cat.name.capitalize().replace("_", " ") for cat in Categories], dtype=str)
 
 
 def show_expenses_summary(page: ft.Page) -> None:
@@ -27,9 +25,10 @@ def show_expenses_summary(page: ft.Page) -> None:
     year = int(year)
 
     # get data
+    categories = fetch_categories()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    totals = np.zeros((len(months), len(Categories)), dtype=np.float32)
-    for i, category in enumerate(Categories):
+    totals = np.zeros((len(months), len(categories)), dtype=np.float32)
+    for i, category in enumerate(categories):
         totals[:, i] = fetch_category(year, category)
 
     # plot
@@ -39,11 +38,11 @@ def show_expenses_summary(page: ft.Page) -> None:
     markers = cycle(["o", "s", "^", "D", "v", "p", "*"])
     colors = cycle(TABLEAU_COLORS)
 
-    for i in range(len(Categories)):
+    for i in range(len(categories)):
         plt.plot(
             months,
             totals[:, i],
-            label=CAT_NAMES[i],
+            label=categories[i],
             linestyle=next(linestyles),
             marker=next(markers),
             color=next(colors),
@@ -51,6 +50,9 @@ def show_expenses_summary(page: ft.Page) -> None:
             markersize=6,
             alpha=0.8,
         )
+
+    total_per_month = np.sum(totals, axis=1)
+    plt.plot(months, total_per_month, color="black", label="Total", linewidth=2, linestyle="--")
 
     plt.grid(axis="y", linestyle="--", alpha=0.7)
     plt.grid(axis="x", linestyle="--", alpha=0.7)
@@ -86,8 +88,9 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     year = int(year)
 
     # get data
-    totals = np.zeros((12, len(Categories)), dtype=np.float32)
-    for i, category in enumerate(Categories):
+    categories = np.array(fetch_categories(), dtype=str)
+    totals = np.zeros((12, len(categories)), dtype=np.float32)
+    for i, category in enumerate(categories):
         totals[:, i] = fetch_category(year, category)
 
     if month is None:
@@ -98,7 +101,7 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     # remove zeros
     mask = totals > 0
     totals = totals[mask]
-    names = CAT_NAMES[mask]
+    names = categories[mask]
     if not totals.size > 0:
         page.show_dialog(
             ft.AlertDialog(

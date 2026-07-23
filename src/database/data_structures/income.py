@@ -1,6 +1,5 @@
 """Implementation of the `:class:Income` class."""
 
-from enum import Enum, auto
 from logging import getLogger
 from sqlite3 import Row
 
@@ -10,20 +9,11 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import INCOME_DB_NAME
-from _helpers.formatting import enum_label, format_amount
+from _helpers.formatting import format_amount
 
 from .base import DataContainer
 
 logger = getLogger("financial_tracker")
-
-
-class Sources(Enum):
-    """Enum with all the possible sources of income."""
-
-    SALARY = auto()
-    PRESENTS = auto()
-    INVESTMENTS = auto()
-    OTHER = auto()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -33,14 +23,15 @@ class Income(DataContainer):
     Attributes:
         month (int): The month of the expense (between 1 and 12).
         description (str): The description of the income.
-        source (Categories): The source of income. See `:enum:Source`.
+        source (str): The source of income, one of the entries managed from the settings page
+            (see `database.db_operations.config`).
         amount (float): The cost of the expense (greater than zero).
     """
 
     db_name = INCOME_DB_NAME
 
     month: int = Field(gt=0, lt=13)
-    source: Sources
+    source: str
     description: str
     amount: float = Field(gt=0.0)
 
@@ -60,6 +51,6 @@ class Income(DataContainer):
         return [
             Income.month_cell(row),
             ft.DataCell(ft.Text(f"{row['description']}")),
-            ft.DataCell(ft.Text(enum_label(Sources[row["source"]]))),
+            ft.DataCell(ft.Text(str(row["source"]))),
             ft.DataCell(ft.Text(format_amount(row["amount"]))),
         ]

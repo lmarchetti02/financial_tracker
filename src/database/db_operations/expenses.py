@@ -7,7 +7,7 @@ import numpy as np
 
 from _helpers.constants import EXPENSES_DB_NAME
 
-from ..data_structures import Categories, Expense
+from ..data_structures import Expense
 from .generic import fetch_monthly_totals, fetch_rows
 from .utils import RowGenerator, SortingConfig
 
@@ -26,7 +26,7 @@ type ESC = ExpensesSortingConfig
 
 
 def fetch_expenses(
-    year: int, sort: ESC | None = None, month: int | None = None, category: Categories | None = None
+    year: int, sort: ESC | None = None, month: int | None = None, category: str | None = None
 ) -> RowGenerator:
     """Fetches all the expenses.
 
@@ -36,7 +36,7 @@ def fetch_expenses(
             Defaults to `None`.
         month (int | None): The month to filter the table by.
             Defaults to `None`.
-        category (Categories | None): The category to filter the table by. See `:enum:Categories`.
+        category (str | None): The category to filter the table by.
             Defaults to `None`.
 
     Returns:
@@ -47,12 +47,12 @@ def fetch_expenses(
     return fetch_rows(year, EXPENSES_DB_NAME, Expense, sort=sort, month=month, extra_filter=extra_filter)
 
 
-def fetch_category(year: int, category: Categories) -> np.ndarray:
+def fetch_category(year: int, category: str) -> np.ndarray:
     """Fetch the total expense per month for a specified category.
 
     Args:
         year (int): The year of the expenses.
-        category (Categories): The desired category (see `:enum:Categories`).
+        category (str): The desired category.
 
     Returns:
         np.ndarray: An array of shape (12,) with the totals per month.

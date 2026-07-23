@@ -1,0 +1,307 @@
+"""Global (non-yearly) configuration store: category/source/kind lookup lists and app preferences."""
+
+import sqlite3 as sq
+from dataclasses import dataclass
+from enum import Enum, auto
+from logging import getLogger
+from pathlib import Path
+
+from _helpers.constants import (APP_DIRECTORY, CONFIG_DB_NAME,
+                                SYSTEM_CATEGORY_TRADING_FEE,
+                                SYSTEM_KIND_INVESTMENT,
+                                SYSTEM_SOURCE_INVESTMENTS)
+
+logger = getLogger("financial_tracker")
+
+
+class LookupKind(Enum):
+    """The three user-editable lookup lists backing the `category`/`source`/`kind` fields."""
+
+    CATEGORIES = auto()
+    SOURCES = auto()
+    KINDS = auto()
+
+
+_LOOKUP_TABLE = {
+    LookupKind.CATEGORIES: "categories",
+    LookupKind.SOURCES: "sources",
+    LookupKind.KINDS: "kinds",
+}
+
+# (domain table, column) referencing each lookup, used for the in-use check and the rename cascade
+_LOOKUP_REFERENCES = {
+    LookupKind.CATEGORIES: ("expenses", "category"),
+    LookupKind.SOURCES: ("income", "source"),
+    LookupKind.KINDS: ("transfers", "kind"),
+}
+
+# seed data: (legacy enum member name, display label, is_system). The legacy name is only needed
+# once, to migrate rows written before this lookup table existed (they stored the enum member's
+# `.name`, e.g. "FOOD_AND_DRINKS", rather than the label, e.g. "Food and drinks").
+_SEED_CATEGORIES = [
+    ("COUPLE", "Couple", False),
+    ("EDUCATION", "Education", False),
+    ("ENTERTAINMENT", "Entertainment", False),
+    ("FOOD_AND_DRINKS", "Food and drinks", False),
+    ("SUBSCRIPTIONS", "Subscriptions", False),
+    ("PERSONAL_ITEMS", "Personal items", False),
+    ("PRESENTS", "Presents", False),
+    ("TRAVEL", "Travel", False),
+    ("TRADING_FEE", SYSTEM_CATEGORY_TRADING_FEE, True),
+    ("CAPITAL_LOSS", "Capital loss", False),
+    ("TAXES", "Taxes", False),
+    ("INTEREST_ON_DEBT", "Interest on debt", False),
+    ("OTHER", "Other", False),
+]
+_SEED_SOURCES = [
+    ("SALARY", "Salary", False),
+    ("PRESENTS", "Presents", False),
+    ("INVESTMENTS", SYSTEM_SOURCE_INVESTMENTS, True),
+    ("OTHER", "Other", False),
+]
+_SEED_KINDS = [
+    ("LOAN", "Loan", False),
+    ("CREDIT", "Credit", False),
+    ("DEBT", "Debt", False),
+    ("INVESTMENT", SYSTEM_KIND_INVESTMENT, True),
+]
+_SEED_DATA = {
+    LookupKind.CATEGORIES: _SEED_CATEGORIES,
+    LookupKind.SOURCES: _SEED_SOURCES,
+    LookupKind.KINDS: _SEED_KINDS,
+}
+
+
+@dataclass(frozen=True)
+class LookupOption:
+    """A single entry in a category/source/kind lookup list."""
+
+    name: str
+    is_system: bool
+
+
+def get_config_db_path() -> Path:
+    """Returns the path to the global (non-yearly) configuration database file."""
+    return APP_DIRECTORY / f"{CONFIG_DB_NAME}.db"
+
+
+def _migrate_legacy_names(kind: LookupKind) -> None:
+    """Rewrites every yearly database's legacy enum-member-name values to their new label form."""
+    logger.info(f"Called '_migrate_legacy_names' for {kind}.")
+
+    table, column = _LOOKUP_REFERENCES[kind]
+
+    for db_path in get_config_db_path().parent.glob("*_data.db"):
+        with sq.connect(db_path) as connection:
+            try:
+                for legacy_name, label, _ in _SEED_DATA[kind]:
+                    connection.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (label, legacy_name))
+            except sq.OperationalError:
+                # this year's database predates `table`
+                continue
+
+    logger.debug(f"Migrated legacy {kind.name.lower()} names to labels across every yearly database.")
+
+
+def initialize_config_db() -> None:
+    """Creates the config database/tables and seeds them from the legacy enums, if not done yet."""
+    logger.info("Called 'initialize_config_db'")
+
+    APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
+
+    with sq.connect(get_config_db_path()) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+
+        for kind, table in _LOOKUP_TABLE.items():
+            cursor.execute(
+                f"CREATE TABLE IF NOT EXISTS {table} (name TEXT PRIMARY KEY, is_system INTEGER NOT NULL DEFAULT 0)"
+            )
+
+            if cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] > 0:
+                continue
+
+            cursor.executemany(
+                f"INSERT INTO {table} (name, is_system) VALUES (?, ?)",
+                [(label, int(is_system)) for _, label, is_system in _SEED_DATA[kind]],
+            )
+            _migrate_legacy_names(kind)
+            logger.debug(f"Seeded '{table}' with its default entries.")
+
+
+def fetch_lookup_options(kind: LookupKind) -> list[LookupOption]:
+    """Fetches every entry in a lookup list, sorted alphabetically.
+
+    Args:
+        kind (`:enum:LookupKind`): Which lookup list to fetch.
+
+    Returns:
+        list[LookupOption]: The entries, sorted by name.
+    """
+    logger.info("Called 'fetch_lookup_options'")
+
+    table = _LOOKUP_TABLE[kind]
+    with sq.connect(get_config_db_path()) as connection:
+        rows = connection.execute(f"SELECT name, is_system FROM {table} ORDER BY name").fetchall()
+
+    return [LookupOption(name=row[0], is_system=bool(row[1])) for row in rows]
+
+
+def add_lookup_option(kind: LookupKind, name: str) -> None:
+    """Adds a new entry to a lookup list.
+
+    Args:
+        kind (`:enum:LookupKind`): Which lookup list to add to.
+        name (str): The new entry's display text.
+
+    Raises:
+        ValueError: If `name` is blank, or an entry with that name (case-insensitively) already exists.
+    """
+    logger.info("Called 'add_lookup_option'")
+
+    name = name.strip()
+    if not name:
+        raise ValueError("The name cannot be blank.")
+
+    table = _LOOKUP_TABLE[kind]
+    with sq.connect(get_config_db_path()) as connection:
+        existing = {row[0].lower() for row in connection.execute(f"SELECT name FROM {table}")}
+        if name.lower() in existing:
+            raise ValueError(f"'{name}' already exists.")
+
+        connection.execute(f"INSERT INTO {table} (name, is_system) VALUES (?, 0)", (name,))
+
+    logger.debug(f"Added '{name}' to '{table}'.")
+
+
+def rename_lookup_option(kind: LookupKind, old_name: str, new_name: str) -> None:
+    """Renames an entry in a lookup list, cascading the change to every yearly database.
+
+    Args:
+        kind (`:enum:LookupKind`): Which lookup list to rename within.
+        old_name (str): The entry's current name.
+        new_name (str): The entry's new name.
+
+    Raises:
+        ValueError: If `old_name` is a system-reserved entry, `new_name` is blank, or an entry
+            named `new_name` (case-insensitively) already exists.
+    """
+    logger.info("Called 'rename_lookup_option'")
+
+    new_name = new_name.strip()
+    if not new_name:
+        raise ValueError("The name cannot be blank.")
+
+    table = _LOOKUP_TABLE[kind]
+    with sq.connect(get_config_db_path()) as connection:
+        row = connection.execute(f"SELECT is_system FROM {table} WHERE name = ?", (old_name,)).fetchone()
+        if row is not None and bool(row[0]):
+            raise ValueError(f"'{old_name}' is required by the app and cannot be renamed.")
+
+        existing = {r[0].lower() for r in connection.execute(f"SELECT name FROM {table} WHERE name != ?", (old_name,))}
+        if new_name.lower() in existing:
+            raise ValueError(f"'{new_name}' already exists.")
+
+        connection.execute(f"UPDATE {table} SET name = ? WHERE name = ?", (new_name, old_name))
+
+    domain_table, column = _LOOKUP_REFERENCES[kind]
+    for db_path in get_config_db_path().parent.glob("*_data.db"):
+        with sq.connect(db_path) as connection:
+            try:
+                connection.execute(f"UPDATE {domain_table} SET {column} = ? WHERE {column} = ?", (new_name, old_name))
+            except sq.OperationalError:
+                continue
+
+    logger.debug(f"Renamed '{old_name}' to '{new_name}' in '{table}' and cascaded across every yearly database.")
+
+
+def is_lookup_option_in_use(kind: LookupKind, name: str) -> bool:
+    """Whether any yearly database has a row referencing `name`.
+
+    Args:
+        kind (`:enum:LookupKind`): Which lookup list `name` belongs to.
+        name (str): The entry to check.
+
+    Returns:
+        bool: `True` if at least one yearly database has a matching row.
+    """
+    domain_table, column = _LOOKUP_REFERENCES[kind]
+
+    for db_path in get_config_db_path().parent.glob("*_data.db"):
+        with sq.connect(db_path) as connection:
+            try:
+                count = connection.execute(
+                    f"SELECT COUNT(*) FROM {domain_table} WHERE {column} = ?", (name,)
+                ).fetchone()[0]
+            except sq.OperationalError:
+                continue
+            if count > 0:
+                return True
+
+    return False
+
+
+def delete_lookup_option(kind: LookupKind, name: str) -> bool:
+    """Deletes an entry from a lookup list, if it's safe to do so.
+
+    Args:
+        kind (`:enum:LookupKind`): Which lookup list to delete from.
+        name (str): The entry to delete.
+
+    Returns:
+        bool: `True` if the entry was deleted; `False` if it's a system-reserved entry or is
+            still referenced by at least one yearly database.
+    """
+    logger.info("Called 'delete_lookup_option'")
+
+    table = _LOOKUP_TABLE[kind]
+    with sq.connect(get_config_db_path()) as connection:
+        row = connection.execute(f"SELECT is_system FROM {table} WHERE name = ?", (name,)).fetchone()
+        if row is not None and bool(row[0]):
+            return False
+
+        if is_lookup_option_in_use(kind, name):
+            return False
+
+        connection.execute(f"DELETE FROM {table} WHERE name = ?", (name,))
+
+    logger.debug(f"Deleted '{name}' from '{table}'.")
+    return True
+
+
+def fetch_categories() -> list[str]:
+    """Fetches every category's display name, sorted alphabetically."""
+    return [option.name for option in fetch_lookup_options(LookupKind.CATEGORIES)]
+
+
+def fetch_sources() -> list[str]:
+    """Fetches every source's display name, sorted alphabetically."""
+    return [option.name for option in fetch_lookup_options(LookupKind.SOURCES)]
+
+
+def fetch_kinds() -> list[str]:
+    """Fetches every kind's display name, sorted alphabetically."""
+    return [option.name for option in fetch_lookup_options(LookupKind.KINDS)]
+
+
+def get_theme_preference() -> str:
+    """Returns the persisted theme mode ("light" or "dark"), defaulting to "light" if unset."""
+    logger.info("Called 'get_theme_preference'")
+
+    with sq.connect(get_config_db_path()) as connection:
+        row = connection.execute("SELECT value FROM preferences WHERE key = 'theme'").fetchone()
+
+    return row[0] if row is not None else "light"
+
+
+def set_theme_preference(mode: str) -> None:
+    """Persists the theme mode.
+
+    Args:
+        mode (str): The theme mode to persist ("light" or "dark").
+    """
+    logger.info("Called 'set_theme_preference'")
+
+    with sq.connect(get_config_db_path()) as connection:
+        connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('theme', ?)", (mode,))

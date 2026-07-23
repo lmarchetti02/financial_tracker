@@ -10,8 +10,7 @@ from flet_datatable2 import DataColumn2
 import database as db
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
-from plotting import (show_net_worth_summary, show_savings_pie,
-                      show_savings_summary)
+from plotting import show_net_worth_summary, show_savings_pie, show_savings_summary
 
 from .common import build_styled_data_table
 

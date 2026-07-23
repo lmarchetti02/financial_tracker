@@ -2,7 +2,7 @@
 
 import pytest
 
-from database.data_structures.transfer import Kind, Transfer
+from database.data_structures.transfer import Transfer
 from database.db_operations.generic import WhichDb, add_item, initialize_db
 from database.db_operations.transfers import (
     TransfersSortingConfig,
@@ -18,7 +18,7 @@ def make_transfer(**overrides: object) -> Transfer:
     """Builds a `:class:Transfer` with sensible defaults, overridden by `overrides`."""
     defaults = {
         "month": 1,
-        "kind": Kind.LOAN,
+        "kind": "Loan",
         "description": "test transfer",
         "source": "Bank A",
         "destination": None,
@@ -86,21 +86,21 @@ class TestFetchTransfers:
     def test_filters_by_kind(self) -> None:
         """Only transfers matching the given kind are yielded."""
         initialize_db(YEAR, WhichDb.TRANSFERS)
-        add_item(YEAR, make_transfer(kind=Kind.LOAN))
-        add_item(YEAR, make_transfer(kind=Kind.INVESTMENT))
+        add_item(YEAR, make_transfer(kind="Loan"))
+        add_item(YEAR, make_transfer(kind="Investment"))
 
-        results = list(fetch_transfers(YEAR, kind=Kind.INVESTMENT))
+        results = list(fetch_transfers(YEAR, kind="Investment"))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_combines_month_and_kind_filters(self) -> None:
         """Filtering by month and kind can be applied together."""
         initialize_db(YEAR, WhichDb.TRANSFERS)
-        add_item(YEAR, make_transfer(month=1, kind=Kind.INVESTMENT))
-        add_item(YEAR, make_transfer(month=2, kind=Kind.LOAN))
-        add_item(YEAR, make_transfer(month=2, kind=Kind.INVESTMENT))
+        add_item(YEAR, make_transfer(month=1, kind="Investment"))
+        add_item(YEAR, make_transfer(month=2, kind="Loan"))
+        add_item(YEAR, make_transfer(month=2, kind="Investment"))
 
-        results = list(fetch_transfers(YEAR, month=2, kind=Kind.INVESTMENT))
+        results = list(fetch_transfers(YEAR, month=2, kind="Investment"))
 
         assert [row_id for row_id, _ in results] == [3]
 

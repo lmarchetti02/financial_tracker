@@ -2,9 +2,9 @@
 
 import sqlite3 as sq
 
-from database.data_structures.expense import Categories, Expense
-from database.data_structures.income import Income, Sources
-from database.data_structures.transfer import Kind, Transfer
+from database.data_structures.account import Account, AccountKind
+from database.data_structures.expense import Expense
+from database.data_structures.transfer import Transfer
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -14,7 +14,7 @@ def make_expense(**overrides: object) -> Expense:
         "day_start": 10,
         "day_end": None,
         "description": "groceries",
-        "category": Categories.FOOD_AND_DRINKS,
+        "category": "Food and drinks",
         "cost": 25.5,
     }
     defaults.update(overrides)
@@ -118,7 +118,7 @@ class TestInitFromTuple:
             expense.day_start,
             expense.day_end,
             expense.description,
-            expense.category.name,
+            expense.category,
             expense.cost,
         )
 
@@ -126,12 +126,12 @@ class TestInitFromTuple:
 
     def test_restores_enum_fields_by_name(self) -> None:
         """An enum field stored as its `.name` is reconstructed back into the enum member."""
-        income = Income(month=1, source=Sources.INVESTMENTS, description="dividends", amount=50.0)
-        row = (income.month, income.source.name, income.description, income.amount)
+        account = Account(name="Savings", kind=AccountKind.EMERGENCY)
+        row = (account.name, account.kind.name)
 
-        reconstructed = Income.init_from_tuple(row)
+        reconstructed = Account.init_from_tuple(row)
 
-        assert reconstructed.source is Sources.INVESTMENTS
+        assert reconstructed.kind is AccountKind.EMERGENCY
 
 
 class TestMonthColumn:
@@ -166,13 +166,13 @@ class TestStrFieldWhitespace:
 
     def test_strips_an_optional_str_field(self) -> None:
         """Leading/trailing whitespace is stripped from an `str | None` field."""
-        transfer = Transfer(month=1, kind=Kind.LOAN, description="loan", source="  Bank A  ", amount=50.0)
+        transfer = Transfer(month=1, kind="Loan", description="loan", source="  Bank A  ", amount=50.0)
 
         assert transfer.source == "Bank A"
 
     def test_leaves_a_none_optional_str_field_untouched(self) -> None:
         """A `None` value for an `str | None` field is left as `None`."""
-        transfer = Transfer(month=1, kind=Kind.LOAN, description="loan", source="Bank A", destination=None, amount=50.0)
+        transfer = Transfer(month=1, kind="Loan", description="loan", source="Bank A", destination=None, amount=50.0)
 
         assert transfer.destination is None
 
@@ -195,10 +195,10 @@ class TestSub:
 
     def test_stores_enum_differences_by_name(self) -> None:
         """A changed enum field is stored in the diff as its `.name`, not the member itself."""
-        original = make_expense(category=Categories.FOOD_AND_DRINKS)
-        updated = make_expense(category=Categories.TRAVEL)
+        original = Account(name="Checking", kind=AccountKind.CASH)
+        updated = Account(name="Checking", kind=AccountKind.EMERGENCY)
 
-        assert (original - updated) == {"category": "TRAVEL"}
+        assert (original - updated) == {"kind": "EMERGENCY"}
 
     def test_returns_empty_dict_for_identical_instances(self) -> None:
         """Two field-for-field identical instances diff to an empty dict."""

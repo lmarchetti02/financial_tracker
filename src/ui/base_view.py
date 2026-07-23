@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from enum import Enum
 from logging import getLogger
 from sqlite3 import OperationalError
 from typing import ClassVar
@@ -12,7 +11,6 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.formatting import enum_label
 
 from .common import build_styled_data_table
 
@@ -35,7 +33,7 @@ class BaseCrudView(ft.Column, ABC):
         self.year = int(year)
 
         self.current_month_filter: int | None = None
-        self.current_enum_filter: Enum | None = None
+        self.current_enum_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None
         self.default_date = datetime.today()
 
@@ -113,8 +111,8 @@ class BaseCrudView(ft.Column, ABC):
             + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
         )
 
-    def _build_enum_filter_menu(self, enum_cls: type[Enum], tooltip: str) -> ft.PopupMenuButton:
-        """Builds the domain-enum filter popup menu shared by every subclass."""
+    def _build_lookup_filter_menu(self, options: list[str], tooltip: str) -> ft.PopupMenuButton:
+        """Builds the domain-specific lookup-list filter popup menu shared by every subclass."""
         return ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
             icon_color=ft.Colors.WHITE,
@@ -122,10 +120,7 @@ class BaseCrudView(ft.Column, ABC):
             padding=0,
             menu_padding=0,
             tooltip=tooltip,
-            items=[
-                ft.PopupMenuItem(enum_label(member), data=member, on_click=self.filter_enum)
-                for member in sorted(enum_cls, key=lambda m: m.name)
-            ]
+            items=[ft.PopupMenuItem(option, data=option, on_click=self.filter_enum) for option in sorted(options)]
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_enum)],
         )

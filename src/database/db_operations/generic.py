@@ -61,7 +61,7 @@ def fetch_rows(
     target_cls: type[DataContainer],
     sort: SortingConfig | None = None,
     month: int | None = None,
-    extra_filter: tuple[str, Enum] | None = None,
+    extra_filter: tuple[str, str] | None = None,
 ) -> RowGenerator:
     """Fetches all the rows of a domain table, optionally filtered and sorted.
 
@@ -72,7 +72,7 @@ def fetch_rows(
         sort (`:class:SortingConfig` | None): If given, the rows get sorted accordingly.
             Defaults to `None`.
         month (int | None): The month to filter the table by. Defaults to `None`.
-        extra_filter (tuple[str, Enum] | None): An optional `(column_name, enum_member)` pair used
+        extra_filter (tuple[str, str] | None): An optional `(column_name, value)` pair used
             as an additional equality filter. Defaults to `None`.
 
     Returns:
@@ -91,7 +91,7 @@ def fetch_rows(
         if extra_filter is not None:
             column_name, value = extra_filter
             conditions.append(f"{column_name} = ?")
-            params.append(value.name)
+            params.append(value)
 
         query = f"SELECT * FROM {table_name}"
         if conditions:
@@ -106,17 +106,17 @@ def fetch_rows(
 
 
 def fetch_monthly_totals(
-    year: int, table_name: str, sum_column: str, filter_column: str | None = None, filter_value: Enum | None = None
+    year: int, table_name: str, sum_column: str, filter_column: str | None = None, filter_value: str | None = None
 ) -> np.ndarray:
-    """Fetches the per-month total of a numeric column, optionally filtered by one enum column.
+    """Fetches the per-month total of a numeric column, optionally filtered by one column.
 
     Args:
         year (int): The year of the database to query.
         table_name (str): The name of the table to query.
         sum_column (str): The numeric column to sum.
-        filter_column (str | None): The enum column to filter by. If omitted, the column is
+        filter_column (str | None): The column to filter by. If omitted, the column is
             summed across the whole table. Defaults to `None`.
-        filter_value (Enum | None): The value to filter `filter_column` by. Defaults to `None`.
+        filter_value (str | None): The value to filter `filter_column` by. Defaults to `None`.
 
     Returns:
         np.ndarray: An array of shape (12,) with the totals per month.
@@ -124,7 +124,7 @@ def fetch_monthly_totals(
     logger.info("Called 'fetch_monthly_totals'")
 
     where_clause = f"WHERE {filter_column} = ?" if filter_column is not None else ""
-    params = (filter_value.name,) if filter_value is not None else ()
+    params = (filter_value,) if filter_value is not None else ()
 
     with sq.connect(get_db_path(year)) as connection:
         cursor = connection.cursor()

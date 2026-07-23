@@ -11,11 +11,9 @@ from matplotlib.colors import TABLEAU_COLORS
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
-from database import Sources, fetch_source
+from database import fetch_source, fetch_sources
 
 logger = getLogger("financial_tracker")
-
-SOURCE_NAMES = np.array([src.name.capitalize().replace("_", " ") for src in Sources], dtype=str)
 
 
 def show_income_summary(page: ft.Page) -> None:
@@ -27,9 +25,10 @@ def show_income_summary(page: ft.Page) -> None:
     year = int(year)
 
     # get data
+    sources = fetch_sources()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    totals = np.zeros((len(months), len(Sources)), dtype=np.float32)
-    for i, source in enumerate(Sources):
+    totals = np.zeros((len(months), len(sources)), dtype=np.float32)
+    for i, source in enumerate(sources):
         totals[:, i] = fetch_source(year, source)
 
     # plot
@@ -39,11 +38,11 @@ def show_income_summary(page: ft.Page) -> None:
     markers = cycle(["o", "s", "^", "D", "v", "p", "*"])
     colors = cycle(TABLEAU_COLORS)
 
-    for i in range(len(Sources)):
+    for i in range(len(sources)):
         plt.plot(
             months,
             totals[:, i],
-            label=SOURCE_NAMES[i],
+            label=sources[i],
             linestyle=next(linestyles),
             marker=next(markers),
             color=next(colors),
@@ -86,8 +85,9 @@ def show_income_pie(page: ft.Page, month: int | None = None) -> None:
     year = int(year)
 
     # get data
-    totals = np.zeros((12, len(Sources)), dtype=np.float32)
-    for i, source in enumerate(Sources):
+    sources = np.array(fetch_sources(), dtype=str)
+    totals = np.zeros((12, len(sources)), dtype=np.float32)
+    for i, source in enumerate(sources):
         totals[:, i] = fetch_source(year, source)
 
     if month is None:
@@ -98,7 +98,7 @@ def show_income_pie(page: ft.Page, month: int | None = None) -> None:
     # remove zeros
     mask = totals > 0
     totals = totals[mask]
-    names = SOURCE_NAMES[mask]
+    names = sources[mask]
     if not totals.size > 0:
         page.show_dialog(
             ft.AlertDialog(

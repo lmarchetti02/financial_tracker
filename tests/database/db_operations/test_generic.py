@@ -6,9 +6,10 @@ from types import SimpleNamespace
 import pytest
 
 from _helpers.constants import EXPENSES_DB_NAME
-from database.data_structures.expense import Categories, Expense
-from database.data_structures.income import Income, Sources
-from database.data_structures.transfer import Kind, Transfer
+from database.data_structures.account import Account, AccountKind
+from database.data_structures.expense import Expense
+from database.data_structures.income import Income
+from database.data_structures.transfer import Transfer
 from database.db_operations.generic import (
     WhichDb,
     add_item,
@@ -30,7 +31,7 @@ def make_expense(**overrides: object) -> Expense:
         "month": 1,
         "day_start": 1,
         "description": "test expense",
-        "category": Categories.FOOD_AND_DRINKS,
+        "category": "Food and drinks",
         "cost": 10.0,
     }
     defaults.update(overrides)
@@ -39,7 +40,7 @@ def make_expense(**overrides: object) -> Expense:
 
 def make_income(**overrides: object) -> Income:
     """Builds an `:class:Income` with sensible defaults, overridden by `overrides`."""
-    defaults = {"month": 1, "source": Sources.SALARY, "description": "test income", "amount": 100.0}
+    defaults = {"month": 1, "source": "Salary", "description": "test income", "amount": 100.0}
     defaults.update(overrides)
     return Income(**defaults)
 
@@ -80,12 +81,12 @@ class TestFetchRows:
         assert [row_id for row_id, _ in results] == [2]
 
     def test_filters_by_extra_filter(self) -> None:
-        """`extra_filter` restricts rows to those matching the given column/enum-member pair."""
+        """`extra_filter` restricts rows to those matching the given column/value pair."""
         initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category=Categories.FOOD_AND_DRINKS))
-        add_item(YEAR, make_expense(category=Categories.TRAVEL))
+        add_item(YEAR, make_expense(category="Food and drinks"))
+        add_item(YEAR, make_expense(category="Travel"))
 
-        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, extra_filter=("category", Categories.TRAVEL)))
+        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, extra_filter=("category", "Travel")))
 
         assert [row_id for row_id, _ in results] == [2]
 
@@ -107,12 +108,12 @@ class TestFetchMonthlyTotals:
     def test_sums_the_column_per_month_for_the_given_filter(self) -> None:
         """Values for the requested filter are summed per month; other values are excluded."""
         initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=10.0))
-        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=5.0))
-        add_item(YEAR, make_expense(month=3, category=Categories.FOOD_AND_DRINKS, cost=7.0))
-        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL, cost=100.0))
+        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=5.0))
+        add_item(YEAR, make_expense(month=3, category="Food and drinks", cost=7.0))
+        add_item(YEAR, make_expense(month=1, category="Travel", cost=100.0))
 
-        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost", "category", Categories.FOOD_AND_DRINKS)
+        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost", "category", "Food and drinks")
 
         assert totals[0] == pytest.approx(15.0)
         assert totals[1] == pytest.approx(0.0)
@@ -121,9 +122,9 @@ class TestFetchMonthlyTotals:
     def test_sums_the_column_across_all_values_when_no_filter_is_given(self) -> None:
         """Omitting `filter_column`/`filter_value` sums the column across every row."""
         initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(month=1, category=Categories.FOOD_AND_DRINKS, cost=10.0))
-        add_item(YEAR, make_expense(month=1, category=Categories.TRAVEL, cost=5.0))
-        add_item(YEAR, make_expense(month=3, category=Categories.TRAVEL, cost=7.0))
+        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(YEAR, make_expense(month=1, category="Travel", cost=5.0))
+        add_item(YEAR, make_expense(month=3, category="Travel", cost=7.0))
 
         totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost")
 
@@ -226,13 +227,13 @@ class TestAddItem:
 
     def test_persists_enum_fields_by_name(self) -> None:
         """An enum field is stored as its `.name`, not its numeric value."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(source=Sources.INVESTMENTS))
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, Account(name="Checking", kind=AccountKind.CASH))
 
         with sq.connect(get_db_path(YEAR)) as connection:
-            row = connection.execute("SELECT source FROM income WHERE id = 1").fetchone()
+            row = connection.execute("SELECT kind FROM accounts WHERE id = 1").fetchone()
 
-        assert row[0] == "INVESTMENTS"
+        assert row[0] == "CASH"
 
     def test_rejects_an_unsupported_item_type(self) -> None:
         """An item whose type isn't a registered `:class:DataContainer` subclass is rejected."""
@@ -246,7 +247,7 @@ class TestFetchById:
     def test_reconstructs_the_stored_object(self) -> None:
         """The fetched object is equal to the one that was originally added."""
         initialize_db(YEAR, WhichDb.TRANSFERS)
-        transfer = Transfer(month=3, kind=Kind.LOAN, description="loan", source="Bank A", amount=50.0)
+        transfer = Transfer(month=3, kind="Loan", description="loan", source="Bank A", amount=50.0)
 
         add_item(YEAR, transfer)
 

@@ -11,5 +11,12 @@ INCOME_DB_NAME = "income"
 TRANSFERS_DB_NAME = "transfers"
 ACCOUNTS_DB_NAME = "accounts"
 ACCOUNT_BALANCES_DB_NAME = "account_balances"
+CONFIG_DB_NAME = "config"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+# system-reserved category/source/kind values: `transfers.py` hardcodes these to auto-generate a
+# linked expense/income when a transfer has a fee/profit, so they can never be renamed or deleted
+SYSTEM_CATEGORY_TRADING_FEE = "Trading fee"
+SYSTEM_SOURCE_INVESTMENTS = "Investments"
+SYSTEM_KIND_INVESTMENT = "Investment"
