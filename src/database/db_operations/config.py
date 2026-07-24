@@ -6,10 +6,15 @@ from enum import Enum, auto
 from logging import getLogger
 from pathlib import Path
 
-from _helpers.constants import (APP_DIRECTORY, CONFIG_DB_NAME,
-                                SYSTEM_CATEGORY_TRADING_FEE,
-                                SYSTEM_KIND_INVESTMENT,
-                                SYSTEM_SOURCE_INVESTMENTS)
+from _helpers.constants import (
+    APP_DIRECTORY,
+    CONFIG_DB_NAME,
+    SYSTEM_CATEGORY_TRADING_FEE,
+    SYSTEM_KIND_CREDIT,
+    SYSTEM_KIND_DEBT,
+    SYSTEM_KIND_INVESTMENT,
+    SYSTEM_SOURCE_INVESTMENTS,
+)
 
 logger = getLogger("financial_tracker")
 
@@ -61,8 +66,8 @@ _SEED_SOURCES = [
 ]
 _SEED_KINDS = [
     ("LOAN", "Loan", False),
-    ("CREDIT", "Credit", False),
-    ("DEBT", "Debt", False),
+    ("CREDIT", SYSTEM_KIND_CREDIT, True),
+    ("DEBT", SYSTEM_KIND_DEBT, True),
     ("INVESTMENT", SYSTEM_KIND_INVESTMENT, True),
 ]
 _SEED_DATA = {
@@ -128,6 +133,13 @@ def initialize_config_db() -> None:
             )
             _migrate_legacy_names(kind)
             logger.debug(f"Seeded '{table}' with its default entries.")
+
+        # upgrade installs seeded before "Debt"/"Credit" became system-reserved
+        cursor.execute(
+            f"UPDATE {_LOOKUP_TABLE[LookupKind.KINDS]} SET is_system = 1 WHERE name IN (?, ?)",
+            (SYSTEM_KIND_DEBT, SYSTEM_KIND_CREDIT),
+        )
+        logger.debug("Ensured 'Debt'/'Credit' kinds are marked system-reserved.")
 
 
 def fetch_lookup_options(kind: LookupKind) -> list[LookupOption]:

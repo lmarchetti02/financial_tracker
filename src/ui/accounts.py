@@ -192,6 +192,30 @@ class AccountsView(ft.Column):
         e.control.value = format_amount(balance, decimals=0)
         self._page.update()
 
+    def commit_opening_balance_cell(self, e: ft.Event) -> None:
+        """Persists a Debt/Credit account's opening balance and recomputes its monthly balances.
+
+        Unlike `commit_previous_year_cell`, this never reaches into another year's database - the
+        opening balance is a field on this year's own account, so it can't be silently overwritten
+        by another year's recompute. Saving it also recomputes every month shown below, and
+        cascades the correction forward into later years if any of them already exist.
+        """
+        logger.info("Called 'commit_opening_balance_cell'")
+        account_id = e.control.data
+        raw_value = (e.control.value or "").strip()
+
+        try:
+            balance = parse_amount(raw_value) if raw_value else 0.0
+        except ValueError:
+            show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
+            self.refresh()
+            return
+
+        db.save_account_opening_balance(self.year, account_id, balance)
+        logger.debug(f"Saved opening balance for account {account_id}: {balance}")
+
+        self.refresh()
+
     def refresh(self) -> None:
         """Reloads the accounts and their balances, and rebuilds both tables."""
         logger.info("Called 'refresh'")
@@ -276,19 +300,36 @@ class AccountsView(ft.Column):
                 )
             )
 
-            previous_year_value = self.previous_year_balances.get(account.name)
-            previous_year_cell = ft.DataCell(
-                ft.TextField(
-                    value=format_amount(previous_year_value, decimals=0) if previous_year_value is not None else "",
-                    text_align=ft.TextAlign.RIGHT,
-                    border=ft.InputBorder.NONE,
-                    content_padding=6,
-                    dense=True,
-                    data=(account.name, account.kind),
-                    on_blur=self.commit_previous_year_cell,
-                    on_submit=self.commit_previous_year_cell,
+            is_computed = account.kind in (db.AccountKind.DEBT, db.AccountKind.CREDIT)
+
+            if is_computed:
+                previous_year_cell = ft.DataCell(
+                    ft.TextField(
+                        value=format_amount(account.opening_balance, decimals=0),
+                        text_align=ft.TextAlign.RIGHT,
+                        border=ft.InputBorder.NONE,
+                        content_padding=6,
+                        dense=True,
+                        data=account_id,
+                        tooltip="Opening balance: this account's true balance before its earliest tracked transfer",
+                        on_blur=self.commit_opening_balance_cell,
+                        on_submit=self.commit_opening_balance_cell,
+                    )
                 )
-            )
+            else:
+                previous_year_value = self.previous_year_balances.get(account.name)
+                previous_year_cell = ft.DataCell(
+                    ft.TextField(
+                        value=format_amount(previous_year_value, decimals=0) if previous_year_value is not None else "",
+                        text_align=ft.TextAlign.RIGHT,
+                        border=ft.InputBorder.NONE,
+                        content_padding=6,
+                        dense=True,
+                        data=(account.name, account.kind),
+                        on_blur=self.commit_previous_year_cell,
+                        on_submit=self.commit_previous_year_cell,
+                    )
+                )
 
             cells = [account_cell, previous_year_cell]
             for month in range(1, 13):
@@ -302,8 +343,11 @@ class AccountsView(ft.Column):
                             content_padding=6,
                             dense=True,
                             data=(account_id, month),
-                            on_blur=self.commit_cell,
-                            on_submit=self.commit_cell,
+                            read_only=is_computed,
+                            color=ft.Colors.GREY if is_computed else None,
+                            tooltip="Computed from Debt/Credit transfers" if is_computed else None,
+                            on_blur=None if is_computed else self.commit_cell,
+                            on_submit=None if is_computed else self.commit_cell,
                         )
                     )
                 )

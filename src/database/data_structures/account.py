@@ -46,12 +46,18 @@ class Account(DataContainer):
     Attributes:
         name (str): The name of the account.
         kind (AccountKind): The kind of account. See `:enum:AccountKind`.
+        opening_balance (float): The account's true balance immediately before month 1 of the
+            year it's stored in. Only meaningful for `:enum:AccountKind.DEBT`/`.CREDIT` accounts,
+            whose monthly balances are computed from linked transfers rather than typed in by
+            hand — this is the one manually-set starting point that computation builds on top of.
+            Defaults to 0.0.
     """
 
     db_name = ACCOUNTS_DB_NAME
 
     name: str
     kind: AccountKind
+    opening_balance: float = 0.0
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102

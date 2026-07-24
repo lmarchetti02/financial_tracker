@@ -20,3 +20,8 @@ MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 SYSTEM_CATEGORY_TRADING_FEE = "Trading fee"
 SYSTEM_SOURCE_INVESTMENTS = "Investments"
 SYSTEM_KIND_INVESTMENT = "Investment"
+
+# `db_operations.accounts` hardcodes these to auto-create/sync a linked Debt/Credit `Account`
+# balance from a transfer's source/destination, so they can never be renamed or deleted either
+SYSTEM_KIND_DEBT = "Debt"
+SYSTEM_KIND_CREDIT = "Credit"

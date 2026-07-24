@@ -43,11 +43,19 @@ class SettingsView(ft.Column):
             on_change=self._handle_theme_change,
         )
 
+        recompute_button = ft.Button(
+            "Recompute Debt/Credit Balances",
+            icon=ft.Icons.SYNC,
+            on_click=self._handle_recompute_debt_credit_balances,
+        )
+
         self.controls = [
             ft.Container(height=40),
             year_section,
             ft.Container(height=20),
             theme_switch,
+            ft.Container(height=20),
+            recompute_button,
             ft.Container(height=30),
             ft.Row(
                 controls=[
@@ -68,6 +76,29 @@ class SettingsView(ft.Column):
         self._page.theme_mode = mode
         db.set_theme_preference("dark" if mode == ft.ThemeMode.DARK else "light")
         self._page.update()
+
+    def _handle_recompute_debt_credit_balances(self, _: ft.Event) -> None:
+        """Rebuilds every Debt/Credit account's balances, across every year, from their transfers."""
+        logger.info("Called '_handle_recompute_debt_credit_balances'")
+
+        created = db.recompute_all_debt_credit_balances()
+
+        if created:
+            details = ", ".join(f"{name} ({year})" for year, name in sorted(set(created)))
+            show_alert(
+                self._page,
+                "Recomputed — review new accounts' opening balances",
+                f"Assumed €0 as the starting balance for newly created accounts: {details}. If "
+                "any of these owed/were owed something before their earliest tracked transfer, "
+                "set the correct opening balance via the 'previous year' column in Accounts, for "
+                "the year shown — it will then carry forward automatically into later years.",
+            )
+        else:
+            show_alert(
+                self._page,
+                "Balances recomputed",
+                "Every Debt/Credit account's balances were rebuilt from their linked transfers.",
+            )
 
     def _build_lookup_section(self, kind: db.LookupKind, title: str, item_label: str) -> ft.Column:
         """Builds one category/source/kind management section (list, add, rename, delete)."""

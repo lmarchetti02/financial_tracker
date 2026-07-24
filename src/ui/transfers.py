@@ -250,6 +250,25 @@ class TransfersView(BaseCrudView):
         self.destination_text.value = ""
         logger.debug("Cleared transfer data")
 
+    def _sync_transfer_accounts(self, *transfers: db.Transfer) -> None:
+        """Syncs the Debt/Credit account(s) for each transfer, warning about any newly created one."""
+        created: list[str] = []
+        try:
+            for transfer in transfers:
+                created += db.sync_transfer_accounts(self.year, transfer)
+        except ValueError as error:
+            show_alert(self._page, "Account mismatch", str(error))
+            return
+
+        if created:
+            show_alert(
+                self._page,
+                "New account created — review its opening balance",
+                f"Assumed €0 as the starting balance for: {', '.join(sorted(set(created)))}. If "
+                "any of these already owed/were owed something before this transfer, set the "
+                "correct opening balance via the 'previous year' column in Accounts.",
+            )
+
     def add_new_transfer(self, _: ft.Event) -> None:
         """Adds a new transfer based on the user's inputs."""
         logger.info("Called 'add_new_transfer'")
@@ -281,6 +300,8 @@ class TransfersView(BaseCrudView):
             income_id = db.add_item(self.year, profit_income)
             db.edit_item(self.year, transfer_id, transfer, replace(transfer, profit_income_id=income_id))
 
+        self._sync_transfer_accounts(transfer)
+
         self.clear_inputs()
         self.refresh_table()
 
@@ -302,6 +323,8 @@ class TransfersView(BaseCrudView):
                     db.remove_item(self.year, db.WhichDb.EXPENSES, transfer.fee_expense_id)
                 if transfer.profit_income_id is not None:
                     db.remove_item(self.year, db.WhichDb.INCOMES, transfer.profit_income_id)
+
+                self._sync_transfer_accounts(transfer)
 
             self._page.pop_dialog()
             self.refresh_table()
@@ -387,6 +410,8 @@ class TransfersView(BaseCrudView):
                 show_alert(
                     self._page, "Error modifying transfer", f"It was not possible to modify transfer {transfer_id}"
                 )
+            else:
+                self._sync_transfer_accounts(old_transfer, new_transfer)
 
             self.clear_inputs()
             self.reset_add_button()

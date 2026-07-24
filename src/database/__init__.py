@@ -40,6 +40,7 @@ from .db_operations import fetch_incomes as fetch_incomes
 from .db_operations import fetch_kinds as fetch_kinds
 from .db_operations import fetch_lookup_options as fetch_lookup_options
 from .db_operations import fetch_net_worth_components as fetch_net_worth_components
+from .db_operations import fetch_opening_balances_by_kind as fetch_opening_balances_by_kind
 from .db_operations import fetch_previous_year_account_ids as fetch_previous_year_account_ids
 from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .db_operations import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
@@ -47,12 +48,17 @@ from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_sources as fetch_sources
 from .db_operations import fetch_transfers as fetch_transfers
+from .db_operations import get_or_create_debt_credit_account as get_or_create_debt_credit_account
 from .db_operations import get_theme_preference as get_theme_preference
 from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
+from .db_operations import recompute_account_balance as recompute_account_balance
+from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
 from .db_operations import remove_item as remove_item
 from .db_operations import rename_lookup_option as rename_lookup_option
+from .db_operations import save_account_opening_balance as save_account_opening_balance
 from .db_operations import save_balance as save_balance
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year
 from .db_operations import set_theme_preference as set_theme_preference
+from .db_operations import sync_transfer_accounts as sync_transfer_accounts

@@ -1,5 +1,7 @@
 """Unit tests for `database.db_operations.config`."""
 
+import sqlite3 as sq
+
 import pytest
 
 from database.data_structures.expense import Expense
@@ -68,7 +70,7 @@ class TestInitializeConfigDb:
         assert any(o.name == "Investments" and o.is_system for o in options)
 
     def test_seeds_kinds_with_the_default_entries(self) -> None:
-        """The `kinds` table is seeded, including the system-reserved investment entry."""
+        """The `kinds` table is seeded, including the system-reserved investment/debt/credit entries."""
         initialize_config_db()
 
         options = fetch_lookup_options(LookupKind.KINDS)
@@ -76,6 +78,20 @@ class TestInitializeConfigDb:
         names = {o.name for o in options}
         assert "Loan" in names
         assert any(o.name == "Investment" and o.is_system for o in options)
+        assert any(o.name == "Debt" and o.is_system for o in options)
+        assert any(o.name == "Credit" and o.is_system for o in options)
+
+    def test_upgrades_a_pre_existing_debt_credit_entry_to_system_reserved(self) -> None:
+        """A "Debt"/"Credit" row seeded before they became system-reserved gets upgraded in place."""
+        initialize_config_db()
+        with sq.connect(get_config_db_path()) as connection:
+            connection.execute("UPDATE kinds SET is_system = 0 WHERE name IN ('Debt', 'Credit')")
+
+        initialize_config_db()
+
+        options = {o.name: o.is_system for o in fetch_lookup_options(LookupKind.KINDS)}
+        assert options["Debt"] is True
+        assert options["Credit"] is True
 
     def test_is_idempotent(self) -> None:
         """Calling it twice does not raise or duplicate the seeded entries."""

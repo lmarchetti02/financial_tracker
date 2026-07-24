@@ -2,7 +2,9 @@
 
 import pytest
 
+from _helpers.constants import SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
 from database.data_structures.account import Account, AccountKind
+from database.data_structures.transfer import Transfer
 from database.db_operations.accounts import (
     delete_account,
     delete_balance,
@@ -11,12 +13,18 @@ from database.db_operations.accounts import (
     fetch_account_definitions,
     fetch_balances_by_kind,
     fetch_net_worth_components,
+    fetch_opening_balances_by_kind,
     fetch_previous_year_account_ids,
     fetch_previous_year_end_balances,
     fetch_previous_year_end_net_worth_components,
+    get_or_create_debt_credit_account,
+    recompute_account_balance,
+    recompute_all_debt_credit_balances,
+    save_account_opening_balance,
     save_balance,
     save_previous_year_end_balance,
     seed_accounts_for_new_year,
+    sync_transfer_accounts,
 )
 from database.db_operations.generic import WhichDb, add_item, fetch_by_id, initialize_db
 
@@ -29,6 +37,20 @@ def make_account(**overrides: object) -> Account:
     defaults = {"name": "Checking", "kind": AccountKind.CASH}
     defaults.update(overrides)
     return Account(**defaults)
+
+
+def make_transfer(**overrides: object) -> Transfer:
+    """Builds a `:class:Transfer` with sensible defaults, overridden by `overrides`."""
+    defaults = {
+        "month": 1,
+        "kind": SYSTEM_KIND_DEBT,
+        "description": "test transfer",
+        "source": "Mom",
+        "destination": None,
+        "amount": 100.0,
+    }
+    defaults.update(overrides)
+    return Transfer(**defaults)
 
 
 class TestFetchAccountDefinitions:
@@ -178,20 +200,20 @@ class TestFetchPreviousYearEndNetWorthComponents:
 
         assert fetch_previous_year_end_net_worth_components(YEAR) == (0.0, 0.0, 0.0, 0.0)
 
-    def test_returns_decembers_totals_from_the_previous_year(self) -> None:
-        """The previous year's December balances are split into the same four components."""
+    def test_returns_liquid_assets_and_pension_from_the_previous_year_s_december(self) -> None:
+        """Liquid assets and the pension fund come from `year - 1`'s own December balances."""
         initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
         initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
         cash_id = add_item(PRIOR_YEAR, make_account(name="Checking", kind=AccountKind.CASH))
         pension_id = add_item(PRIOR_YEAR, make_account(name="Pension", kind=AccountKind.PENSION))
-        credit_id = add_item(PRIOR_YEAR, make_account(name="Owed to me", kind=AccountKind.CREDIT))
-        debt_id = add_item(PRIOR_YEAR, make_account(name="Owed by me", kind=AccountKind.DEBT))
         save_balance(PRIOR_YEAR, cash_id, 12, 100.0)
         save_balance(PRIOR_YEAR, pension_id, 12, 200.0)
-        save_balance(PRIOR_YEAR, credit_id, 12, 50.0)
-        save_balance(PRIOR_YEAR, debt_id, 12, 25.0)
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
 
-        assert fetch_previous_year_end_net_worth_components(YEAR) == (100.0, 200.0, 50.0, 25.0)
+        liquid_assets, pension, credits, debts = fetch_previous_year_end_net_worth_components(YEAR)
+
+        assert (liquid_assets, pension) == (100.0, 200.0)
+        assert (credits, debts) == (0.0, 0.0)
 
     def test_ignores_months_other_than_december(self) -> None:
         """Only the December snapshot counts, not other months' balances."""
@@ -199,10 +221,62 @@ class TestFetchPreviousYearEndNetWorthComponents:
         initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
         cash_id = add_item(PRIOR_YEAR, make_account(kind=AccountKind.CASH))
         save_balance(PRIOR_YEAR, cash_id, 6, 999.0)
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
 
         liquid_assets, *_ = fetch_previous_year_end_net_worth_components(YEAR)
 
         assert liquid_assets == 0.0
+
+    def test_returns_credits_and_debts_from_the_current_year_s_own_opening_balances(self) -> None:
+        """Credits/debts come from `year`'s own accounts, never from `year - 1`'s database.
+
+        This is what makes them consistent with the Accounts view, which shows the very same
+        `opening_balance` field for a Debt/Credit account's "previous year" cell.
+        """
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Owed to me", kind=AccountKind.CREDIT, opening_balance=50.0))
+        add_item(YEAR, make_account(name="Owed by me", kind=AccountKind.DEBT, opening_balance=25.0))
+
+        _, _, credits, debts = fetch_previous_year_end_net_worth_components(YEAR)
+
+        assert (credits, debts) == (50.0, 25.0)
+
+    def test_credits_and_debts_are_unaffected_by_a_missing_previous_year_database(self) -> None:
+        """Unlike liquid assets/pension, credits/debts don't need `year - 1` to exist at all."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Owed by me", kind=AccountKind.DEBT, opening_balance=900.0))
+        # `year - 1` deliberately has no database file
+
+        _, _, _, debts = fetch_previous_year_end_net_worth_components(YEAR)
+
+        assert debts == pytest.approx(900.0)
+
+
+class TestFetchOpeningBalancesByKind:
+    """Tests for `fetch_opening_balances_by_kind`."""
+
+    def test_is_empty_when_there_are_no_debt_credit_accounts(self) -> None:
+        """With no Debt/Credit accounts at all, there is nothing to report."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Checking", kind=AccountKind.CASH, opening_balance=100.0))
+
+        assert fetch_opening_balances_by_kind(YEAR) == {}
+
+    def test_sums_opening_balances_across_every_account_of_the_same_kind(self) -> None:
+        """Two accounts of the same kind contribute to a single combined total."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=100.0))
+        add_item(YEAR, make_account(name="Dad", kind=AccountKind.DEBT, opening_balance=50.0))
+
+        assert fetch_opening_balances_by_kind(YEAR) == {AccountKind.DEBT: 150.0}
+
+    def test_keeps_debt_and_credit_totals_separate(self) -> None:
+        """Debt and Credit accounts contribute to independent totals."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=100.0))
+        add_item(YEAR, make_account(name="Alex", kind=AccountKind.CREDIT, opening_balance=40.0))
+
+        assert fetch_opening_balances_by_kind(YEAR) == {AccountKind.DEBT: 100.0, AccountKind.CREDIT: 40.0}
 
 
 class TestSaveBalance:
@@ -327,6 +401,33 @@ class TestSeedAccountsForNewYear:
         names = [account.name for _, account in fetch_account_definitions(YEAR)]
         assert names == ["Existing"]
 
+    def test_seeds_a_debt_credit_account_s_opening_balance_from_the_prior_year_s_december(self) -> None:
+        """A Debt/Credit account's opening balance carries over as the prior year's Dec balance."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
+        prior_id = add_item(PRIOR_YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        save_balance(PRIOR_YEAR, prior_id, 12, 900.0)
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+
+        seed_accounts_for_new_year(YEAR)
+
+        copied = dict(fetch_account_definitions(YEAR))
+        assert len(copied) == 1
+        assert next(iter(copied.values())).opening_balance == pytest.approx(900.0)
+
+    def test_does_not_set_an_opening_balance_for_non_debt_credit_accounts(self) -> None:
+        """A regular account's opening balance stays 0.0 - it isn't a computed kind."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
+        prior_id = add_item(PRIOR_YEAR, make_account(name="Checking", kind=AccountKind.CASH))
+        save_balance(PRIOR_YEAR, prior_id, 12, 900.0)
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+
+        seed_accounts_for_new_year(YEAR)
+
+        copied = dict(fetch_account_definitions(YEAR))
+        assert next(iter(copied.values())).opening_balance == 0.0
+
 
 class TestFetchPreviousYearAccountIds:
     """Tests for `fetch_previous_year_account_ids`."""
@@ -435,3 +536,334 @@ class TestDeletePreviousYearEndBalance:
         initialize_db(PRIOR_YEAR, WhichDb.ACCOUNT_BALANCES)
 
         delete_previous_year_end_balance(YEAR, "Nonexistent")  # must not raise
+
+
+class TestGetOrCreateDebtCreditAccount:
+    """Tests for `get_or_create_debt_credit_account`."""
+
+    def test_creates_a_new_account_when_no_match_exists(self) -> None:
+        """With no existing account of that name, a new one is created and reported as such."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+
+        account_id, was_created = get_or_create_debt_credit_account(YEAR, "Mom", AccountKind.DEBT)
+
+        assert was_created is True
+        account = fetch_by_id(YEAR, WhichDb.ACCOUNTS, account_id)
+        assert account.name == "Mom"
+        assert account.kind == AccountKind.DEBT
+
+    def test_matches_an_existing_account_case_insensitively(self) -> None:
+        """An existing account of the same kind is reused rather than duplicated."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        existing_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        account_id, was_created = get_or_create_debt_credit_account(YEAR, "mom", AccountKind.DEBT)
+
+        assert was_created is False
+        assert account_id == existing_id
+        assert len(fetch_account_definitions(YEAR)) == 1
+
+    def test_raises_when_an_existing_account_has_a_different_kind(self) -> None:
+        """A name collision with an unrelated account of another kind is not silently reused."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.CASH))
+
+        with pytest.raises(ValueError, match="already exists as CASH"):
+            get_or_create_debt_credit_account(YEAR, "Mom", AccountKind.DEBT)
+
+
+class TestSaveAccountOpeningBalance:
+    """Tests for `save_account_opening_balance`."""
+
+    def test_sets_the_opening_balance_and_recomputes_the_account(self) -> None:
+        """The new opening balance is persisted and immediately reflected in the monthly balances."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        save_account_opening_balance(YEAR, account_id, 900.0)
+
+        account = fetch_by_id(YEAR, WhichDb.ACCOUNTS, account_id)
+        assert account.opening_balance == pytest.approx(900.0)
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(900.0)
+
+    def test_never_touches_another_year_s_database(self) -> None:
+        """Unlike the old previous-year proxy, this only ever writes to `year`'s own account row."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        save_account_opening_balance(YEAR, account_id, 900.0)
+
+        assert fetch_account_definitions(PRIOR_YEAR) == []
+
+
+class TestRecomputeAccountBalance:
+    """Tests for `recompute_account_balance`."""
+
+    def test_is_a_no_op_for_a_non_debt_credit_account(self) -> None:
+        """An account of a kind other than Debt/Credit is left untouched."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        account_id = add_item(YEAR, make_account(kind=AccountKind.CASH))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR) == {}
+
+    def test_debt_named_as_source_increases_the_balance(self) -> None:
+        """Borrowing (the account is the transfer's source) increases a Debt balance."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=200.0, month=3))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 3)] == pytest.approx(200.0)
+
+    def test_debt_named_as_destination_decreases_the_balance(self) -> None:
+        """Repaying (the account is the transfer's destination) decreases a Debt balance."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source=None, destination="Mom", amount=50.0, month=1))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(-50.0)
+
+    def test_credit_named_as_source_decreases_the_balance(self) -> None:
+        """Being repaid (the account is the transfer's source) decreases a Credit balance."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Alex", kind=AccountKind.CREDIT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_CREDIT, source="Alex", destination=None, amount=30.0, month=1))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(-30.0)
+
+    def test_credit_named_as_destination_increases_the_balance(self) -> None:
+        """Lending more (the account is the transfer's destination) increases a Credit balance."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Alex", kind=AccountKind.CREDIT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_CREDIT, source=None, destination="Alex", amount=75.0, month=1))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(75.0)
+
+    def test_starts_from_the_account_s_own_opening_balance(self) -> None:
+        """The running total is anchored on the account's own field, not another year's database."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=500.0))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(500.0)
+
+    def test_defaults_to_zero_when_no_opening_balance_was_set(self) -> None:
+        """A freshly created account with no opening balance set starts its run from 0.0."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        recompute_account_balance(YEAR, account_id)
+
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(0.0)
+
+    def test_carries_the_running_total_forward_through_unaffected_months(self) -> None:
+        """A month with no transfer keeps the same running total as the month before it."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=2))
+
+        recompute_account_balance(YEAR, account_id)
+
+        balances = fetch_account_balances(YEAR)
+        assert balances[(account_id, 1)] == pytest.approx(0.0)
+        assert balances[(account_id, 2)] == pytest.approx(100.0)
+        assert balances[(account_id, 6)] == pytest.approx(100.0)
+        assert balances[(account_id, 12)] == pytest.approx(100.0)
+
+    def test_does_not_touch_the_previous_year_s_database(self) -> None:
+        """Recomputing `year` never reads or writes the previous year's data at all."""
+        initialize_db(PRIOR_YEAR, WhichDb.ACCOUNTS)
+        add_item(PRIOR_YEAR, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=999.0))
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        recompute_account_balance(YEAR, account_id)
+
+        prior_account = fetch_by_id(PRIOR_YEAR, WhichDb.ACCOUNTS, 1)
+        assert prior_account.opening_balance == pytest.approx(999.0)
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(0.0)
+
+    def test_cascades_the_recomputed_december_balance_into_the_next_year(self) -> None:
+        """A matching account in `year + 1` has its opening balance and balances refreshed too."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=12))
+        next_year = YEAR + 1
+        initialize_db(next_year, WhichDb.ACCOUNTS)
+        initialize_db(next_year, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(next_year, WhichDb.TRANSFERS)
+        next_account_id = add_item(next_year, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(next_year, make_transfer(kind=SYSTEM_KIND_DEBT, source=None, destination="Mom", amount=20.0, month=1))
+
+        recompute_account_balance(YEAR, account_id)
+
+        next_account = fetch_by_id(next_year, WhichDb.ACCOUNTS, next_account_id)
+        assert next_account.opening_balance == pytest.approx(100.0)
+        assert fetch_account_balances(next_year)[(next_account_id, 1)] == pytest.approx(80.0)
+
+    def test_does_not_cascade_when_the_next_year_has_no_matching_account(self) -> None:
+        """A next year with no account of that name is left untouched."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        account_id = add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=12))
+        next_year = YEAR + 1
+        initialize_db(next_year, WhichDb.ACCOUNTS)
+
+        recompute_account_balance(YEAR, account_id)  # must not raise
+
+        assert fetch_account_definitions(next_year) == []
+
+
+class TestSyncTransferAccounts:
+    """Tests for `sync_transfer_accounts`."""
+
+    def test_is_a_no_op_for_a_non_debt_credit_kind(self) -> None:
+        """A transfer with an unrelated kind (e.g. "Loan") never creates any account."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        transfer = make_transfer(kind="Loan", source="Mom")
+
+        assert sync_transfer_accounts(YEAR, transfer) == []
+        assert fetch_account_definitions(YEAR) == []
+
+    def test_creates_and_recomputes_the_account_named_in_source(self) -> None:
+        """A Debt transfer naming a new account in `source` creates and populates it."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        transfer = make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0)
+        add_item(YEAR, transfer)
+
+        sync_transfer_accounts(YEAR, transfer)
+
+        accounts = dict(fetch_account_definitions(YEAR))
+        assert len(accounts) == 1
+        account_id, account = next(iter(accounts.items()))
+        assert account.name == "Mom"
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(100.0)
+
+    def test_creates_and_recomputes_accounts_for_both_source_and_destination(self) -> None:
+        """A transfer naming an account on both sides syncs both of them."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        transfer = make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination="Dad", amount=100.0)
+        add_item(YEAR, transfer)
+
+        sync_transfer_accounts(YEAR, transfer)
+
+        names = {account.name for _, account in fetch_account_definitions(YEAR)}
+        assert names == {"Mom", "Dad"}
+
+    def test_reports_only_newly_created_account_names(self) -> None:
+        """An account that already existed is not reported, even though it's still recomputed."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT))
+        transfer = make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination="Dad", amount=100.0)
+        add_item(YEAR, transfer)
+
+        assert sync_transfer_accounts(YEAR, transfer) == ["Dad"]
+
+    def test_propagates_the_kind_mismatch_error(self) -> None:
+        """A name collision with an unrelated account of another kind is surfaced, not swallowed."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.CASH))
+        transfer = make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None)
+        add_item(YEAR, transfer)
+
+        with pytest.raises(ValueError, match="already exists as CASH"):
+            sync_transfer_accounts(YEAR, transfer)
+
+
+class TestRecomputeAllDebtCreditBalances:
+    """Tests for `recompute_all_debt_credit_balances`."""
+
+    def test_backfills_accounts_from_existing_unlinked_transfers(self) -> None:
+        """Historical Debt/Credit transfers, never synced before, get their accounts built."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=1))
+        add_item(
+            YEAR,
+            make_transfer(kind=SYSTEM_KIND_CREDIT, source=None, destination="Alex", amount=40.0, month=2),
+        )
+
+        recompute_all_debt_credit_balances()
+
+        accounts = {account.name: (account_id, account) for account_id, account in fetch_account_definitions(YEAR)}
+        assert accounts["Mom"][1].kind == AccountKind.DEBT
+        assert accounts["Alex"][1].kind == AccountKind.CREDIT
+        balances = fetch_account_balances(YEAR)
+        assert balances[(accounts["Mom"][0], 1)] == pytest.approx(100.0)
+        assert balances[(accounts["Alex"][0], 2)] == pytest.approx(40.0)
+
+    def test_is_idempotent(self) -> None:
+        """Running it twice does not duplicate accounts or change the computed balances."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=1))
+
+        recompute_all_debt_credit_balances()
+        recompute_all_debt_credit_balances()
+
+        accounts = fetch_account_definitions(YEAR)
+        assert len(accounts) == 1
+        account_id, _ = accounts[0]
+        assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(100.0)
+
+    def test_reports_years_and_names_of_newly_created_accounts(self) -> None:
+        """A brand new account is flagged, since its opening balance defaults to 0.0."""
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=1))
+
+        created = recompute_all_debt_credit_balances()
+
+        assert created == [(YEAR, "Mom")]
+
+    def test_does_not_flag_an_account_that_already_existed(self) -> None:
+        """An account that already existed before the run is not reported, even if recomputed."""
+        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(YEAR, WhichDb.TRANSFERS)
+        add_item(YEAR, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=300.0))
+        add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=1))
+
+        created = recompute_all_debt_credit_balances()
+
+        assert created == []
