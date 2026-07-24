@@ -32,6 +32,10 @@ class BaseCrudView(ft.Column, ABC):
             raise RuntimeError("Cannot retrieve the current year.")
         self.year = int(year)
 
+        if (profile := self._page.session.store.get("selected_profile")) is None:
+            raise RuntimeError("Cannot retrieve the current profile.")
+        self.profile = profile
+
         self.current_month_filter: int | None = None
         self.current_enum_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None

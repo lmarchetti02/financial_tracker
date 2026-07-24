@@ -24,12 +24,15 @@ def show_expenses_summary(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
     categories = fetch_categories()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = np.zeros((len(months), len(categories)), dtype=np.float32)
     for i, category in enumerate(categories):
-        totals[:, i] = fetch_category(year, category)
+        totals[:, i] = fetch_category(year, category, profile)
 
     # plot
     fig = plt.figure()
@@ -87,11 +90,14 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
     categories = np.array(fetch_categories(), dtype=str)
     totals = np.zeros((12, len(categories)), dtype=np.float32)
     for i, category in enumerate(categories):
-        totals[:, i] = fetch_category(year, category)
+        totals[:, i] = fetch_category(year, category, profile)
 
     if month is None:
         totals = totals.sum(axis=0)

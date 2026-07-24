@@ -6,6 +6,7 @@ from pathlib import Path
 DEBUGGING = getenv("DEBUGGING", "False").lower() == "true"
 
 APP_DIRECTORY = Path.home() / ".financial_tracker"
+DEFAULT_PROFILE_NAME = "Personal"
 EXPENSES_DB_NAME = "expenses"
 INCOME_DB_NAME = "income"
 TRANSFERS_DB_NAME = "transfers"

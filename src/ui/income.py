@@ -158,7 +158,7 @@ class IncomeView(BaseCrudView):
         if income is None:
             return
 
-        db.add_item(self.year, income)
+        db.add_item(self.year, income, self.profile)
         self.clear_inputs()
         self.refresh_table()
 
@@ -169,7 +169,7 @@ class IncomeView(BaseCrudView):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the income."""
-            success = db.remove_item(self.year, db.WhichDb.INCOMES, income_id)
+            success = db.remove_item(self.year, db.WhichDb.INCOMES, income_id, self.profile)
             if not success:
                 show_alert(self._page, "Error deleting income", f"It was not possible to delete income {income_id}")
 
@@ -192,7 +192,7 @@ class IncomeView(BaseCrudView):
         logger.info("Called 'edit_this_item'")
 
         income_id = e.control.data
-        old_income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id)
+        old_income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id, self.profile)
 
         def modify(_: ft.Event) -> None:
             """Actually modifies the income."""
@@ -204,7 +204,7 @@ class IncomeView(BaseCrudView):
                 show_alert(self._page, "Unchanged income", "You did not modify the income.")
                 return
 
-            success = db.edit_item(self.year, income_id, old_income, new_income)
+            success = db.edit_item(self.year, income_id, old_income, new_income, self.profile)
             if not success:
                 show_alert(self._page, "Error modifying income", f"It was not possible to modify income {income_id}")
 
@@ -223,7 +223,7 @@ class IncomeView(BaseCrudView):
         """Prefills the add-income form from an existing income, to add it as a new entry."""
         logger.info("Called 'copy_this_item'")
         income_id = e.control.data
-        income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id)
+        income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, income_id, self.profile)
 
         self.reset_add_button()
 
@@ -244,8 +244,10 @@ class IncomeView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches incomes matching the current sort and filters."""
-        self._profit_income_ids = db.fetch_profit_income_ids(self.year)
-        return db.fetch_incomes(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        self._profit_income_ids = db.fetch_profit_income_ids(self.year, self.profile)
+        return db.fetch_incomes(
+            self.year, self.current_sort, self.current_month_filter, self.current_enum_filter, self.profile
+        )
 
     def _is_readonly(self, row_id: int) -> bool:
         """An income generated from a transfer's profit is only editable from the Transfers page."""

@@ -22,9 +22,12 @@ def show_savings_summary(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    net_savings = fetch_income_totals(year) - fetch_expense_totals(year)
+    net_savings = fetch_income_totals(year, profile) - fetch_expense_totals(year, profile)
 
     # plot
     fig = plt.figure()
@@ -66,9 +69,12 @@ def show_savings_pie(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
-    total_income = fetch_income_totals(year).sum()
-    total_expenses = fetch_expense_totals(year).sum()
+    total_income = fetch_income_totals(year, profile).sum()
+    total_expenses = fetch_expense_totals(year, profile).sum()
     total_saved = total_income - total_expenses
 
     values = np.array([total_saved, total_expenses], dtype=np.float32)

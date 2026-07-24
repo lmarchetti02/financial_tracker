@@ -16,6 +16,8 @@ from _helpers.constants import (
     SYSTEM_SOURCE_INVESTMENTS,
 )
 
+from .generic import get_db_path, list_year_profile_pairs
+
 logger = getLogger("financial_tracker")
 
 
@@ -96,8 +98,8 @@ def _migrate_legacy_names(kind: LookupKind) -> None:
 
     table, column = _LOOKUP_REFERENCES[kind]
 
-    for db_path in get_config_db_path().parent.glob("*_data.db"):
-        with sq.connect(db_path) as connection:
+    for year, profile in list_year_profile_pairs():
+        with sq.connect(get_db_path(year, profile)) as connection:
             try:
                 for legacy_name, label, _ in _SEED_DATA[kind]:
                     connection.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (label, legacy_name))
@@ -218,8 +220,8 @@ def rename_lookup_option(kind: LookupKind, old_name: str, new_name: str) -> None
         connection.execute(f"UPDATE {table} SET name = ? WHERE name = ?", (new_name, old_name))
 
     domain_table, column = _LOOKUP_REFERENCES[kind]
-    for db_path in get_config_db_path().parent.glob("*_data.db"):
-        with sq.connect(db_path) as connection:
+    for year, profile in list_year_profile_pairs():
+        with sq.connect(get_db_path(year, profile)) as connection:
             try:
                 connection.execute(f"UPDATE {domain_table} SET {column} = ? WHERE {column} = ?", (new_name, old_name))
             except sq.OperationalError:
@@ -240,8 +242,8 @@ def is_lookup_option_in_use(kind: LookupKind, name: str) -> bool:
     """
     domain_table, column = _LOOKUP_REFERENCES[kind]
 
-    for db_path in get_config_db_path().parent.glob("*_data.db"):
-        with sq.connect(db_path) as connection:
+    for year, profile in list_year_profile_pairs():
+        with sq.connect(get_db_path(year, profile)) as connection:
             try:
                 count = connection.execute(
                     f"SELECT COUNT(*) FROM {domain_table} WHERE {column} = ?", (name,)
@@ -317,3 +319,35 @@ def set_theme_preference(mode: str) -> None:
 
     with sq.connect(get_config_db_path()) as connection:
         connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('theme', ?)", (mode,))
+
+
+def get_last_selection() -> tuple[int, str] | None:
+    """Returns the last year/profile the welcome page was started with, if any.
+
+    Returns:
+        tuple[int, str] | None: The `(year, profile)` last used to start the app, or `None` if
+            the app has never been started yet.
+    """
+    logger.info("Called 'get_last_selection'")
+
+    with sq.connect(get_config_db_path()) as connection:
+        rows = dict(connection.execute("SELECT key, value FROM preferences WHERE key IN ('last_year', 'last_profile')"))
+
+    if "last_year" not in rows or "last_profile" not in rows:
+        return None
+
+    return int(rows["last_year"]), rows["last_profile"]
+
+
+def set_last_selection(year: int, profile: str) -> None:
+    """Persists the year/profile the welcome page was just started with.
+
+    Args:
+        year (int): The year that was selected.
+        profile (str): The profile that was selected.
+    """
+    logger.info("Called 'set_last_selection'")
+
+    with sq.connect(get_config_db_path()) as connection:
+        connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('last_year', ?)", (str(year),))
+        connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('last_profile', ?)", (profile,))

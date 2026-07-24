@@ -28,8 +28,11 @@ def home_view(page: ft.Page) -> ft.Control:
         raise RuntimeError("Cannot retrieve the current year.")
     year = int(year)
 
-    income = db.fetch_income_totals(year)
-    expenses = db.fetch_expense_totals(year)
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
+    income = db.fetch_income_totals(year, profile)
+    expenses = db.fetch_expense_totals(year, profile)
     net_savings = income - expenses
 
     savings_rate = np.zeros_like(income)
@@ -88,10 +91,12 @@ def home_view(page: ft.Page) -> ft.Control:
     ]
     savings_table = build_styled_data_table(savings_columns, savings_rows, _HEADING_COLOR)
 
-    liquid_assets, pension, credits, debts = db.fetch_net_worth_components(year)
+    liquid_assets, pension, credits, debts = db.fetch_net_worth_components(year, profile)
     net_worth = liquid_assets + pension + credits - debts
 
-    prev_liquid_assets, prev_pension, prev_credits, prev_debts = db.fetch_previous_year_end_net_worth_components(year)
+    prev_liquid_assets, prev_pension, prev_credits, prev_debts = db.fetch_previous_year_end_net_worth_components(
+        year, profile
+    )
     prev_net_worth = prev_liquid_assets + prev_pension + prev_credits - prev_debts
 
     logger.debug(f"Liquid assets per month:\n{liquid_assets}")

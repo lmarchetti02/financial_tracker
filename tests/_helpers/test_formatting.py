@@ -4,7 +4,7 @@ from enum import Enum, auto
 
 import pytest
 
-from _helpers.formatting import enum_label, format_amount, parse_amount
+from _helpers.formatting import enum_label, format_amount, parse_amount, parse_year, validate_profile_name
 
 
 class _Color(Enum):
@@ -73,3 +73,66 @@ class TestParseAmount:
         """Garbage input raises `ValueError`, matching `float`'s own behavior."""
         with pytest.raises(ValueError, match="could not convert"):
             parse_amount("not a number")
+
+
+class TestParseYear:
+    """Tests for `parse_year`."""
+
+    def test_parses_a_valid_year(self) -> None:
+        """A plain positive integer string parses to its `int` value."""
+        assert parse_year("2026") == 2026
+
+    def test_strips_surrounding_whitespace(self) -> None:
+        """Leading/trailing whitespace is ignored."""
+        assert parse_year("  2026  ") == 2026
+
+    def test_raises_on_blank_input(self) -> None:
+        """A blank string is rejected."""
+        with pytest.raises(ValueError, match="positive whole number"):
+            parse_year("   ")
+
+    def test_raises_on_non_numeric_input(self) -> None:
+        """Non-digit input is rejected."""
+        with pytest.raises(ValueError, match="positive whole number"):
+            parse_year("abcd")
+
+    def test_raises_on_zero(self) -> None:
+        """Zero is not a positive year."""
+        with pytest.raises(ValueError, match="positive whole number"):
+            parse_year("0")
+
+    def test_raises_on_negative_input(self) -> None:
+        """A minus sign makes the string non-digit, so it's rejected too."""
+        with pytest.raises(ValueError, match="positive whole number"):
+            parse_year("-5")
+
+
+class TestValidateProfileName:
+    """Tests for `validate_profile_name`."""
+
+    def test_accepts_a_simple_name(self) -> None:
+        """A plain alphanumeric name is accepted unchanged."""
+        assert validate_profile_name("Shared") == "Shared"
+
+    def test_strips_surrounding_whitespace(self) -> None:
+        """Leading/trailing whitespace is stripped from the returned name."""
+        assert validate_profile_name("  Shared  ") == "Shared"
+
+    def test_accepts_hyphens_and_underscores(self) -> None:
+        """Hyphens and underscores are allowed alongside letters/digits."""
+        assert validate_profile_name("my-profile_1") == "my-profile_1"
+
+    def test_raises_on_blank_input(self) -> None:
+        """A blank (or whitespace-only) name is rejected."""
+        with pytest.raises(ValueError, match="letters, digits"):
+            validate_profile_name("   ")
+
+    def test_raises_on_disallowed_characters(self) -> None:
+        """Characters outside letters/digits/hyphen/underscore are rejected."""
+        with pytest.raises(ValueError, match="letters, digits"):
+            validate_profile_name("shared tracker")
+
+    def test_raises_on_path_traversal_characters(self) -> None:
+        """Slashes (which could otherwise escape the app directory) are rejected."""
+        with pytest.raises(ValueError, match="letters, digits"):
+            validate_profile_name("../evil")

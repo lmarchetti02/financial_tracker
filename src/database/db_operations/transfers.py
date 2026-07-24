@@ -4,7 +4,7 @@ import sqlite3 as sq
 from dataclasses import dataclass
 from logging import getLogger
 
-from _helpers.constants import TRANSFERS_DB_NAME
+from _helpers.constants import DEFAULT_PROFILE_NAME, TRANSFERS_DB_NAME
 
 from ..data_structures import Transfer
 from .generic import fetch_rows, get_db_path
@@ -25,7 +25,11 @@ type TSC = TransfersSortingConfig
 
 
 def fetch_transfers(
-    year: int, sort: TSC | None = None, month: int | None = None, kind: str | None = None
+    year: int,
+    sort: TSC | None = None,
+    month: int | None = None,
+    kind: str | None = None,
+    profile: str = DEFAULT_PROFILE_NAME,
 ) -> RowGenerator:
     """Fetches all the transfers.
 
@@ -37,6 +41,7 @@ def fetch_transfers(
             Defaults to `None`.
         kind (str | None): The kind to filter the table by.
             Defaults to `None`.
+        profile (str): The profile of the transfers in the database. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
@@ -44,38 +49,42 @@ def fetch_transfers(
     """
     logger.info("Called 'fetch_transfers'")
     extra_filter = ("kind", kind) if kind is not None else None
-    return fetch_rows(year, TRANSFERS_DB_NAME, Transfer, sort=sort, month=month, extra_filter=extra_filter)
+    return fetch_rows(
+        year, TRANSFERS_DB_NAME, Transfer, sort=sort, month=month, extra_filter=extra_filter, profile=profile
+    )
 
 
-def fetch_fee_expense_ids(year: int) -> set[int]:
+def fetch_fee_expense_ids(year: int, profile: str = DEFAULT_PROFILE_NAME) -> set[int]:
     """Fetches the ids of every `:class:Expense` currently linked to a transfer's fee.
 
     Args:
         year (int): The year of the transfers in the database.
+        profile (str): The profile of the transfers. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         set[int]: The ids of the `:class:Expense` rows referenced by some transfer's `fee_expense_id`.
     """
     logger.info("Called 'fetch_fee_expense_ids'")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
         cursor.execute(f"SELECT fee_expense_id FROM {TRANSFERS_DB_NAME} WHERE fee_expense_id IS NOT NULL")
         return {row[0] for row in cursor.fetchall()}
 
 
-def fetch_profit_income_ids(year: int) -> set[int]:
+def fetch_profit_income_ids(year: int, profile: str = DEFAULT_PROFILE_NAME) -> set[int]:
     """Fetches the ids of every `:class:Income` currently linked to a transfer's profit.
 
     Args:
         year (int): The year of the transfers in the database.
+        profile (str): The profile of the transfers. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         set[int]: The ids of the `:class:Income` rows referenced by some transfer's `profit_income_id`.
     """
     logger.info("Called 'fetch_profit_income_ids'")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
         cursor.execute(f"SELECT profit_income_id FROM {TRANSFERS_DB_NAME} WHERE profit_income_id IS NOT NULL")
         return {row[0] for row in cursor.fetchall()}

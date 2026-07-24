@@ -1,5 +1,6 @@
 """Some helper functions."""
 
+import re
 import sqlite3 as sq
 from dataclasses import fields
 from enum import Enum, auto
@@ -9,7 +10,7 @@ from typing import Literal, overload
 
 import numpy as np
 
-from _helpers.constants import APP_DIRECTORY
+from _helpers.constants import APP_DIRECTORY, DEFAULT_PROFILE_NAME
 
 from ..data_structures import Account, AccountBalance, DataContainer, Expense, Income, Transfer
 from .utils import RowGenerator, SortingConfig
@@ -43,16 +44,65 @@ _CLASS_TO_DB = {
 }
 
 
-def get_db_path(year: int) -> Path:
-    """Returns the path to the shared database file for the given year.
+def get_db_path(year: int, profile: str = DEFAULT_PROFILE_NAME) -> Path:
+    """Returns the path to the shared database file for the given year and profile.
 
     Args:
         year (int): The desired year.
+        profile (str): The desired profile (e.g. distinct datasets for the same year, like a
+            personal and a shared tracker). Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
-        Path: The path to the database file for `year`.
+        Path: The path to the database file for `year`/`profile`.
     """
-    return APP_DIRECTORY / f"{year}_data.db"
+    return APP_DIRECTORY / f"{year}_{profile}_data.db"
+
+
+_LEGACY_DB_PATTERN = re.compile(r"^(\d+)_data\.db$")
+_DB_PATTERN = re.compile(r"^(\d+)_(.+)_data$")
+
+
+def migrate_legacy_year_dbs() -> None:
+    """Renames every pre-profile yearly database (`{year}_data.db`) to the default profile's name.
+
+    Idempotent: a legacy file is only renamed if the destination doesn't already exist, and a
+    second run finds no legacy files left to migrate.
+    """
+    logger.info("Called 'migrate_legacy_year_dbs'")
+
+    if not APP_DIRECTORY.is_dir():
+        return
+
+    for path in APP_DIRECTORY.glob("*_data.db"):
+        match = _LEGACY_DB_PATTERN.match(path.name)
+        if match is None:
+            continue
+
+        destination = get_db_path(int(match.group(1)), DEFAULT_PROFILE_NAME)
+        if destination.exists():
+            continue
+
+        path.rename(destination)
+        logger.debug(f"Migrated legacy database '{path.name}' to '{destination.name}'.")
+
+
+def list_year_profile_pairs() -> list[tuple[int, str]]:
+    """Lists every `(year, profile)` pair that has an existing database file.
+
+    Returns:
+        list[tuple[int, str]]: The `(year, profile)` pairs found under `APP_DIRECTORY`.
+    """
+    if not APP_DIRECTORY.is_dir():
+        return []
+
+    pairs = []
+    for path in APP_DIRECTORY.glob("*_data.db"):
+        match = _DB_PATTERN.match(path.stem)
+        if match is None:
+            continue
+        pairs.append((int(match.group(1)), match.group(2)))
+
+    return pairs
 
 
 def fetch_rows(
@@ -62,6 +112,7 @@ def fetch_rows(
     sort: SortingConfig | None = None,
     month: int | None = None,
     extra_filter: tuple[str, str] | None = None,
+    profile: str = DEFAULT_PROFILE_NAME,
 ) -> RowGenerator:
     """Fetches all the rows of a domain table, optionally filtered and sorted.
 
@@ -74,11 +125,12 @@ def fetch_rows(
         month (int | None): The month to filter the table by. Defaults to `None`.
         extra_filter (tuple[str, str] | None): An optional `(column_name, value)` pair used
             as an additional equality filter. Defaults to `None`.
+        profile (str): The profile of the database to query. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         RowGenerator: The generator that yields the rows and the id of each item in the database.
     """
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         # enable column access by name
         connection.row_factory = sq.Row
         cursor = connection.cursor()
@@ -106,7 +158,12 @@ def fetch_rows(
 
 
 def fetch_monthly_totals(
-    year: int, table_name: str, sum_column: str, filter_column: str | None = None, filter_value: str | None = None
+    year: int,
+    table_name: str,
+    sum_column: str,
+    filter_column: str | None = None,
+    filter_value: str | None = None,
+    profile: str = DEFAULT_PROFILE_NAME,
 ) -> np.ndarray:
     """Fetches the per-month total of a numeric column, optionally filtered by one column.
 
@@ -117,6 +174,7 @@ def fetch_monthly_totals(
         filter_column (str | None): The column to filter by. If omitted, the column is
             summed across the whole table. Defaults to `None`.
         filter_value (str | None): The value to filter `filter_column` by. Defaults to `None`.
+        profile (str): The profile of the database to query. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         np.ndarray: An array of shape (12,) with the totals per month.
@@ -126,7 +184,7 @@ def fetch_monthly_totals(
     where_clause = f"WHERE {filter_column} = ?" if filter_column is not None else ""
     params = (filter_value,) if filter_value is not None else ()
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(
@@ -146,17 +204,18 @@ def fetch_monthly_totals(
         return monthly_total
 
 
-def initialize_db(year: int, db: WhichDb) -> None:
+def initialize_db(year: int, db: WhichDb, profile: str = DEFAULT_PROFILE_NAME) -> None:
     """Initializes the database if it doesn't already exist.
 
     Args:
         year (int): The desired year.
         db (`:enum:WhichDb`): The db to initialize.
+        profile (str): The desired profile. Defaults to `:const:DEFAULT_PROFILE_NAME`.
     """
     logger.info(f"Called 'initialize_db' for {db}.")
 
     # create database
-    db_path = get_db_path(year)
+    db_path = get_db_path(year, profile)
     with sq.connect(db_path) as connection:
         # create cursor
         cursor = connection.cursor()
@@ -185,22 +244,33 @@ def initialize_db(year: int, db: WhichDb) -> None:
 
 
 @overload
-def fetch_by_id(year: int, db: Literal[WhichDb.EXPENSES], row_id: int) -> Expense: ...
+def fetch_by_id(
+    year: int, db: Literal[WhichDb.EXPENSES], row_id: int, profile: str = DEFAULT_PROFILE_NAME
+) -> Expense: ...
 @overload
-def fetch_by_id(year: int, db: Literal[WhichDb.INCOMES], row_id: int) -> Income: ...
+def fetch_by_id(
+    year: int, db: Literal[WhichDb.INCOMES], row_id: int, profile: str = DEFAULT_PROFILE_NAME
+) -> Income: ...
 @overload
-def fetch_by_id(year: int, db: Literal[WhichDb.TRANSFERS], row_id: int) -> Transfer: ...
+def fetch_by_id(
+    year: int, db: Literal[WhichDb.TRANSFERS], row_id: int, profile: str = DEFAULT_PROFILE_NAME
+) -> Transfer: ...
 @overload
-def fetch_by_id(year: int, db: Literal[WhichDb.ACCOUNTS], row_id: int) -> Account: ...
+def fetch_by_id(
+    year: int, db: Literal[WhichDb.ACCOUNTS], row_id: int, profile: str = DEFAULT_PROFILE_NAME
+) -> Account: ...
 @overload
-def fetch_by_id(year: int, db: Literal[WhichDb.ACCOUNT_BALANCES], row_id: int) -> AccountBalance: ...
-def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
+def fetch_by_id(
+    year: int, db: Literal[WhichDb.ACCOUNT_BALANCES], row_id: int, profile: str = DEFAULT_PROFILE_NAME
+) -> AccountBalance: ...
+def fetch_by_id(year: int, db: WhichDb, row_id: int, profile: str = DEFAULT_PROFILE_NAME) -> DataContainer:
     """Fetches the expense with the desired ID.
 
     Args:
         year (int): The year of the expenses in the database.
         db (`:enum:WhichDb`): The db to use.
         row_id (int): The id of the row to fetch.
+        profile (str): The profile of the database to use. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         `:class:DataContainer`: The desired object.
@@ -210,7 +280,7 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
     """
     logger.info("Called 'fetch_by_id'")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
 
         cursor.execute(f"SELECT * FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ?", (row_id,))  # type: ignore
@@ -234,12 +304,13 @@ def fetch_by_id(year: int, db: WhichDb, row_id: int) -> DataContainer:
         return data
 
 
-def add_item(year: int, item: DataContainer) -> int:
+def add_item(year: int, item: DataContainer, profile: str = DEFAULT_PROFILE_NAME) -> int:
     """Adds a `:class:DataContainer` subclass instance to the database.
 
     Args:
         year (int): The desired year.
         item (`:class:DataContainer`): The item to add.
+        profile (str): The desired profile. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         int: The id of the newly inserted row.
@@ -250,7 +321,7 @@ def add_item(year: int, item: DataContainer) -> int:
     if not db_enum:
         raise ValueError(f"Unsupported item type: {type(item)}")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
 
         # get names and values
@@ -276,20 +347,21 @@ def add_item(year: int, item: DataContainer) -> int:
         return cursor.lastrowid
 
 
-def remove_item(year: int, db: WhichDb, row_id: int) -> bool:
+def remove_item(year: int, db: WhichDb, row_id: int, profile: str = DEFAULT_PROFILE_NAME) -> bool:
     """Removes a `:class:DataContainer` subclass instance from the database.
 
     Args:
         year (int): The desired year.
         db (`:enum:WhichDb`): The db to use.
         row_id (int): The ID of the row where the item is stored.
+        profile (str): The desired profile. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         `True` if the operation was successful, `False` otherwise.
     """
     logger.info("Called 'remove_expense'")
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
         cursor.execute(f"DELETE FROM {_DB_TO_CLASS.get(db).db_name} WHERE id = ? RETURNING *", (row_id,))  # type: ignore
 
@@ -299,7 +371,9 @@ def remove_item(year: int, db: WhichDb, row_id: int) -> bool:
         return cursor.rowcount > 0
 
 
-def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) -> bool:
+def edit_item(
+    year: int, row_id: int, old: DataContainer, new: DataContainer, profile: str = DEFAULT_PROFILE_NAME
+) -> bool:
     """Edits an item in the database.
 
     Args:
@@ -307,6 +381,7 @@ def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) ->
         row_id (int): The ID of the row where the item is stored.
         old (`:class:DataContainer`): The item to modify.
         new (`:class:DataContainer`): The modified item.
+        profile (str): The desired profile. Defaults to `:const:DEFAULT_PROFILE_NAME`.
 
     Returns:
         bool: `True` if the operation succeeded (including a no-op edit where nothing
@@ -329,7 +404,7 @@ def edit_item(year: int, row_id: int, old: DataContainer, new: DataContainer) ->
         logger.debug("No differences between old and new; nothing to update.")
         return True
 
-    with sq.connect(get_db_path(year)) as connection:
+    with sq.connect(get_db_path(year, profile)) as connection:
         cursor = connection.cursor()
 
         # construct command based on differences

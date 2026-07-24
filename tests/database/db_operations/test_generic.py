@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from _helpers.constants import EXPENSES_DB_NAME
+from _helpers.constants import DEFAULT_PROFILE_NAME, EXPENSES_DB_NAME
 from database.data_structures.account import Account, AccountKind
 from database.data_structures.expense import Expense
 from database.data_structures.income import Income
@@ -19,6 +19,8 @@ from database.db_operations.generic import (
     fetch_rows,
     get_db_path,
     initialize_db,
+    list_year_profile_pairs,
+    migrate_legacy_year_dbs,
     remove_item,
 )
 
@@ -49,12 +51,97 @@ class TestGetDbPath:
     """Tests for `get_db_path`."""
 
     def test_path_is_named_after_the_year(self) -> None:
-        """The DB file name embeds the requested year."""
-        assert get_db_path(YEAR).name == f"{YEAR}_data.db"
+        """The DB file name embeds the requested year and the default profile."""
+        assert get_db_path(YEAR).name == f"{YEAR}_{DEFAULT_PROFILE_NAME}_data.db"
 
     def test_different_years_map_to_different_files(self) -> None:
         """Two distinct years resolve to two distinct DB files."""
         assert get_db_path(2024) != get_db_path(2025)
+
+    def test_path_embeds_an_explicit_profile(self) -> None:
+        """Passing a profile embeds it in the file name instead of the default."""
+        assert get_db_path(YEAR, "Shared").name == f"{YEAR}_Shared_data.db"
+
+    def test_different_profiles_map_to_different_files(self) -> None:
+        """The same year with two distinct profiles resolves to two distinct DB files."""
+        assert get_db_path(YEAR, "Personal") != get_db_path(YEAR, "Shared")
+
+
+class TestMigrateLegacyYearDbs:
+    """Tests for `migrate_legacy_year_dbs`."""
+
+    def test_renames_a_legacy_database_to_the_default_profile(self) -> None:
+        """A pre-profile `{year}_data.db` file is renamed to embed the default profile."""
+        app_directory = get_db_path(YEAR).parent
+        legacy_path = app_directory / f"{YEAR}_data.db"
+        app_directory.mkdir(parents=True, exist_ok=True)
+        legacy_path.touch()
+
+        migrate_legacy_year_dbs()
+
+        assert not legacy_path.exists()
+        assert get_db_path(YEAR).exists()
+
+    def test_is_idempotent(self) -> None:
+        """A second run finds no legacy files left and does not raise."""
+        app_directory = get_db_path(YEAR).parent
+        app_directory.mkdir(parents=True, exist_ok=True)
+        (app_directory / f"{YEAR}_data.db").touch()
+
+        migrate_legacy_year_dbs()
+        migrate_legacy_year_dbs()  # must not raise
+
+        assert get_db_path(YEAR).exists()
+
+    def test_does_not_overwrite_an_already_migrated_database(self) -> None:
+        """A legacy file is left alone if the migrated destination already has data."""
+        app_directory = get_db_path(YEAR).parent
+        app_directory.mkdir(parents=True, exist_ok=True)
+        legacy_path = app_directory / f"{YEAR}_data.db"
+        legacy_path.write_text("legacy")
+        get_db_path(YEAR).write_text("already migrated")
+
+        migrate_legacy_year_dbs()
+
+        assert legacy_path.exists()
+        assert legacy_path.read_text() == "legacy"
+        assert get_db_path(YEAR).read_text() == "already migrated"
+
+    def test_does_not_touch_a_file_already_using_the_new_naming_scheme(self) -> None:
+        """A file that already has a profile embedded is left untouched."""
+        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+
+        migrate_legacy_year_dbs()
+
+        assert get_db_path(YEAR, "Shared").exists()
+
+
+class TestListYearProfilePairs:
+    """Tests for `list_year_profile_pairs`."""
+
+    def test_is_empty_when_no_database_exists(self) -> None:
+        """With no yearly database at all, there is nothing to list."""
+        assert list_year_profile_pairs() == []
+
+    def test_lists_a_single_year_profile_pair(self) -> None:
+        """A single database file is reported as its `(year, profile)` pair."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+
+        assert list_year_profile_pairs() == [(YEAR, DEFAULT_PROFILE_NAME)]
+
+    def test_lists_multiple_profiles_for_the_same_year(self) -> None:
+        """Two profiles for the same year are both reported."""
+        initialize_db(YEAR, WhichDb.EXPENSES, "Personal")
+        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+
+        assert sorted(list_year_profile_pairs()) == [(YEAR, "Personal"), (YEAR, "Shared")]
+
+    def test_lists_multiple_years(self) -> None:
+        """Databases across different years are all reported."""
+        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(YEAR + 1, WhichDb.EXPENSES)
+
+        assert sorted(list_year_profile_pairs()) == [(YEAR, DEFAULT_PROFILE_NAME), (YEAR + 1, DEFAULT_PROFILE_NAME)]
 
 
 class TestFetchRows:
@@ -239,6 +326,16 @@ class TestAddItem:
         """An item whose type isn't a registered `:class:DataContainer` subclass is rejected."""
         with pytest.raises(ValueError, match="Unsupported item type"):
             add_item(YEAR, "not a data container")
+
+    def test_a_non_default_profile_is_stored_in_its_own_database(self) -> None:
+        """An item added under a non-default profile doesn't show up in the default profile's data."""
+        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+        initialize_db(YEAR, WhichDb.EXPENSES)
+
+        add_item(YEAR, make_expense(), "Shared")
+
+        assert list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, profile="Shared"))
+        assert not list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense))
 
 
 class TestFetchById:

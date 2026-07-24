@@ -41,6 +41,10 @@ class AccountsView(ft.Column):
             raise RuntimeError("Cannot retrieve the current year.")
         self.year = int(year)
 
+        if (profile := self._page.session.store.get("selected_profile")) is None:
+            raise RuntimeError("Cannot retrieve the current profile.")
+        self.profile = profile
+
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -109,7 +113,7 @@ class AccountsView(ft.Column):
             return
 
         account = db.Account(name=name, kind=db.AccountKind(int(self.kind_dropdown.value)))
-        db.add_item(self.year, account)
+        db.add_item(self.year, account, self.profile)
         logger.debug(f"Added account:\n{account}")
 
         self.name_text.value = ""
@@ -123,7 +127,7 @@ class AccountsView(ft.Column):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the account."""
-            db.delete_account(self.year, account_id)
+            db.delete_account(self.year, account_id, self.profile)
             self._page.pop_dialog()
             self.refresh()
 
@@ -145,7 +149,7 @@ class AccountsView(ft.Column):
         raw_value = (e.control.value or "").strip()
 
         if raw_value == "":
-            db.delete_balance(self.year, account_id, month)
+            db.delete_balance(self.year, account_id, month, self.profile)
             self.balances.pop((account_id, month), None)
             return
 
@@ -158,7 +162,7 @@ class AccountsView(ft.Column):
             self._page.update()
             return
 
-        db.save_balance(self.year, account_id, month, balance)
+        db.save_balance(self.year, account_id, month, balance, self.profile)
         logger.debug(f"Saved balance for account {account_id}, month {month}: {balance}")
 
         self.balances[(account_id, month)] = balance
@@ -172,7 +176,7 @@ class AccountsView(ft.Column):
         raw_value = (e.control.value or "").strip()
 
         if raw_value == "":
-            db.delete_previous_year_end_balance(self.year, account_name)
+            db.delete_previous_year_end_balance(self.year, account_name, self.profile)
             self.previous_year_balances.pop(account_name, None)
             return
 
@@ -185,7 +189,7 @@ class AccountsView(ft.Column):
             self._page.update()
             return
 
-        db.save_previous_year_end_balance(self.year, account_name, account_kind, balance)
+        db.save_previous_year_end_balance(self.year, account_name, account_kind, balance, self.profile)
         logger.debug(f"Saved {self.year - 1} December balance for '{account_name}': {balance}")
 
         self.previous_year_balances[account_name] = balance
@@ -211,7 +215,7 @@ class AccountsView(ft.Column):
             self.refresh()
             return
 
-        db.save_account_opening_balance(self.year, account_id, balance)
+        db.save_account_opening_balance(self.year, account_id, balance, self.profile)
         logger.debug(f"Saved opening balance for account {account_id}: {balance}")
 
         self.refresh()
@@ -220,9 +224,9 @@ class AccountsView(ft.Column):
         """Reloads the accounts and their balances, and rebuilds both tables."""
         logger.info("Called 'refresh'")
 
-        self.accounts = db.fetch_account_definitions(self.year)
-        self.balances = db.fetch_account_balances(self.year)
-        self.previous_year_balances = db.fetch_previous_year_end_balances(self.year)
+        self.accounts = db.fetch_account_definitions(self.year, self.profile)
+        self.balances = db.fetch_account_balances(self.year, self.profile)
+        self.previous_year_balances = db.fetch_previous_year_end_balances(self.year, self.profile)
 
         self.accounts_grid.controls = self._build_account_tiles()
         self.balance_grid_container.controls = [self._build_balance_grid()]

@@ -2,7 +2,7 @@
 
 import pytest
 
-from _helpers.constants import SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
+from _helpers.constants import DEFAULT_PROFILE_NAME, SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
 from database.data_structures.account import Account, AccountKind
 from database.data_structures.transfer import Transfer
 from database.db_operations.accounts import (
@@ -848,14 +848,14 @@ class TestRecomputeAllDebtCreditBalances:
         account_id, _ = accounts[0]
         assert fetch_account_balances(YEAR)[(account_id, 1)] == pytest.approx(100.0)
 
-    def test_reports_years_and_names_of_newly_created_accounts(self) -> None:
+    def test_reports_years_profiles_and_names_of_newly_created_accounts(self) -> None:
         """A brand new account is flagged, since its opening balance defaults to 0.0."""
         initialize_db(YEAR, WhichDb.TRANSFERS)
         add_item(YEAR, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", destination=None, amount=100.0, month=1))
 
         created = recompute_all_debt_credit_balances()
 
-        assert created == [(YEAR, "Mom")]
+        assert created == [(YEAR, DEFAULT_PROFILE_NAME, "Mom")]
 
     def test_does_not_flag_an_account_that_already_existed(self) -> None:
         """An account that already existed before the run is not reported, even if recomputed."""

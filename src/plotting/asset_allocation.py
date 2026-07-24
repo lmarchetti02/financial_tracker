@@ -17,9 +17,11 @@ _DEFAULT_COLOR = "#808080"
 _EXCLUDED_KINDS = {AccountKind.PENSION, AccountKind.CREDIT, AccountKind.DEBT}
 
 
-def _fetch_allocation_totals(year: int) -> dict[AccountKind, np.ndarray]:
+def _fetch_allocation_totals(year: int, profile: str) -> dict[AccountKind, np.ndarray]:
     """Fetches per-kind monthly totals for asset allocation, excluding `_EXCLUDED_KINDS`."""
-    return {kind: totals for kind, totals in fetch_balances_by_kind(year).items() if kind not in _EXCLUDED_KINDS}
+    return {
+        kind: totals for kind, totals in fetch_balances_by_kind(year, profile).items() if kind not in _EXCLUDED_KINDS
+    }
 
 
 def show_asset_allocation_summary(page: ft.Page) -> None:
@@ -30,8 +32,11 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
-    totals_by_kind = _fetch_allocation_totals(year)
+    totals_by_kind = _fetch_allocation_totals(year, profile)
     if not totals_by_kind:
         page.show_dialog(
             ft.AlertDialog(
@@ -89,8 +94,11 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
-    totals_by_kind = _fetch_allocation_totals(year)
+    totals_by_kind = _fetch_allocation_totals(year, profile)
     if not totals_by_kind:
         page.show_dialog(
             ft.AlertDialog(

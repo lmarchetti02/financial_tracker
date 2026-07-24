@@ -234,7 +234,7 @@ class ExpensesView(BaseCrudView):
         if expense is None:
             return
 
-        db.add_item(self.year, expense)
+        db.add_item(self.year, expense, self.profile)
         self.clear_inputs()
         self.refresh_table()
 
@@ -245,7 +245,7 @@ class ExpensesView(BaseCrudView):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the expense."""
-            success = db.remove_item(self.year, db.WhichDb.EXPENSES, expense_id)
+            success = db.remove_item(self.year, db.WhichDb.EXPENSES, expense_id, self.profile)
             if not success:
                 show_alert(self._page, "Error deleting expense", f"It was not possible to delete expense {expense_id}")
 
@@ -267,7 +267,7 @@ class ExpensesView(BaseCrudView):
         """Edits an expense."""
         logger.info("Called 'edit_this_item'")
         expense_id = e.control.data
-        old_expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
+        old_expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id, self.profile)
 
         def modify(_: ft.Event) -> None:
             """Actually modifies the expense."""
@@ -279,7 +279,7 @@ class ExpensesView(BaseCrudView):
                 show_alert(self._page, "Unchanged expense", "You did not modify the expense.")
                 return
 
-            success = db.edit_item(self.year, expense_id, old_expense, new_expense)
+            success = db.edit_item(self.year, expense_id, old_expense, new_expense, self.profile)
             if not success:
                 show_alert(self._page, "Error modifying expense", f"It was not possible to modify expense {expense_id}")
 
@@ -298,7 +298,7 @@ class ExpensesView(BaseCrudView):
         """Prefills the add-expense form from an existing expense, to add it as a new entry."""
         logger.info("Called 'copy_this_item'")
         expense_id = e.control.data
-        expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id)
+        expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, expense_id, self.profile)
 
         self.reset_add_button()
 
@@ -328,8 +328,10 @@ class ExpensesView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches expenses matching the current sort and filters."""
-        self._fee_expense_ids = db.fetch_fee_expense_ids(self.year)
-        return db.fetch_expenses(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        self._fee_expense_ids = db.fetch_fee_expense_ids(self.year, self.profile)
+        return db.fetch_expenses(
+            self.year, self.current_sort, self.current_month_filter, self.current_enum_filter, self.profile
+        )
 
     def _is_readonly(self, row_id: int) -> bool:
         """An expense generated from a transfer's fee is only editable from the Transfers page."""

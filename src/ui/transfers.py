@@ -255,7 +255,7 @@ class TransfersView(BaseCrudView):
         created: list[str] = []
         try:
             for transfer in transfers:
-                created += db.sync_transfer_accounts(self.year, transfer)
+                created += db.sync_transfer_accounts(self.year, transfer, self.profile)
         except ValueError as error:
             show_alert(self._page, "Account mismatch", str(error))
             return
@@ -277,7 +277,7 @@ class TransfersView(BaseCrudView):
         if transfer is None:
             return
 
-        transfer_id = db.add_item(self.year, transfer)
+        transfer_id = db.add_item(self.year, transfer, self.profile)
 
         if transfer.fee is not None:
             fee_expense = db.Expense(
@@ -287,8 +287,8 @@ class TransfersView(BaseCrudView):
                 category=SYSTEM_CATEGORY_TRADING_FEE,
                 cost=transfer.fee,
             )
-            expense_id = db.add_item(self.year, fee_expense)
-            db.edit_item(self.year, transfer_id, transfer, replace(transfer, fee_expense_id=expense_id))
+            expense_id = db.add_item(self.year, fee_expense, self.profile)
+            db.edit_item(self.year, transfer_id, transfer, replace(transfer, fee_expense_id=expense_id), self.profile)
 
         if transfer.profit is not None:
             profit_income = db.Income(
@@ -297,8 +297,8 @@ class TransfersView(BaseCrudView):
                 description=transfer.description,
                 amount=transfer.profit,
             )
-            income_id = db.add_item(self.year, profit_income)
-            db.edit_item(self.year, transfer_id, transfer, replace(transfer, profit_income_id=income_id))
+            income_id = db.add_item(self.year, profit_income, self.profile)
+            db.edit_item(self.year, transfer_id, transfer, replace(transfer, profit_income_id=income_id), self.profile)
 
         self._sync_transfer_accounts(transfer)
 
@@ -309,20 +309,20 @@ class TransfersView(BaseCrudView):
         """Deletes a transfer from the database."""
         logger.info("Called 'delete_item'")
         transfer_id = e.control.data
-        transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id)
+        transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id, self.profile)
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the transfer."""
-            success = db.remove_item(self.year, db.WhichDb.TRANSFERS, transfer_id)
+            success = db.remove_item(self.year, db.WhichDb.TRANSFERS, transfer_id, self.profile)
             if not success:
                 show_alert(
                     self._page, "Error deleting transfer", f"It was not possible to delete transfer {transfer_id}"
                 )
             else:
                 if transfer.fee_expense_id is not None:
-                    db.remove_item(self.year, db.WhichDb.EXPENSES, transfer.fee_expense_id)
+                    db.remove_item(self.year, db.WhichDb.EXPENSES, transfer.fee_expense_id, self.profile)
                 if transfer.profit_income_id is not None:
-                    db.remove_item(self.year, db.WhichDb.INCOMES, transfer.profit_income_id)
+                    db.remove_item(self.year, db.WhichDb.INCOMES, transfer.profit_income_id, self.profile)
 
                 self._sync_transfer_accounts(transfer)
 
@@ -345,7 +345,7 @@ class TransfersView(BaseCrudView):
         logger.info("Called 'edit_this_item'")
 
         transfer_id = e.control.data
-        old_transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id)
+        old_transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id, self.profile)
 
         def modify(_: ft.Event) -> None:
             """Actually modifies the transfer."""
@@ -362,12 +362,14 @@ class TransfersView(BaseCrudView):
                     category=SYSTEM_CATEGORY_TRADING_FEE,
                     cost=new_transfer.fee,
                 )
-                fee_expense_id = db.add_item(self.year, fee_expense)
+                fee_expense_id = db.add_item(self.year, fee_expense, self.profile)
             elif old_transfer.fee is not None and new_transfer.fee is None:
-                db.remove_item(self.year, db.WhichDb.EXPENSES, old_transfer.fee_expense_id)
+                db.remove_item(self.year, db.WhichDb.EXPENSES, old_transfer.fee_expense_id, self.profile)
                 fee_expense_id = None
             elif old_transfer.fee is not None and new_transfer.fee is not None:
-                old_fee_expense = db.fetch_by_id(self.year, db.WhichDb.EXPENSES, old_transfer.fee_expense_id)
+                old_fee_expense = db.fetch_by_id(
+                    self.year, db.WhichDb.EXPENSES, old_transfer.fee_expense_id, self.profile
+                )
                 new_fee_expense = db.Expense(
                     month=new_transfer.month,
                     day_start=new_transfer.day,
@@ -375,7 +377,7 @@ class TransfersView(BaseCrudView):
                     category=SYSTEM_CATEGORY_TRADING_FEE,
                     cost=new_transfer.fee,
                 )
-                db.edit_item(self.year, old_transfer.fee_expense_id, old_fee_expense, new_fee_expense)
+                db.edit_item(self.year, old_transfer.fee_expense_id, old_fee_expense, new_fee_expense, self.profile)
 
             profit_income_id = old_transfer.profit_income_id
             if old_transfer.profit is None and new_transfer.profit is not None:
@@ -385,19 +387,23 @@ class TransfersView(BaseCrudView):
                     description=new_transfer.description,
                     amount=new_transfer.profit,
                 )
-                profit_income_id = db.add_item(self.year, profit_income)
+                profit_income_id = db.add_item(self.year, profit_income, self.profile)
             elif old_transfer.profit is not None and new_transfer.profit is None:
-                db.remove_item(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id)
+                db.remove_item(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id, self.profile)
                 profit_income_id = None
             elif old_transfer.profit is not None and new_transfer.profit is not None:
-                old_profit_income = db.fetch_by_id(self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id)
+                old_profit_income = db.fetch_by_id(
+                    self.year, db.WhichDb.INCOMES, old_transfer.profit_income_id, self.profile
+                )
                 new_profit_income = db.Income(
                     month=new_transfer.month,
                     source=SYSTEM_SOURCE_INVESTMENTS,
                     description=new_transfer.description,
                     amount=new_transfer.profit,
                 )
-                db.edit_item(self.year, old_transfer.profit_income_id, old_profit_income, new_profit_income)
+                db.edit_item(
+                    self.year, old_transfer.profit_income_id, old_profit_income, new_profit_income, self.profile
+                )
 
             new_transfer = replace(new_transfer, fee_expense_id=fee_expense_id, profit_income_id=profit_income_id)
 
@@ -405,7 +411,7 @@ class TransfersView(BaseCrudView):
                 show_alert(self._page, "Unchanged transfer", "You did not modify the transfer.")
                 return
 
-            success = db.edit_item(self.year, transfer_id, old_transfer, new_transfer)
+            success = db.edit_item(self.year, transfer_id, old_transfer, new_transfer, self.profile)
             if not success:
                 show_alert(
                     self._page, "Error modifying transfer", f"It was not possible to modify transfer {transfer_id}"
@@ -428,7 +434,7 @@ class TransfersView(BaseCrudView):
         """Prefills the add-transfer form from an existing transfer, to add it as a new entry."""
         logger.info("Called 'copy_this_item'")
         transfer_id = e.control.data
-        transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id)
+        transfer = db.fetch_by_id(self.year, db.WhichDb.TRANSFERS, transfer_id, self.profile)
 
         self.reset_add_button()
 
@@ -455,7 +461,9 @@ class TransfersView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches transfers matching the current sort and filters."""
-        return db.fetch_transfers(self.year, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        return db.fetch_transfers(
+            self.year, self.current_sort, self.current_month_filter, self.current_enum_filter, self.profile
+        )
 
 
 def transfers_view(page: ft.Page) -> ft.Control:

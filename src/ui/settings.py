@@ -24,6 +24,9 @@ class SettingsView(ft.Column):
         if (year := page.session.store.get("selected_year")) is None:
             raise RuntimeError("Cannot retrieve the current year.")
 
+        if (profile := page.session.store.get("selected_profile")) is None:
+            raise RuntimeError("Cannot retrieve the current profile.")
+
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -31,8 +34,8 @@ class SettingsView(ft.Column):
 
         year_section = ft.Row(
             controls=[
-                ft.Text(f"Current year: {year}", size=18),
-                ft.Button("Change Year", on_click=on_change_year),
+                ft.Text(f"Current year: {year} · Profile: {profile}", size=18),
+                ft.Button("Change Year/Profile", on_click=on_change_year),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
         )
@@ -78,20 +81,20 @@ class SettingsView(ft.Column):
         self._page.update()
 
     def _handle_recompute_debt_credit_balances(self, _: ft.Event) -> None:
-        """Rebuilds every Debt/Credit account's balances, across every year, from their transfers."""
+        """Rebuilds every Debt/Credit account's balances, across every year and profile, from their transfers."""
         logger.info("Called '_handle_recompute_debt_credit_balances'")
 
         created = db.recompute_all_debt_credit_balances()
 
         if created:
-            details = ", ".join(f"{name} ({year})" for year, name in sorted(set(created)))
+            details = ", ".join(f"{name} ({year}, {profile})" for year, profile, name in sorted(set(created)))
             show_alert(
                 self._page,
                 "Recomputed — review new accounts' opening balances",
                 f"Assumed €0 as the starting balance for newly created accounts: {details}. If "
                 "any of these owed/were owed something before their earliest tracked transfer, "
                 "set the correct opening balance via the 'previous year' column in Accounts, for "
-                "the year shown — it will then carry forward automatically into later years.",
+                "the year/profile shown — it will then carry forward automatically into later years.",
             )
         else:
             show_alert(

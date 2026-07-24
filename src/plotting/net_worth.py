@@ -21,11 +21,16 @@ def show_net_worth_summary(page: ft.Page) -> None:
         raise RuntimeError("Cannot retrieve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
-    liquid_assets, pension, credits, debts = fetch_net_worth_components(year)
+    liquid_assets, pension, credits, debts = fetch_net_worth_components(year, profile)
     net_worth = liquid_assets + pension + credits - debts
 
-    prev_liquid_assets, prev_pension, prev_credits, prev_debts = fetch_previous_year_end_net_worth_components(year)
+    prev_liquid_assets, prev_pension, prev_credits, prev_debts = fetch_previous_year_end_net_worth_components(
+        year, profile
+    )
     previous_year_end = prev_liquid_assets + prev_pension + prev_credits - prev_debts
 
     if not net_worth.any() and previous_year_end == 0.0:

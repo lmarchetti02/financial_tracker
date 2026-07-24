@@ -6,9 +6,15 @@ import flet as ft
 
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-from database.db_operations import (WhichDb, get_theme_preference,
-                                    initialize_config_db, initialize_db,
-                                    seed_accounts_for_new_year)
+from database.db_operations import (
+    WhichDb,
+    get_theme_preference,
+    initialize_config_db,
+    initialize_db,
+    migrate_legacy_year_dbs,
+    seed_accounts_for_new_year,
+    set_last_selection,
+)
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
@@ -20,22 +26,26 @@ from ui.welcome import welcome_page
 logger = getLogger("financial_tracker")
 
 
-def initialize_tracker(page: ft.Page, selected_year: int) -> None:
-    """Prepares the databases for `selected_year` and renders the main layout."""
+def initialize_tracker(page: ft.Page, selected_year: int, selected_profile: str) -> None:
+    """Prepares the databases for `selected_year`/`selected_profile` and renders the main layout."""
     logger.info("Called 'initialize_tracker'")
 
-    # save selected year for current session
+    # save selected year/profile for current session
     page.session.store.set("selected_year", selected_year)
+    page.session.store.set("selected_profile", selected_profile)
 
     # create data dir if it doesn't exist
     APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
 
     # create db if it doesn't exists
     for db in WhichDb:
-        initialize_db(selected_year, db)
+        initialize_db(selected_year, db, selected_profile)
 
     # carry over accounts (not balances) from the most recent prior year, if any
-    seed_accounts_for_new_year(selected_year)
+    seed_accounts_for_new_year(selected_year, selected_profile)
+
+    # remember this selection for the next time the app starts
+    set_last_selection(selected_year, selected_profile)
 
     # start home
     startup_layout(page)
@@ -74,10 +84,10 @@ def startup_layout(page: ft.Page) -> None:
         page.update()
 
     def go_to_welcome(_: ft.Event) -> None:
-        """Wipes the page and returns to the welcome/year-selection screen."""
+        """Wipes the page and returns to the welcome/year-profile-selection screen."""
         page.controls.clear()
         page.update()
-        welcome_page(page, lambda year: initialize_tracker(page, year))
+        welcome_page(page, lambda year, profile: initialize_tracker(page, year, profile))
 
     side_menu = ft.NavigationRail(
         selected_index=0,
@@ -110,6 +120,7 @@ def startup_layout(page: ft.Page) -> None:
 def main(page: ft.Page):
     """Entry point of the application."""
     setup_logger()
+    migrate_legacy_year_dbs()
     initialize_config_db()
 
     page.title = "Financial Tracker"
@@ -119,7 +130,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK if get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.RED, font_family="JetBrains Mono")
 
-    welcome_page(page, lambda year: initialize_tracker(page, year))
+    welcome_page(page, lambda year, profile: initialize_tracker(page, year, profile))
 
 
 ft.run(main)

@@ -24,12 +24,15 @@ def show_income_summary(page: ft.Page) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
     sources = fetch_sources()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = np.zeros((len(months), len(sources)), dtype=np.float32)
     for i, source in enumerate(sources):
-        totals[:, i] = fetch_source(year, source)
+        totals[:, i] = fetch_source(year, source, profile)
 
     # plot
     fig = plt.figure()
@@ -84,11 +87,14 @@ def show_income_pie(page: ft.Page, month: int | None = None) -> None:
         raise RuntimeError("Cannot retireve the current year.")
     year = int(year)
 
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
     # get data
     sources = np.array(fetch_sources(), dtype=str)
     totals = np.zeros((12, len(sources)), dtype=np.float32)
     for i, source in enumerate(sources):
-        totals[:, i] = fetch_source(year, source)
+        totals[:, i] = fetch_source(year, source, profile)
 
     if month is None:
         totals = totals.sum(axis=0)

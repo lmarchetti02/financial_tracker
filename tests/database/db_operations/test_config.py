@@ -14,10 +14,12 @@ from database.db_operations.config import (
     fetch_lookup_options,
     fetch_sources,
     get_config_db_path,
+    get_last_selection,
     get_theme_preference,
     initialize_config_db,
     is_lookup_option_in_use,
     rename_lookup_option,
+    set_last_selection,
     set_theme_preference,
 )
 from database.db_operations.generic import WhichDb, add_item, fetch_by_id, initialize_db
@@ -205,6 +207,17 @@ class TestRenameLookupOption:
         expense = fetch_by_id(YEAR, WhichDb.EXPENSES, 1)
         assert expense.category == "Gifts"
 
+    def test_cascades_the_rename_to_a_non_default_profile_s_database_too(self) -> None:
+        """The cascade reaches every profile's database, not just the default one."""
+        initialize_config_db()
+        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+        add_item(YEAR, make_expense(category="Presents"), "Shared")
+
+        rename_lookup_option(LookupKind.CATEGORIES, "Presents", "Gifts")
+
+        expense = fetch_by_id(YEAR, WhichDb.EXPENSES, 1, "Shared")
+        assert expense.category == "Gifts"
+
     def test_refuses_to_rename_a_system_entry(self) -> None:
         """The trading-fee category can't be renamed, since `transfers.py` depends on its name."""
         initialize_config_db()
@@ -245,6 +258,14 @@ class TestIsLookupOptionInUse:
         add_item(YEAR, make_expense(category="Travel"))
 
         assert is_lookup_option_in_use(LookupKind.CATEGORIES, "Education") is False
+
+    def test_reaches_a_non_default_profile_s_database_too(self) -> None:
+        """A category referenced only in a non-default profile's database is still found."""
+        initialize_config_db()
+        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+        add_item(YEAR, make_expense(category="Travel"), "Shared")
+
+        assert is_lookup_option_in_use(LookupKind.CATEGORIES, "Travel") is True
 
 
 class TestDeleteLookupOption:
@@ -299,3 +320,30 @@ class TestThemePreference:
         set_theme_preference("light")
 
         assert get_theme_preference() == "light"
+
+
+class TestLastSelection:
+    """Tests for `get_last_selection`/`set_last_selection`."""
+
+    def test_returns_none_when_unset(self) -> None:
+        """Before any selection is saved, there is nothing to report."""
+        initialize_config_db()
+
+        assert get_last_selection() is None
+
+    def test_persists_and_returns_the_set_value(self) -> None:
+        """A saved selection round-trips back through `get_last_selection`."""
+        initialize_config_db()
+
+        set_last_selection(YEAR, "Shared")
+
+        assert get_last_selection() == (YEAR, "Shared")
+
+    def test_overwrites_a_previously_set_value(self) -> None:
+        """Setting the selection again replaces the previous value rather than erroring."""
+        initialize_config_db()
+
+        set_last_selection(YEAR, "Shared")
+        set_last_selection(YEAR + 1, "Personal")
+
+        assert get_last_selection() == (YEAR + 1, "Personal")

@@ -48,10 +48,13 @@ from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_sources as fetch_sources
 from .db_operations import fetch_transfers as fetch_transfers
+from .db_operations import get_last_selection as get_last_selection
 from .db_operations import get_or_create_debt_credit_account as get_or_create_debt_credit_account
 from .db_operations import get_theme_preference as get_theme_preference
 from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
+from .db_operations import list_year_profile_pairs as list_year_profile_pairs
+from .db_operations import migrate_legacy_year_dbs as migrate_legacy_year_dbs
 from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
 from .db_operations import remove_item as remove_item
@@ -60,5 +63,6 @@ from .db_operations import save_account_opening_balance as save_account_opening_
 from .db_operations import save_balance as save_balance
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year
+from .db_operations import set_last_selection as set_last_selection
 from .db_operations import set_theme_preference as set_theme_preference
 from .db_operations import sync_transfer_accounts as sync_transfer_accounts

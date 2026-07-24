@@ -1,6 +1,9 @@
 """Shared display-formatting helpers."""
 
+import re
 from enum import Enum
+
+_PROFILE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,50}$")
 
 
 def enum_label(value: Enum) -> str:
@@ -41,3 +44,49 @@ def parse_amount(raw: str) -> float:
         ValueError: If `raw` cannot be parsed as a number.
     """
     return float(raw.replace(".", "").replace(",", "."))
+
+
+def parse_year(raw: str) -> int:
+    """Parses a year typed into a free-text field.
+
+    Args:
+        raw (str): The raw string, e.g. "2026".
+
+    Returns:
+        int: The parsed year.
+
+    Raises:
+        ValueError: If `raw` is blank, isn't all digits, or isn't a positive number.
+    """
+    raw = raw.strip()
+    if not raw.isdigit():
+        raise ValueError("The year must be a positive whole number.")
+
+    year = int(raw)
+    if year <= 0:
+        raise ValueError("The year must be a positive whole number.")
+
+    return year
+
+
+def validate_profile_name(raw: str) -> str:
+    """Validates a profile name typed into a free-text field.
+
+    The name is embedded directly into a database file name, so it's restricted to characters
+    that are always safe there.
+
+    Args:
+        raw (str): The raw string, e.g. "Shared".
+
+    Returns:
+        str: `raw`, stripped of surrounding whitespace.
+
+    Raises:
+        ValueError: If the stripped name is empty or contains characters other than letters,
+            digits, hyphens, and underscores.
+    """
+    raw = raw.strip()
+    if not _PROFILE_NAME_PATTERN.fullmatch(raw):
+        raise ValueError("The profile name must use only letters, digits, '-', and '_' (1-50 characters).")
+
+    return raw
