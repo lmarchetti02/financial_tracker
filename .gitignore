@@ -161,6 +161,8 @@ cython_debug/
 
 # Flet
 storage/
+*.dmg
+dmg_settings.py
 
 # MacOs
 **.DS_Store
