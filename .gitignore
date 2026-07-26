@@ -164,5 +164,5 @@ storage/
 
 # MacOs
 **.DS_Store
-/TODO.txt
+/TODO.md
 /.claude
