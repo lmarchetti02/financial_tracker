@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-APP_DIRECTORY = Path.home() / "Library" / "Application Support" / "financial-tracker"
-LOG_DIRECTORY = Path.home() / "Library" / "Logs" / "financial-tracker"
+APP_DIRECTORY = Path.home() / "Library" / "Application Support" / "Financial Tracker"
+LOG_DIRECTORY = Path.home() / "Library" / "Logs" / "Financial Tracker"
 DEFAULT_PROFILE_NAME = "Personal"
 EXPENSES_DB_NAME = "expenses"
 INCOME_DB_NAME = "income"

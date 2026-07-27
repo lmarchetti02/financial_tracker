@@ -25,9 +25,11 @@ dev = [
 
 [tool.flet]
 org = "com.lucamarchetti"
-product = "financial-tracker"
+product = "Financial Tracker"
 company = "Luca Marchetti"
 copyright = "Copyright (C) 2026 by Luca Marchetti"
+artifact = "Financial Tracker"
+bundle_id = "com.lucamarchetti.financial-tracker"
 
 [tool.flet.app]
 path = "src"

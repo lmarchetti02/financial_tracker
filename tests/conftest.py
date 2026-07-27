@@ -16,7 +16,7 @@ import database.db_operations.generic as db_generic  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def isolated_app_directory(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Redirects every DB file path to a temp dir instead of the real `~/Library/Application Support/financial-tracker/`.
+    """Redirects every DB file path to a temp dir instead of the real `~/Library/Application Support/Financial Tracker/`.
 
     `get_db_path`/`get_config_db_path` each build their path directly from their own module-level
     `APP_DIRECTORY` binding, so both must be patched to keep every test off the user's real data.
