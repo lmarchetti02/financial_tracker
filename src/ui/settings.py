@@ -7,7 +7,7 @@ import flet as ft
 
 import database as db
 
-from .common import show_alert
+from .common import current_db_location, show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -21,11 +21,7 @@ class SettingsView(ft.Column):
         self._page = page
         self._lookup_lists: dict[db.LookupKind, ft.Column] = {}
 
-        if (year := page.session.store.get("selected_year")) is None:
-            raise RuntimeError("Cannot retrieve the current year.")
-
-        if (profile := page.session.store.get("selected_profile")) is None:
-            raise RuntimeError("Cannot retrieve the current profile.")
+        location = current_db_location(page)
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -34,7 +30,7 @@ class SettingsView(ft.Column):
 
         year_section = ft.Row(
             controls=[
-                ft.Text(f"Current year: {year} · Profile: {profile}", size=18),
+                ft.Text(f"Current year: {location.year} · Profile: {location.profile}", size=18),
                 ft.Button("Change Year/Profile", on_click=on_change_year),
             ],
             alignment=ft.MainAxisAlignment.CENTER,

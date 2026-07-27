@@ -3,6 +3,29 @@
 import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
+import database as db
+
+
+def current_db_location(page: ft.Page) -> db.DbLocation:
+    """Reads the currently selected year/profile from `page.session.store`.
+
+    Args:
+        page (ft.Page): The page object.
+
+    Returns:
+        `:class:database.DbLocation`: The selected year/profile.
+
+    Raises:
+        RuntimeError: If either hasn't been set yet.
+    """
+    if (year := page.session.store.get("selected_year")) is None:
+        raise RuntimeError("Cannot retrieve the current year.")
+
+    if (profile := page.session.store.get("selected_profile")) is None:
+        raise RuntimeError("Cannot retrieve the current profile.")
+
+    return db.DbLocation(int(year), profile)
+
 
 def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], heading_color: str) -> DataTable2:
     """Builds a `:class:DataTable2` styled consistently with every other table in the app.

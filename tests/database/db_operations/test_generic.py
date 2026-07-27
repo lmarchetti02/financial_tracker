@@ -11,6 +11,7 @@ from database.data_structures.expense import Expense
 from database.data_structures.income import Income
 from database.data_structures.transfer import Transfer
 from database.db_operations.generic import (
+    DbLocation,
     WhichDb,
     add_item,
     edit_item,
@@ -24,6 +25,7 @@ from database.db_operations.generic import (
 )
 
 YEAR = 2024
+LOCATION = DbLocation(YEAR)
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -51,19 +53,19 @@ class TestGetDbPath:
 
     def test_path_is_named_after_the_year(self) -> None:
         """The DB file name embeds the requested year and the default profile."""
-        assert get_db_path(YEAR).name == f"{YEAR}_{DEFAULT_PROFILE_NAME}_data.db"
+        assert get_db_path(LOCATION).name == f"{YEAR}_{DEFAULT_PROFILE_NAME}_data.db"
 
     def test_different_years_map_to_different_files(self) -> None:
         """Two distinct years resolve to two distinct DB files."""
-        assert get_db_path(2024) != get_db_path(2025)
+        assert get_db_path(DbLocation(2024)) != get_db_path(DbLocation(2025))
 
     def test_path_embeds_an_explicit_profile(self) -> None:
         """Passing a profile embeds it in the file name instead of the default."""
-        assert get_db_path(YEAR, "Shared").name == f"{YEAR}_Shared_data.db"
+        assert get_db_path(DbLocation(YEAR, "Shared")).name == f"{YEAR}_Shared_data.db"
 
     def test_different_profiles_map_to_different_files(self) -> None:
         """The same year with two distinct profiles resolves to two distinct DB files."""
-        assert get_db_path(YEAR, "Personal") != get_db_path(YEAR, "Shared")
+        assert get_db_path(DbLocation(YEAR, "Personal")) != get_db_path(DbLocation(YEAR, "Shared"))
 
 
 class TestListYearProfilePairs:
@@ -75,21 +77,21 @@ class TestListYearProfilePairs:
 
     def test_lists_a_single_year_profile_pair(self) -> None:
         """A single database file is reported as its `(year, profile)` pair."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
 
         assert list_year_profile_pairs() == [(YEAR, DEFAULT_PROFILE_NAME)]
 
     def test_lists_multiple_profiles_for_the_same_year(self) -> None:
         """Two profiles for the same year are both reported."""
-        initialize_db(YEAR, WhichDb.EXPENSES, "Personal")
-        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
+        initialize_db(DbLocation(YEAR, "Personal"), WhichDb.EXPENSES)
+        initialize_db(DbLocation(YEAR, "Shared"), WhichDb.EXPENSES)
 
         assert sorted(list_year_profile_pairs()) == [(YEAR, "Personal"), (YEAR, "Shared")]
 
     def test_lists_multiple_years(self) -> None:
         """Databases across different years are all reported."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        initialize_db(YEAR + 1, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        initialize_db(DbLocation(YEAR + 1), WhichDb.EXPENSES)
 
         assert sorted(list_year_profile_pairs()) == [(YEAR, DEFAULT_PROFILE_NAME), (YEAR + 1, DEFAULT_PROFILE_NAME)]
 
@@ -99,42 +101,42 @@ class TestFetchRows:
 
     def test_yields_the_id_and_row_of_every_item(self) -> None:
         """With no filter or sort, every row in the table is yielded."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(description="first"))
-        add_item(YEAR, make_expense(description="second"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(description="first"))
+        add_item(LOCATION, make_expense(description="second"))
 
-        ids = [row_id for row_id, _ in fetch_rows(YEAR, EXPENSES_DB_NAME, Expense)]
+        ids = [row_id for row_id, _ in fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense)]
 
         assert ids == [1, 2]
 
     def test_filters_by_month(self) -> None:
         """Only rows matching the given month are yielded."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(month=1))
-        add_item(YEAR, make_expense(month=2))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(month=1))
+        add_item(LOCATION, make_expense(month=2))
 
-        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, month=2))
+        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, month=2))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_filters_by_extra_filter(self) -> None:
         """`extra_filter` restricts rows to those matching the given column/value pair."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="Food and drinks"))
-        add_item(YEAR, make_expense(category="Travel"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Food and drinks"))
+        add_item(LOCATION, make_expense(category="Travel"))
 
-        results = list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, extra_filter=("category", "Travel")))
+        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, extra_filter=("category", "Travel")))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_sorts_according_to_the_given_sort_config(self) -> None:
         """Rows are ordered per `sort.sql_command`."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(cost=30.0))
-        add_item(YEAR, make_expense(cost=10.0))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(cost=30.0))
+        add_item(LOCATION, make_expense(cost=10.0))
         sort = SimpleNamespace(sql_command="cost ASC")
 
-        ids = [row_id for row_id, _ in fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, sort=sort)]
+        ids = [row_id for row_id, _ in fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, sort=sort)]
 
         assert ids == [2, 1]
 
@@ -144,13 +146,13 @@ class TestFetchMonthlyTotals:
 
     def test_sums_the_column_per_month_for_the_given_filter(self) -> None:
         """Values for the requested filter are summed per month; other values are excluded."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=10.0))
-        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=5.0))
-        add_item(YEAR, make_expense(month=3, category="Food and drinks", cost=7.0))
-        add_item(YEAR, make_expense(month=1, category="Travel", cost=100.0))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=5.0))
+        add_item(LOCATION, make_expense(month=3, category="Food and drinks", cost=7.0))
+        add_item(LOCATION, make_expense(month=1, category="Travel", cost=100.0))
 
-        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost", "category", "Food and drinks")
+        totals = fetch_monthly_totals(LOCATION, EXPENSES_DB_NAME, "cost", "category", "Food and drinks")
 
         assert totals[0] == pytest.approx(15.0)
         assert totals[1] == pytest.approx(0.0)
@@ -158,12 +160,12 @@ class TestFetchMonthlyTotals:
 
     def test_sums_the_column_across_all_values_when_no_filter_is_given(self) -> None:
         """Omitting `filter_column`/`filter_value` sums the column across every row."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(month=1, category="Food and drinks", cost=10.0))
-        add_item(YEAR, make_expense(month=1, category="Travel", cost=5.0))
-        add_item(YEAR, make_expense(month=3, category="Travel", cost=7.0))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(LOCATION, make_expense(month=1, category="Travel", cost=5.0))
+        add_item(LOCATION, make_expense(month=3, category="Travel", cost=7.0))
 
-        totals = fetch_monthly_totals(YEAR, EXPENSES_DB_NAME, "cost")
+        totals = fetch_monthly_totals(LOCATION, EXPENSES_DB_NAME, "cost")
 
         assert totals[0] == pytest.approx(15.0)
         assert totals[1] == pytest.approx(0.0)
@@ -176,23 +178,23 @@ class TestInitializeDb:
     def test_creates_a_table_for_each_db_kind(self) -> None:
         """Initializing every `:enum:WhichDb` member creates all three tables in the shared file."""
         for db in WhichDb:
-            initialize_db(YEAR, db)
+            initialize_db(LOCATION, db)
 
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
         assert {"expenses", "income", "transfers"} <= tables
 
     def test_is_idempotent(self) -> None:
         """Calling `initialize_db` twice for the same DB does not raise."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        initialize_db(YEAR, WhichDb.EXPENSES)  # must not raise
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)  # must not raise
 
     def test_creates_a_month_index(self) -> None:
         """Every DB kind gets an index on its `month` column."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
 
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
 
         assert "idx_month" in indexes
@@ -208,25 +210,25 @@ class TestInitializeDb:
     )
     def test_creates_the_domain_specific_index(self, db: WhichDb, index_name: str) -> None:
         """Each DB kind gets its own extra index (category/source/kind/account_id)."""
-        initialize_db(YEAR, db)
+        initialize_db(LOCATION, db)
 
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
 
         assert index_name in indexes
 
     def test_does_not_create_a_month_index_for_accounts(self) -> None:
         """`Account` has no `month` column, so it must not get an `idx_month`."""
-        initialize_db(YEAR, WhichDb.ACCOUNTS)
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
 
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             indexes = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='index'")}
 
         assert "idx_month" not in indexes
 
     def test_backfills_columns_missing_from_an_already_existing_table(self) -> None:
         """A `transfers` table created before `day`/`fee`/`fee_expense_id` existed gets them added."""
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             connection.execute(
                 "CREATE TABLE transfers ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -242,9 +244,9 @@ class TestInitializeDb:
                 "VALUES (3, 'LOAN', 'legacy transfer', 'Bank A', NULL, 50.0)"
             )
 
-        initialize_db(YEAR, WhichDb.TRANSFERS)
+        initialize_db(LOCATION, WhichDb.TRANSFERS)
 
-        transfer = fetch_by_id(YEAR, WhichDb.TRANSFERS, 1)
+        transfer = fetch_by_id(LOCATION, WhichDb.TRANSFERS, 1)
         assert transfer.day == 1
         assert transfer.fee is None
         assert transfer.fee_expense_id is None
@@ -255,19 +257,19 @@ class TestAddItem:
 
     def test_inserts_a_row_that_can_be_fetched_back(self) -> None:
         """A newly added item is retrievable via `fetch_by_id` afterwards."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
         expense = make_expense(cost=42.0)
 
-        add_item(YEAR, expense)
+        add_item(LOCATION, expense)
 
-        assert fetch_by_id(YEAR, WhichDb.EXPENSES, 1) == expense
+        assert fetch_by_id(LOCATION, WhichDb.EXPENSES, 1) == expense
 
     def test_persists_enum_fields_by_name(self) -> None:
         """An enum field is stored as its `.name`, not its numeric value."""
-        initialize_db(YEAR, WhichDb.ACCOUNTS)
-        add_item(YEAR, Account(name="Checking", kind=AccountKind.CASH))
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        add_item(LOCATION, Account(name="Checking", kind=AccountKind.CASH))
 
-        with sq.connect(get_db_path(YEAR)) as connection:
+        with sq.connect(get_db_path(LOCATION)) as connection:
             row = connection.execute("SELECT kind FROM accounts WHERE id = 1").fetchone()
 
         assert row[0] == "CASH"
@@ -275,17 +277,18 @@ class TestAddItem:
     def test_rejects_an_unsupported_item_type(self) -> None:
         """An item whose type isn't a registered `:class:DataContainer` subclass is rejected."""
         with pytest.raises(ValueError, match="Unsupported item type"):
-            add_item(YEAR, "not a data container")
+            add_item(LOCATION, "not a data container")
 
     def test_a_non_default_profile_is_stored_in_its_own_database(self) -> None:
         """An item added under a non-default profile doesn't show up in the default profile's data."""
-        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        shared_location = DbLocation(YEAR, "Shared")
+        initialize_db(shared_location, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
 
-        add_item(YEAR, make_expense(), "Shared")
+        add_item(shared_location, make_expense())
 
-        assert list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense, profile="Shared"))
-        assert not list(fetch_rows(YEAR, EXPENSES_DB_NAME, Expense))
+        assert list(fetch_rows(shared_location, EXPENSES_DB_NAME, Expense))
+        assert not list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense))
 
 
 class TestFetchById:
@@ -293,19 +296,19 @@ class TestFetchById:
 
     def test_reconstructs_the_stored_object(self) -> None:
         """The fetched object is equal to the one that was originally added."""
-        initialize_db(YEAR, WhichDb.TRANSFERS)
+        initialize_db(LOCATION, WhichDb.TRANSFERS)
         transfer = Transfer(month=3, kind="Loan", description="loan", source="Bank A", amount=50.0)
 
-        add_item(YEAR, transfer)
+        add_item(LOCATION, transfer)
 
-        assert fetch_by_id(YEAR, WhichDb.TRANSFERS, 1) == transfer
+        assert fetch_by_id(LOCATION, WhichDb.TRANSFERS, 1) == transfer
 
     def test_unknown_id_raises_value_error(self) -> None:
         """A missing row raises a clear `ValueError` rather than crashing on an internal `None`."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
 
         with pytest.raises(ValueError, match="No item with id"):
-            fetch_by_id(YEAR, WhichDb.EXPENSES, 999)
+            fetch_by_id(LOCATION, WhichDb.EXPENSES, 999)
 
 
 class TestRemoveItem:
@@ -313,18 +316,18 @@ class TestRemoveItem:
 
     def test_removes_an_existing_row(self) -> None:
         """A successful removal returns `True` and the row is no longer fetchable."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense())
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense())
 
-        assert remove_item(YEAR, WhichDb.EXPENSES, 1) is True
+        assert remove_item(LOCATION, WhichDb.EXPENSES, 1) is True
         with pytest.raises(ValueError, match="No item with id"):
-            fetch_by_id(YEAR, WhichDb.EXPENSES, 1)
+            fetch_by_id(LOCATION, WhichDb.EXPENSES, 1)
 
     def test_returns_false_for_a_nonexistent_row(self) -> None:
         """Removing an ID that doesn't exist returns `False` instead of raising."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
 
-        assert remove_item(YEAR, WhichDb.EXPENSES, 999) is False
+        assert remove_item(LOCATION, WhichDb.EXPENSES, 999) is False
 
 
 class TestEditItem:
@@ -332,29 +335,29 @@ class TestEditItem:
 
     def test_updates_only_the_changed_fields(self) -> None:
         """Only the fields that differ between `old` and `new` are written to the row."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
         original = make_expense(cost=10.0, description="old")
-        add_item(YEAR, original)
+        add_item(LOCATION, original)
         updated = make_expense(cost=20.0, description="old")
 
-        assert edit_item(YEAR, 1, original, updated) is True
-        assert fetch_by_id(YEAR, WhichDb.EXPENSES, 1) == updated
+        assert edit_item(LOCATION, 1, original, updated) is True
+        assert fetch_by_id(LOCATION, WhichDb.EXPENSES, 1) == updated
 
     def test_rejects_mismatched_types(self) -> None:
         """`old` and `new` must be instances of the same `:class:DataContainer` subclass."""
         with pytest.raises(ValueError, match="same type"):
-            edit_item(YEAR, 1, make_expense(), make_income())
+            edit_item(LOCATION, 1, make_expense(), make_income())
 
     def test_rejects_an_unsupported_item_type(self) -> None:
         """An item type that isn't a registered `:class:DataContainer` subclass is rejected."""
         with pytest.raises(ValueError, match="Unsupported item type"):
-            edit_item(YEAR, 1, "a", "a")
+            edit_item(LOCATION, 1, "a", "a")
 
     def test_a_no_op_edit_is_a_harmless_no_op(self) -> None:
         """When `old` and `new` are identical, `edit_item` returns `True` without touching the row."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
+        initialize_db(LOCATION, WhichDb.EXPENSES)
         expense = make_expense()
-        add_item(YEAR, expense)
+        add_item(LOCATION, expense)
 
-        assert edit_item(YEAR, 1, expense, make_expense()) is True
-        assert fetch_by_id(YEAR, WhichDb.EXPENSES, 1) == expense
+        assert edit_item(LOCATION, 1, expense, make_expense()) is True
+        assert fetch_by_id(LOCATION, WhichDb.EXPENSES, 1) == expense

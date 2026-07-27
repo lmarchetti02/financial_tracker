@@ -3,10 +3,11 @@
 import pytest
 
 from database.data_structures.income import Income
-from database.db_operations.generic import WhichDb, add_item, initialize_db
+from database.db_operations.generic import DbLocation, WhichDb, add_item, initialize_db
 from database.db_operations.incomes import IncomesSortingConfig, fetch_income_totals, fetch_incomes, fetch_source
 
 YEAR = 2024
+LOCATION = DbLocation(YEAR)
 
 
 def make_income(**overrides: object) -> Income:
@@ -42,53 +43,53 @@ class TestFetchIncomes:
 
     def test_yields_the_id_and_row_of_every_income(self) -> None:
         """With no filter or sort, every income is yielded."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(description="first"))
-        add_item(YEAR, make_income(description="second"))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(description="first"))
+        add_item(LOCATION, make_income(description="second"))
 
-        ids = [row_id for row_id, _ in fetch_incomes(YEAR)]
+        ids = [row_id for row_id, _ in fetch_incomes(LOCATION)]
 
         assert ids == [1, 2]
 
     def test_filters_by_month(self) -> None:
         """Only incomes matching the given month are yielded."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1))
-        add_item(YEAR, make_income(month=2))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(month=1))
+        add_item(LOCATION, make_income(month=2))
 
-        results = list(fetch_incomes(YEAR, month=2))
+        results = list(fetch_incomes(LOCATION, month=2))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_sorts_by_amount(self) -> None:
         """The generator yields rows ordered per the given `IncomesSortingConfig`."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(amount=300.0))
-        add_item(YEAR, make_income(amount=100.0))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(amount=300.0))
+        add_item(LOCATION, make_income(amount=100.0))
         sort = IncomesSortingConfig(col_id=3, ascending=True)
 
-        ids = [row_id for row_id, _ in fetch_incomes(YEAR, sort=sort)]
+        ids = [row_id for row_id, _ in fetch_incomes(LOCATION, sort=sort)]
 
         assert ids == [2, 1]
 
     def test_filters_by_source(self) -> None:
         """Only incomes matching the given source are yielded."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(source="Salary"))
-        add_item(YEAR, make_income(source="Investments"))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(source="Salary"))
+        add_item(LOCATION, make_income(source="Investments"))
 
-        results = list(fetch_incomes(YEAR, source="Investments"))
+        results = list(fetch_incomes(LOCATION, source="Investments"))
 
         assert [row_id for row_id, _ in results] == [2]
 
     def test_combines_month_and_source_filters(self) -> None:
         """Filtering by month and source can be applied together."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source="Investments"))
-        add_item(YEAR, make_income(month=2, source="Salary"))
-        add_item(YEAR, make_income(month=2, source="Investments"))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(month=1, source="Investments"))
+        add_item(LOCATION, make_income(month=2, source="Salary"))
+        add_item(LOCATION, make_income(month=2, source="Investments"))
 
-        results = list(fetch_incomes(YEAR, month=2, source="Investments"))
+        results = list(fetch_incomes(LOCATION, month=2, source="Investments"))
 
         assert [row_id for row_id, _ in results] == [3]
 
@@ -98,13 +99,13 @@ class TestFetchSource:
 
     def test_sums_amount_per_month_for_the_given_source(self) -> None:
         """Amounts for the requested source are summed per month; other sources are excluded."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source="Salary", amount=100.0))
-        add_item(YEAR, make_income(month=1, source="Salary", amount=50.0))
-        add_item(YEAR, make_income(month=3, source="Salary", amount=70.0))
-        add_item(YEAR, make_income(month=1, source="Investments", amount=1000.0))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(month=1, source="Salary", amount=100.0))
+        add_item(LOCATION, make_income(month=1, source="Salary", amount=50.0))
+        add_item(LOCATION, make_income(month=3, source="Salary", amount=70.0))
+        add_item(LOCATION, make_income(month=1, source="Investments", amount=1000.0))
 
-        totals = fetch_source(YEAR, "Salary")
+        totals = fetch_source(LOCATION, "Salary")
 
         assert totals[0] == pytest.approx(150.0)
         assert totals[1] == pytest.approx(0.0)
@@ -112,9 +113,9 @@ class TestFetchSource:
 
     def test_returns_all_zeros_when_no_incomes_match(self) -> None:
         """An empty table yields a 12-month array of zeros rather than an error."""
-        initialize_db(YEAR, WhichDb.INCOMES)
+        initialize_db(LOCATION, WhichDb.INCOMES)
 
-        totals = fetch_source(YEAR, "Other")
+        totals = fetch_source(LOCATION, "Other")
 
         assert totals.shape == (12,)
         assert (totals == 0).all()
@@ -125,12 +126,12 @@ class TestFetchIncomeTotals:
 
     def test_sums_amount_per_month_across_all_sources(self) -> None:
         """Amounts are summed per month regardless of source."""
-        initialize_db(YEAR, WhichDb.INCOMES)
-        add_item(YEAR, make_income(month=1, source="Salary", amount=100.0))
-        add_item(YEAR, make_income(month=1, source="Investments", amount=50.0))
-        add_item(YEAR, make_income(month=3, source="Salary", amount=70.0))
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(month=1, source="Salary", amount=100.0))
+        add_item(LOCATION, make_income(month=1, source="Investments", amount=50.0))
+        add_item(LOCATION, make_income(month=3, source="Salary", amount=70.0))
 
-        totals = fetch_income_totals(YEAR)
+        totals = fetch_income_totals(LOCATION)
 
         assert totals[0] == pytest.approx(150.0)
         assert totals[1] == pytest.approx(0.0)
@@ -138,9 +139,9 @@ class TestFetchIncomeTotals:
 
     def test_returns_all_zeros_when_no_incomes_exist(self) -> None:
         """An empty table yields a 12-month array of zeros rather than an error."""
-        initialize_db(YEAR, WhichDb.INCOMES)
+        initialize_db(LOCATION, WhichDb.INCOMES)
 
-        totals = fetch_income_totals(YEAR)
+        totals = fetch_income_totals(LOCATION)
 
         assert totals.shape == (12,)
         assert (totals == 0).all()

@@ -11,6 +11,8 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import fetch_expense_totals, fetch_income_totals
 
+from ._common import current_db_location
+
 logger = getLogger("financial_tracker")
 
 
@@ -18,16 +20,11 @@ def show_savings_summary(page: ft.Page) -> None:
     """Generates the plot showing a summary of the net savings."""
     logger.info("Called 'show_savings_summary'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    net_savings = fetch_income_totals(year, profile) - fetch_expense_totals(year, profile)
+    net_savings = fetch_income_totals(location) - fetch_expense_totals(location)
 
     # plot
     fig = plt.figure()
@@ -42,7 +39,7 @@ def show_savings_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Savings Summary {year}")
+    plt.title(f"Savings Summary {location.year}")
     plt.ylabel("Net Savings (€)", fontsize=12)
 
     fig.tight_layout()
@@ -65,16 +62,11 @@ def show_savings_pie(page: ft.Page) -> None:
     """Generates the plot showing how much of the year's income was saved versus spent."""
     logger.info("Called 'show_savings_pie'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
-    total_income = fetch_income_totals(year, profile).sum()
-    total_expenses = fetch_expense_totals(year, profile).sum()
+    total_income = fetch_income_totals(location).sum()
+    total_expenses = fetch_expense_totals(location).sum()
     total_saved = total_income - total_expenses
 
     values = np.array([total_saved, total_expenses], dtype=np.float32)
@@ -100,7 +92,7 @@ def show_savings_pie(page: ft.Page) -> None:
     color_map = {"Saved": "green", "Spent": "red"}
     colors = [color_map[name] for name in names]
 
-    plt.title(f"Savings Pie Chart ({year})")
+    plt.title(f"Savings Pie Chart ({location.year})")
     patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
 
     legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]

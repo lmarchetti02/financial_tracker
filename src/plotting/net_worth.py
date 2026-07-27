@@ -10,6 +10,8 @@ import numpy as np
 from _helpers.constants import MONTHS
 from database import fetch_net_worth_components, fetch_previous_year_end_net_worth_components
 
+from ._common import current_db_location
+
 logger = getLogger("financial_tracker")
 
 
@@ -17,20 +19,13 @@ def show_net_worth_summary(page: ft.Page) -> None:
     """Generates a line plot of net worth by month, with the previous year-end as a dotted reference line."""
     logger.info("Called 'show_net_worth_summary'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retrieve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
-    liquid_assets, pension, credits, debts = fetch_net_worth_components(year, profile)
+    liquid_assets, pension, credits, debts = fetch_net_worth_components(location)
     net_worth = liquid_assets + pension + credits - debts
 
-    prev_liquid_assets, prev_pension, prev_credits, prev_debts = fetch_previous_year_end_net_worth_components(
-        year, profile
-    )
+    prev_liquid_assets, prev_pension, prev_credits, prev_debts = fetch_previous_year_end_net_worth_components(location)
     previous_year_end = prev_liquid_assets + prev_pension + prev_credits - prev_debts
 
     if not net_worth.any() and previous_year_end == 0.0:
@@ -48,8 +43,10 @@ def show_net_worth_summary(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    plt.axhline(previous_year_end, linestyle="--", color="firebrick", linewidth=1.5, label=f"{year - 1} year-end")
-    plt.plot(months, net_worth, marker="o", color="#1565C0", linewidth=2, markersize=6, label=str(year))
+    plt.axhline(
+        previous_year_end, linestyle="--", color="firebrick", linewidth=1.5, label=f"{location.year - 1} year-end"
+    )
+    plt.plot(months, net_worth, marker="o", color="#1565C0", linewidth=2, markersize=6, label=str(location.year))
 
     if previous_year_end != 0:
         percent_change = (net_worth - previous_year_end) / previous_year_end * 100
@@ -69,7 +66,7 @@ def show_net_worth_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Net Worth Summary {year}")
+    plt.title(f"Net Worth Summary {location.year}")
     plt.ylabel("Net Worth (€)", fontsize=12)
     plt.legend()
 

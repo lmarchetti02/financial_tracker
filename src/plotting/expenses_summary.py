@@ -13,6 +13,8 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import fetch_categories, fetch_category
 
+from ._common import current_db_location
+
 logger = getLogger("financial_tracker")
 
 
@@ -20,19 +22,14 @@ def show_expenses_summary(page: ft.Page) -> None:
     """Generates the plot showing a summary of the expenses."""
     logger.info("Called 'show_expenses_summary'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
     categories = fetch_categories()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = np.zeros((len(months), len(categories)), dtype=np.float32)
     for i, category in enumerate(categories):
-        totals[:, i] = fetch_category(year, category, profile)
+        totals[:, i] = fetch_category(location, category)
 
     # plot
     fig = plt.figure()
@@ -62,7 +59,7 @@ def show_expenses_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Expenses Summary {year}")
+    plt.title(f"Expenses Summary {location.year}")
     plt.ylabel("Total (€)", fontsize=12)
     plt.legend()
 
@@ -86,18 +83,13 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     """Generates the plot showing a pie chart summary of the expenses."""
     logger.info("Called 'show_expenses_pie'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
     categories = np.array(fetch_categories(), dtype=str)
     totals = np.zeros((12, len(categories)), dtype=np.float32)
     for i, category in enumerate(categories):
-        totals[:, i] = fetch_category(year, category, profile)
+        totals[:, i] = fetch_category(location, category)
 
     if month is None:
         totals = totals.sum(axis=0)
@@ -121,7 +113,7 @@ def show_expenses_pie(page: ft.Page, month: int | None = None) -> None:
     # plot
     fig = plt.figure()
 
-    title = year if month is None else MONTHS[month - 1]
+    title = location.year if month is None else MONTHS[month - 1]
     plt.title(f"Expenses Pie Chart ({title})")
     patches, *_ = plt.pie(totals, labels=names, autopct="%1.1f%%")  # type: ignore
 

@@ -10,6 +10,7 @@ from .data_structures import Income as Income
 from .data_structures import Transfer as Transfer
 from .db_operations import ESC as ESC
 from .db_operations import ISC as ISC
+from .db_operations import DbLocation as DbLocation
 from .db_operations import RowGenerator as RowGenerator
 from .db_operations import TSC as TSC
 from .db_operations import ExpensesSortingConfig as ExpensesSortingConfig

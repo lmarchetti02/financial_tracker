@@ -12,7 +12,7 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import MONTHS
 
-from .common import build_styled_data_table
+from .common import build_styled_data_table, current_db_location
 
 logger = getLogger("financial_tracker")
 
@@ -28,13 +28,9 @@ class BaseCrudView(ft.Column, ABC):
         super().__init__()
         self._page = page
 
-        if (year := self._page.session.store.get("selected_year")) is None:
-            raise RuntimeError("Cannot retrieve the current year.")
-        self.year = int(year)
-
-        if (profile := self._page.session.store.get("selected_profile")) is None:
-            raise RuntimeError("Cannot retrieve the current profile.")
-        self.profile = profile
+        self.location = current_db_location(page)
+        self.year = self.location.year
+        self.profile = self.location.profile
 
         self.current_month_filter: int | None = None
         self.current_enum_filter: str | None = None

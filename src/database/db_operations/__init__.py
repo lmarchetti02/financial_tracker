@@ -39,6 +39,7 @@ from .expenses import SortingConfig as SortingConfig
 from .expenses import fetch_category as fetch_category
 from .expenses import fetch_expense_totals as fetch_expense_totals
 from .expenses import fetch_expenses as fetch_expenses
+from .generic import DbLocation as DbLocation
 from .generic import WhichDb as WhichDb
 from .generic import add_item as add_item
 from .generic import edit_item as edit_item

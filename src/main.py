@@ -7,6 +7,7 @@ import flet as ft
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
 from database.db_operations import (
+    DbLocation,
     WhichDb,
     get_theme_preference,
     initialize_config_db,
@@ -37,11 +38,12 @@ def initialize_tracker(page: ft.Page, selected_year: int, selected_profile: str)
     APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
 
     # create db if it doesn't exists
+    location = DbLocation(selected_year, selected_profile)
     for db in WhichDb:
-        initialize_db(selected_year, db, selected_profile)
+        initialize_db(location, db)
 
     # carry over accounts (not balances) from the most recent prior year, if any
-    seed_accounts_for_new_year(selected_year, selected_profile)
+    seed_accounts_for_new_year(location)
 
     # remember this selection for the next time the app starts
     set_last_selection(selected_year, selected_profile)

@@ -16,7 +16,7 @@ from _helpers.constants import (
     SYSTEM_SOURCE_INVESTMENTS,
 )
 
-from .generic import get_db_path, list_year_profile_pairs
+from .generic import DbLocation, get_db_path, list_year_profile_pairs
 
 logger = getLogger("financial_tracker")
 
@@ -200,7 +200,7 @@ def rename_lookup_option(kind: LookupKind, old_name: str, new_name: str) -> None
 
     domain_table, column = _LOOKUP_REFERENCES[kind]
     for year, profile in list_year_profile_pairs():
-        with sq.connect(get_db_path(year, profile)) as connection:
+        with sq.connect(get_db_path(DbLocation(year, profile))) as connection:
             try:
                 connection.execute(f"UPDATE {domain_table} SET {column} = ? WHERE {column} = ?", (new_name, old_name))
             except sq.OperationalError:
@@ -222,7 +222,7 @@ def is_lookup_option_in_use(kind: LookupKind, name: str) -> bool:
     domain_table, column = _LOOKUP_REFERENCES[kind]
 
     for year, profile in list_year_profile_pairs():
-        with sq.connect(get_db_path(year, profile)) as connection:
+        with sq.connect(get_db_path(DbLocation(year, profile))) as connection:
             try:
                 count = connection.execute(
                     f"SELECT COUNT(*) FROM {domain_table} WHERE {column} = ?", (name,)

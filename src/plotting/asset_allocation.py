@@ -9,7 +9,9 @@ import numpy as np
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount
-from database import ACCOUNT_KIND_COLORS, AccountKind, fetch_balances_by_kind
+from database import ACCOUNT_KIND_COLORS, AccountKind, DbLocation, fetch_balances_by_kind
+
+from ._common import current_db_location
 
 logger = getLogger("financial_tracker")
 
@@ -17,26 +19,19 @@ _DEFAULT_COLOR = "#808080"
 _EXCLUDED_KINDS = {AccountKind.PENSION, AccountKind.CREDIT, AccountKind.DEBT}
 
 
-def _fetch_allocation_totals(year: int, profile: str) -> dict[AccountKind, np.ndarray]:
+def _fetch_allocation_totals(location: DbLocation) -> dict[AccountKind, np.ndarray]:
     """Fetches per-kind monthly totals for asset allocation, excluding `_EXCLUDED_KINDS`."""
-    return {
-        kind: totals for kind, totals in fetch_balances_by_kind(year, profile).items() if kind not in _EXCLUDED_KINDS
-    }
+    return {kind: totals for kind, totals in fetch_balances_by_kind(location).items() if kind not in _EXCLUDED_KINDS}
 
 
 def show_asset_allocation_summary(page: ft.Page) -> None:
     """Generates a 100% stacked area chart of each account kind's share of the total, per month."""
     logger.info("Called 'show_asset_allocation_summary'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
-    totals_by_kind = _fetch_allocation_totals(year, profile)
+    totals_by_kind = _fetch_allocation_totals(location)
     if not totals_by_kind:
         page.show_dialog(
             ft.AlertDialog(
@@ -66,7 +61,7 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
     plt.xlim(1, 12)
     plt.ylim(0, 100)
 
-    plt.title(f"Asset Allocation {year}")
+    plt.title(f"Asset Allocation {location.year}")
     plt.ylabel("Share of total balance (%)", fontsize=12)
     plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5))
 
@@ -90,15 +85,10 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     """Generates a pie chart of the last month with any logged balance, split by account kind."""
     logger.info("Called 'show_asset_allocation_pie'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retireve the current year.")
-    year = int(year)
-
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    location = current_db_location(page)
 
     # get data
-    totals_by_kind = _fetch_allocation_totals(year, profile)
+    totals_by_kind = _fetch_allocation_totals(location)
     if not totals_by_kind:
         page.show_dialog(
             ft.AlertDialog(
@@ -135,7 +125,7 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    plt.title(f"Asset Allocation ({MONTHS[month - 1]} {year})")
+    plt.title(f"Asset Allocation ({MONTHS[month - 1]} {location.year})")
     patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
 
     legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]

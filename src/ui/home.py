@@ -12,7 +12,7 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from plotting import show_net_worth_summary, show_savings_pie, show_savings_summary
 
-from .common import build_styled_data_table
+from .common import build_styled_data_table, current_db_location
 
 logger = getLogger("financial_tracker")
 
@@ -24,15 +24,10 @@ def home_view(page: ft.Page) -> ft.Control:
     """Implementation of the home view."""
     logger.info("Called 'home_view'")
 
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retrieve the current year.")
-    year = int(year)
+    location = current_db_location(page)
 
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
-
-    income = db.fetch_income_totals(year, profile)
-    expenses = db.fetch_expense_totals(year, profile)
+    income = db.fetch_income_totals(location)
+    expenses = db.fetch_expense_totals(location)
     net_savings = income - expenses
 
     savings_rate = np.zeros_like(income)
@@ -58,7 +53,7 @@ def home_view(page: ft.Page) -> ft.Control:
         """Builds a blank label column, the previous year, then one numeric column per month."""
         return [
             DataColumn2(label=ft.Text(""), fixed_width=170),
-            DataColumn2(label=ft.Text(str(year - 1)), numeric=True),
+            DataColumn2(label=ft.Text(str(location.year - 1)), numeric=True),
         ] + [DataColumn2(label=ft.Text(month), numeric=True) for month in MONTHS]
 
     def build_net_worth_row(
@@ -91,11 +86,11 @@ def home_view(page: ft.Page) -> ft.Control:
     ]
     savings_table = build_styled_data_table(savings_columns, savings_rows, _HEADING_COLOR)
 
-    liquid_assets, pension, credits, debts = db.fetch_net_worth_components(year, profile)
+    liquid_assets, pension, credits, debts = db.fetch_net_worth_components(location)
     net_worth = liquid_assets + pension + credits - debts
 
     prev_liquid_assets, prev_pension, prev_credits, prev_debts = db.fetch_previous_year_end_net_worth_components(
-        year, profile
+        location
     )
     prev_net_worth = prev_liquid_assets + prev_pension + prev_credits - prev_debts
 

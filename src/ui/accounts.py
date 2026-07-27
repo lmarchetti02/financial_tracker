@@ -10,7 +10,7 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
-from .common import show_alert
+from .common import current_db_location, show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -37,13 +37,9 @@ class AccountsView(ft.Column):
         logger.info("Called 'AccountsView.__init__'")
         self._page = page
 
-        if (year := self._page.session.store.get("selected_year")) is None:
-            raise RuntimeError("Cannot retrieve the current year.")
-        self.year = int(year)
-
-        if (profile := self._page.session.store.get("selected_profile")) is None:
-            raise RuntimeError("Cannot retrieve the current profile.")
-        self.profile = profile
+        self.location = current_db_location(page)
+        self.year = self.location.year
+        self.profile = self.location.profile
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -113,7 +109,7 @@ class AccountsView(ft.Column):
             return
 
         account = db.Account(name=name, kind=db.AccountKind(int(self.kind_dropdown.value)))
-        db.add_item(self.year, account, self.profile)
+        db.add_item(self.location, account)
         logger.debug(f"Added account:\n{account}")
 
         self.name_text.value = ""
@@ -127,7 +123,7 @@ class AccountsView(ft.Column):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the account."""
-            db.delete_account(self.year, account_id, self.profile)
+            db.delete_account(self.location, account_id)
             self._page.pop_dialog()
             self.refresh()
 
@@ -149,7 +145,7 @@ class AccountsView(ft.Column):
         raw_value = (e.control.value or "").strip()
 
         if raw_value == "":
-            db.delete_balance(self.year, account_id, month, self.profile)
+            db.delete_balance(self.location, account_id, month)
             self.balances.pop((account_id, month), None)
             return
 
@@ -162,7 +158,7 @@ class AccountsView(ft.Column):
             self._page.update()
             return
 
-        db.save_balance(self.year, account_id, month, balance, self.profile)
+        db.save_balance(self.location, account_id, month, balance)
         logger.debug(f"Saved balance for account {account_id}, month {month}: {balance}")
 
         self.balances[(account_id, month)] = balance
@@ -176,7 +172,7 @@ class AccountsView(ft.Column):
         raw_value = (e.control.value or "").strip()
 
         if raw_value == "":
-            db.delete_previous_year_end_balance(self.year, account_name, self.profile)
+            db.delete_previous_year_end_balance(self.location, account_name)
             self.previous_year_balances.pop(account_name, None)
             return
 
@@ -189,7 +185,7 @@ class AccountsView(ft.Column):
             self._page.update()
             return
 
-        db.save_previous_year_end_balance(self.year, account_name, account_kind, balance, self.profile)
+        db.save_previous_year_end_balance(self.location, account_name, account_kind, balance)
         logger.debug(f"Saved {self.year - 1} December balance for '{account_name}': {balance}")
 
         self.previous_year_balances[account_name] = balance
@@ -215,7 +211,7 @@ class AccountsView(ft.Column):
             self.refresh()
             return
 
-        db.save_account_opening_balance(self.year, account_id, balance, self.profile)
+        db.save_account_opening_balance(self.location, account_id, balance)
         logger.debug(f"Saved opening balance for account {account_id}: {balance}")
 
         self.refresh()
@@ -224,9 +220,9 @@ class AccountsView(ft.Column):
         """Reloads the accounts and their balances, and rebuilds both tables."""
         logger.info("Called 'refresh'")
 
-        self.accounts = db.fetch_account_definitions(self.year, self.profile)
-        self.balances = db.fetch_account_balances(self.year, self.profile)
-        self.previous_year_balances = db.fetch_previous_year_end_balances(self.year, self.profile)
+        self.accounts = db.fetch_account_definitions(self.location)
+        self.balances = db.fetch_account_balances(self.location)
+        self.previous_year_balances = db.fetch_previous_year_end_balances(self.location)
 
         self.accounts_grid.controls = self._build_account_tiles()
         self.balance_grid_container.controls = [self._build_balance_grid()]

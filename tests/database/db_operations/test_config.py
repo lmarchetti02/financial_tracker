@@ -22,9 +22,10 @@ from database.db_operations.config import (
     set_last_selection,
     set_theme_preference,
 )
-from database.db_operations.generic import WhichDb, add_item, fetch_by_id, initialize_db
+from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, initialize_db
 
 YEAR = 2024
+LOCATION = DbLocation(YEAR)
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -189,23 +190,24 @@ class TestRenameLookupOption:
     def test_cascades_the_rename_to_every_yearly_database(self) -> None:
         """Existing rows referencing the old name are updated to the new one."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="Presents"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Presents"))
 
         rename_lookup_option(LookupKind.CATEGORIES, "Presents", "Gifts")
 
-        expense = fetch_by_id(YEAR, WhichDb.EXPENSES, 1)
+        expense = fetch_by_id(LOCATION, WhichDb.EXPENSES, 1)
         assert expense.category == "Gifts"
 
     def test_cascades_the_rename_to_a_non_default_profile_s_database_too(self) -> None:
         """The cascade reaches every profile's database, not just the default one."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
-        add_item(YEAR, make_expense(category="Presents"), "Shared")
+        shared_location = DbLocation(YEAR, "Shared")
+        initialize_db(shared_location, WhichDb.EXPENSES)
+        add_item(shared_location, make_expense(category="Presents"))
 
         rename_lookup_option(LookupKind.CATEGORIES, "Presents", "Gifts")
 
-        expense = fetch_by_id(YEAR, WhichDb.EXPENSES, 1, "Shared")
+        expense = fetch_by_id(shared_location, WhichDb.EXPENSES, 1)
         assert expense.category == "Gifts"
 
     def test_refuses_to_rename_a_system_entry(self) -> None:
@@ -236,24 +238,25 @@ class TestIsLookupOptionInUse:
     def test_returns_true_when_a_yearly_database_references_the_name(self) -> None:
         """A category referenced by at least one expense row is reported as in use."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="Travel"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Travel"))
 
         assert is_lookup_option_in_use(LookupKind.CATEGORIES, "Travel") is True
 
     def test_returns_false_when_no_yearly_database_references_the_name(self) -> None:
         """A category with no matching rows anywhere is reported as not in use."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="Travel"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Travel"))
 
         assert is_lookup_option_in_use(LookupKind.CATEGORIES, "Education") is False
 
     def test_reaches_a_non_default_profile_s_database_too(self) -> None:
         """A category referenced only in a non-default profile's database is still found."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
-        add_item(YEAR, make_expense(category="Travel"), "Shared")
+        shared_location = DbLocation(YEAR, "Shared")
+        initialize_db(shared_location, WhichDb.EXPENSES)
+        add_item(shared_location, make_expense(category="Travel"))
 
         assert is_lookup_option_in_use(LookupKind.CATEGORIES, "Travel") is True
 
@@ -278,8 +281,8 @@ class TestDeleteLookupOption:
     def test_refuses_to_delete_an_entry_still_in_use(self) -> None:
         """A category still referenced by an expense row is not deleted, returning `False`."""
         initialize_config_db()
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="Travel"))
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Travel"))
 
         assert delete_lookup_option(LookupKind.CATEGORIES, "Travel") is False
         assert "Travel" in fetch_categories()
