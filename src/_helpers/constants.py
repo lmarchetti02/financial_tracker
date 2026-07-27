@@ -1,11 +1,9 @@
 """Module woth useful constants across the application."""
 
-from os import getenv
 from pathlib import Path
 
-DEBUGGING = getenv("DEBUGGING", "False").lower() == "true"
-
-APP_DIRECTORY = Path.home() / ".financial_tracker"
+APP_DIRECTORY = Path.home() / "Library" / "Application Support" / "financial-tracker"
+LOG_DIRECTORY = Path.home() / "Library" / "Logs" / "financial-tracker"
 DEFAULT_PROFILE_NAME = "Personal"
 EXPENSES_DB_NAME = "expenses"
 INCOME_DB_NAME = "income"

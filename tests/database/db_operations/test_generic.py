@@ -20,7 +20,6 @@ from database.db_operations.generic import (
     get_db_path,
     initialize_db,
     list_year_profile_pairs,
-    migrate_legacy_year_dbs,
     remove_item,
 )
 
@@ -65,55 +64,6 @@ class TestGetDbPath:
     def test_different_profiles_map_to_different_files(self) -> None:
         """The same year with two distinct profiles resolves to two distinct DB files."""
         assert get_db_path(YEAR, "Personal") != get_db_path(YEAR, "Shared")
-
-
-class TestMigrateLegacyYearDbs:
-    """Tests for `migrate_legacy_year_dbs`."""
-
-    def test_renames_a_legacy_database_to_the_default_profile(self) -> None:
-        """A pre-profile `{year}_data.db` file is renamed to embed the default profile."""
-        app_directory = get_db_path(YEAR).parent
-        legacy_path = app_directory / f"{YEAR}_data.db"
-        app_directory.mkdir(parents=True, exist_ok=True)
-        legacy_path.touch()
-
-        migrate_legacy_year_dbs()
-
-        assert not legacy_path.exists()
-        assert get_db_path(YEAR).exists()
-
-    def test_is_idempotent(self) -> None:
-        """A second run finds no legacy files left and does not raise."""
-        app_directory = get_db_path(YEAR).parent
-        app_directory.mkdir(parents=True, exist_ok=True)
-        (app_directory / f"{YEAR}_data.db").touch()
-
-        migrate_legacy_year_dbs()
-        migrate_legacy_year_dbs()  # must not raise
-
-        assert get_db_path(YEAR).exists()
-
-    def test_does_not_overwrite_an_already_migrated_database(self) -> None:
-        """A legacy file is left alone if the migrated destination already has data."""
-        app_directory = get_db_path(YEAR).parent
-        app_directory.mkdir(parents=True, exist_ok=True)
-        legacy_path = app_directory / f"{YEAR}_data.db"
-        legacy_path.write_text("legacy")
-        get_db_path(YEAR).write_text("already migrated")
-
-        migrate_legacy_year_dbs()
-
-        assert legacy_path.exists()
-        assert legacy_path.read_text() == "legacy"
-        assert get_db_path(YEAR).read_text() == "already migrated"
-
-    def test_does_not_touch_a_file_already_using_the_new_naming_scheme(self) -> None:
-        """A file that already has a profile embedded is left untouched."""
-        initialize_db(YEAR, WhichDb.EXPENSES, "Shared")
-
-        migrate_legacy_year_dbs()
-
-        assert get_db_path(YEAR, "Shared").exists()
 
 
 class TestListYearProfilePairs:

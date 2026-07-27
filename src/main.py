@@ -11,7 +11,6 @@ from database.db_operations import (
     get_theme_preference,
     initialize_config_db,
     initialize_db,
-    migrate_legacy_year_dbs,
     seed_accounts_for_new_year,
     set_last_selection,
 )
@@ -120,7 +119,6 @@ def startup_layout(page: ft.Page) -> None:
 def main(page: ft.Page):
     """Entry point of the application."""
     setup_logger()
-    migrate_legacy_year_dbs()
     initialize_config_db()
 
     page.title = "Financial Tracker"

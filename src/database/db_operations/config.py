@@ -42,35 +42,33 @@ _LOOKUP_REFERENCES = {
     LookupKind.KINDS: ("transfers", "kind"),
 }
 
-# seed data: (legacy enum member name, display label, is_system). The legacy name is only needed
-# once, to migrate rows written before this lookup table existed (they stored the enum member's
-# `.name`, e.g. "FOOD_AND_DRINKS", rather than the label, e.g. "Food and drinks").
+# seed data: (display label, is_system)
 _SEED_CATEGORIES = [
-    ("COUPLE", "Couple", False),
-    ("EDUCATION", "Education", False),
-    ("ENTERTAINMENT", "Entertainment", False),
-    ("FOOD_AND_DRINKS", "Food and drinks", False),
-    ("SUBSCRIPTIONS", "Subscriptions", False),
-    ("PERSONAL_ITEMS", "Personal items", False),
-    ("PRESENTS", "Presents", False),
-    ("TRAVEL", "Travel", False),
-    ("TRADING_FEE", SYSTEM_CATEGORY_TRADING_FEE, True),
-    ("CAPITAL_LOSS", "Capital loss", False),
-    ("TAXES", "Taxes", False),
-    ("INTEREST_ON_DEBT", "Interest on debt", False),
-    ("OTHER", "Other", False),
+    ("Couple", False),
+    ("Education", False),
+    ("Entertainment", False),
+    ("Food and drinks", False),
+    ("Subscriptions", False),
+    ("Personal items", False),
+    ("Presents", False),
+    ("Travel", False),
+    (SYSTEM_CATEGORY_TRADING_FEE, True),
+    ("Capital loss", False),
+    ("Taxes", False),
+    ("Interest on debt", False),
+    ("Other", False),
 ]
 _SEED_SOURCES = [
-    ("SALARY", "Salary", False),
-    ("PRESENTS", "Presents", False),
-    ("INVESTMENTS", SYSTEM_SOURCE_INVESTMENTS, True),
-    ("OTHER", "Other", False),
+    ("Salary", False),
+    ("Presents", False),
+    (SYSTEM_SOURCE_INVESTMENTS, True),
+    ("Other", False),
 ]
 _SEED_KINDS = [
-    ("LOAN", "Loan", False),
-    ("CREDIT", SYSTEM_KIND_CREDIT, True),
-    ("DEBT", SYSTEM_KIND_DEBT, True),
-    ("INVESTMENT", SYSTEM_KIND_INVESTMENT, True),
+    ("Loan", False),
+    (SYSTEM_KIND_CREDIT, True),
+    (SYSTEM_KIND_DEBT, True),
+    (SYSTEM_KIND_INVESTMENT, True),
 ]
 _SEED_DATA = {
     LookupKind.CATEGORIES: _SEED_CATEGORIES,
@@ -92,26 +90,8 @@ def get_config_db_path() -> Path:
     return APP_DIRECTORY / f"{CONFIG_DB_NAME}.db"
 
 
-def _migrate_legacy_names(kind: LookupKind) -> None:
-    """Rewrites every yearly database's legacy enum-member-name values to their new label form."""
-    logger.info(f"Called '_migrate_legacy_names' for {kind}.")
-
-    table, column = _LOOKUP_REFERENCES[kind]
-
-    for year, profile in list_year_profile_pairs():
-        with sq.connect(get_db_path(year, profile)) as connection:
-            try:
-                for legacy_name, label, _ in _SEED_DATA[kind]:
-                    connection.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (label, legacy_name))
-            except sq.OperationalError:
-                # this year's database predates `table`
-                continue
-
-    logger.debug(f"Migrated legacy {kind.name.lower()} names to labels across every yearly database.")
-
-
 def initialize_config_db() -> None:
-    """Creates the config database/tables and seeds them from the legacy enums, if not done yet."""
+    """Creates the config database/tables and seeds their default entries, if not done yet."""
     logger.info("Called 'initialize_config_db'")
 
     APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
@@ -131,9 +111,8 @@ def initialize_config_db() -> None:
 
             cursor.executemany(
                 f"INSERT INTO {table} (name, is_system) VALUES (?, ?)",
-                [(label, int(is_system)) for _, label, is_system in _SEED_DATA[kind]],
+                [(label, int(is_system)) for label, is_system in _SEED_DATA[kind]],
             )
-            _migrate_legacy_names(kind)
             logger.debug(f"Seeded '{table}' with its default entries.")
 
         # upgrade installs seeded before "Debt"/"Credit" became system-reserved

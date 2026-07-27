@@ -45,7 +45,6 @@ from .generic import edit_item as edit_item
 from .generic import fetch_by_id as fetch_by_id
 from .generic import initialize_db as initialize_db
 from .generic import list_year_profile_pairs as list_year_profile_pairs
-from .generic import migrate_legacy_year_dbs as migrate_legacy_year_dbs
 from .generic import remove_item as remove_item
 from .incomes import ISC as ISC
 from .incomes import IncomesSortingConfig as IncomesSortingConfig

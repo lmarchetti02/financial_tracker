@@ -54,7 +54,6 @@ from .db_operations import get_theme_preference as get_theme_preference
 from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
-from .db_operations import migrate_legacy_year_dbs as migrate_legacy_year_dbs
 from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
 from .db_operations import remove_item as remove_item

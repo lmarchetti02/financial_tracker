@@ -58,32 +58,7 @@ def get_db_path(year: int, profile: str = DEFAULT_PROFILE_NAME) -> Path:
     return APP_DIRECTORY / f"{year}_{profile}_data.db"
 
 
-_LEGACY_DB_PATTERN = re.compile(r"^(\d+)_data\.db$")
 _DB_PATTERN = re.compile(r"^(\d+)_(.+)_data$")
-
-
-def migrate_legacy_year_dbs() -> None:
-    """Renames every pre-profile yearly database (`{year}_data.db`) to the default profile's name.
-
-    Idempotent: a legacy file is only renamed if the destination doesn't already exist, and a
-    second run finds no legacy files left to migrate.
-    """
-    logger.info("Called 'migrate_legacy_year_dbs'")
-
-    if not APP_DIRECTORY.is_dir():
-        return
-
-    for path in APP_DIRECTORY.glob("*_data.db"):
-        match = _LEGACY_DB_PATTERN.match(path.name)
-        if match is None:
-            continue
-
-        destination = get_db_path(int(match.group(1)), DEFAULT_PROFILE_NAME)
-        if destination.exists():
-            continue
-
-        path.rename(destination)
-        logger.debug(f"Migrated legacy database '{path.name}' to '{destination.name}'.")
 
 
 def list_year_profile_pairs() -> list[tuple[int, str]]:

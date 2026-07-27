@@ -1,6 +1,6 @@
 # FinancialTracker
 
-Personal desktop finance tracker built with [Flet](https://flet.dev). Data is stored per-year in local SQLite files under `~/.financial_tracker/`.
+Personal desktop finance tracker built with [Flet](https://flet.dev).
 
 ## Setup
 

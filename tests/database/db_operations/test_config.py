@@ -104,16 +104,6 @@ class TestInitializeConfigDb:
 
         assert len([o for o in options if o.name == "Food and drinks"]) == 1
 
-    def test_migrates_legacy_names_in_existing_yearly_databases(self) -> None:
-        """A row written before this table existed (storing the old enum member name) is rewritten."""
-        initialize_db(YEAR, WhichDb.EXPENSES)
-        add_item(YEAR, make_expense(category="FOOD_AND_DRINKS"))
-
-        initialize_config_db()
-
-        expense = fetch_by_id(YEAR, WhichDb.EXPENSES, 1)
-        assert expense.category == "Food and drinks"
-
 
 class TestFetchLookupOptions:
     """Tests for `fetch_lookup_options`."""

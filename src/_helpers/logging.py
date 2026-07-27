@@ -1,36 +1,32 @@
+"""Sets up the app's logger."""
+
 import logging
 import logging.config
-from os import W_OK, access, environ
+from os import environ
 from pathlib import Path
 from sys import stderr
 from typing import Any
 
-from .constants import DEBUGGING
+from .constants import LOG_DIRECTORY
 
 
-def _get_logging_config(is_debugging: bool) -> dict[str, Any]:
+def _get_logging_config() -> dict[str, Any]:
     """Generates a fresh config dict based on current state.
-
-    Args:
-        is_debugging (bool): Whether the user has selected the verbose "DEBUGGING"
-            mode or not (via 'export DEEBUGGING="True"').
 
     Returns:
         dict: The logging-compatible dictionary, that can be used to configure
             the logger of the library.
     """
-    # check if dirs are writable
-    is_cwd_writable = access(Path.cwd(), W_OK)
-    is_home_writable = access(Path.home(), W_OK)
-
     env_log_dir = environ.get("LOG_DIR")
-    base_dir = Path(env_log_dir) if env_log_dir else Path.cwd()
+    log_dir = Path(env_log_dir) if env_log_dir else LOG_DIRECTORY
+    log_file = log_dir / "financial_tracker.log"
 
-    # define log path
-    log_file = base_dir / "financial_tracker.log"
-    if not is_cwd_writable and is_home_writable:
-        log_file = Path.home() / "financial_tracker.log"
-        print(f"WARNING: CWD is read-only. Logging to {log_file}.", file=stderr)
+    file_handler_enabled = True
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        print(f"WARNING: Could not create log directory {log_dir} ({error}). File logging disabled.", file=stderr)
+        file_handler_enabled = False
 
     # define config dict
     config = {
@@ -46,16 +42,18 @@ def _get_logging_config(is_debugging: bool) -> dict[str, Any]:
         "handlers": {
             "stderr": {
                 "class": "logging.StreamHandler",
-                "level": "DEBUG" if is_debugging else "WARNING",
+                "level": "DEBUG",
                 "formatter": "simple",
                 "stream": "ext://sys.stderr",
             },
             "file": {
-                "class": "logging.FileHandler",
+                "class": "logging.handlers.RotatingFileHandler",
                 "level": "DEBUG",
                 "formatter": "detailed",
                 "filename": log_file,
-                "mode": "w",
+                "mode": "a",
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
             },
         },
         "loggers": {
@@ -71,11 +69,7 @@ def _get_logging_config(is_debugging: bool) -> dict[str, Any]:
         },
     }
 
-    # fallback if no path is writable
-    if not is_cwd_writable and not is_home_writable:
-        print("WARNING: Neither CWD nor home are writable. File logging disabled.", file=stderr)
-
-        # remove log file from config
+    if not file_handler_enabled:
         del config["handlers"]["file"]
         config["loggers"][""]["handlers"].remove("file")
         config["loggers"]["financial_tracker"]["handlers"].remove("file")
@@ -85,5 +79,4 @@ def _get_logging_config(is_debugging: bool) -> dict[str, Any]:
 
 def setup_logger() -> None:
     """Sets up the logger of the library."""
-    new_config = _get_logging_config(DEBUGGING)
-    logging.config.dictConfig(new_config)
+    logging.config.dictConfig(_get_logging_config())
