@@ -3,7 +3,7 @@
 from logging import getLogger
 
 import flet as ft
-from flet_datatable2 import DataColumn2, DataTable2
+from flet_datatable2 import DataColumn2, DataColumnSize, DataTable2
 
 import database as db
 from _helpers.constants import MONTHS
@@ -283,9 +283,9 @@ class AccountsView(ft.Column):
                 ),
                 fixed_width=_ACCOUNT_COLUMN_WIDTH,
             ),
-            DataColumn2(label=ft.Text(str(self.year - 1)), numeric=True, fixed_width=110),
+            DataColumn2(label=ft.Text(str(self.year - 1)), numeric=True, size=DataColumnSize.S),
         ]
-        columns += [DataColumn2(label=ft.Text(month), numeric=True, fixed_width=110) for month in MONTHS]
+        columns += [DataColumn2(label=ft.Text(month), numeric=True, size=DataColumnSize.S) for month in MONTHS]
 
         rows = []
         for account_id, account in self.accounts:
