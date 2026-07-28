@@ -59,7 +59,7 @@ class IncomeView(BaseCrudView):
         columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_sources(), "Filter source"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
-        self.table_column = ft.Column(controls=[self.data_table])
+        self.table_column = ft.Column(controls=[self.data_table], expand=True, scroll=ft.ScrollMode.AUTO)
 
         # plotting
         self.summary_button = ft.Button(

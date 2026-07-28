@@ -42,7 +42,6 @@ def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], 
     v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
 
     return DataTable2(
-        fixed_top_rows=1,
         border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
         vertical_lines=v_lines,
         horizontal_lines=v_lines,

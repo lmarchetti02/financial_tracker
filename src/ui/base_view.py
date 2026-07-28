@@ -174,10 +174,6 @@ class BaseCrudView(ft.Column, ABC):
             row_data.append(ft.DataCell(ft.Row(controls=self._build_action_buttons(row_id))))
             self.data_table.rows.append(ft.DataRow(cells=row_data))
 
-        row_count = len(self.data_table.rows)
-        self.table_column.expand = row_count > 10
-        self.data_table.expand = row_count > 10
-
         self._page.update()
 
     def sort_columns(self, e: ft.DataColumnSortEvent) -> None:

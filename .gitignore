@@ -162,3 +162,4 @@ dmg_settings.py
 **.DS_Store
 /TODO.md
 /.claude
+/compile.sh
