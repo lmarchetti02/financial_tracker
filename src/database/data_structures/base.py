@@ -62,7 +62,7 @@ class DataContainer(ABC):
                 other object. In particular, only the values of `other` that
                 differ from `self`.
         """
-        resolved_types = get_type_hints(self)
+        resolved_types = get_type_hints(type(self))
 
         differences = {}
         for field in fields(self):

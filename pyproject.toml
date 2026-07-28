@@ -3,7 +3,7 @@ name = "financial-tracker"
 version = "0.1.0"
 description = "Luca Marchetti's Financial Tracker"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.12.*"
 authors = [{ name = "Luca Marchetti", email = "lucamarche02@gmail.com" }]
 dependencies = [
   "flet>=0.85.0",
