@@ -4,6 +4,7 @@ import sqlite3 as sq
 
 from database.data_structures.account import Account, AccountKind
 from database.data_structures.expense import Expense
+from database.data_structures.holding import Holding, HoldingKind, ReplicationMethod
 from database.data_structures.transfer import Transfer
 
 
@@ -132,6 +133,39 @@ class TestInitFromTuple:
         reconstructed = Account.init_from_tuple(row)
 
         assert reconstructed.kind is AccountKind.EMERGENCY
+
+    def test_restores_a_none_optional_enum_field_as_none(self) -> None:
+        """An `Enum | None` field stored as `None` is reconstructed as `None`, not looked up."""
+        holding = Holding(name="Fund", ticker="FND", kind=HoldingKind.STOCKS, issuer="Issuer", currency="EUR")
+        row = (holding.name, holding.ticker, holding.kind.name, holding.issuer, holding.currency, holding.region, None)
+
+        reconstructed = Holding.init_from_tuple(row)
+
+        assert reconstructed.replication is None
+
+    def test_restores_a_set_optional_enum_field_by_name(self) -> None:
+        """An `Enum | None` field stored with a value is reconstructed into the enum member."""
+        holding = Holding(
+            name="Fund",
+            ticker="FND",
+            kind=HoldingKind.STOCKS,
+            issuer="Issuer",
+            currency="EUR",
+            replication=ReplicationMethod.SAMPLED,
+        )
+        row = (
+            holding.name,
+            holding.ticker,
+            holding.kind.name,
+            holding.issuer,
+            holding.currency,
+            holding.region,
+            holding.replication.name,
+        )
+
+        reconstructed = Holding.init_from_tuple(row)
+
+        assert reconstructed.replication is ReplicationMethod.SAMPLED
 
 
 class TestMonthColumn:

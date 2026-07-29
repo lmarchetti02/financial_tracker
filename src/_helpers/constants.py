@@ -10,6 +10,7 @@ INCOME_DB_NAME = "income"
 TRANSFERS_DB_NAME = "transfers"
 ACCOUNTS_DB_NAME = "accounts"
 ACCOUNT_BALANCES_DB_NAME = "account_balances"
+HOLDINGS_DB_NAME = "holdings"
 CONFIG_DB_NAME = "config"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

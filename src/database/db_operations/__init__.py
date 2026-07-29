@@ -47,6 +47,8 @@ from .generic import fetch_by_id as fetch_by_id
 from .generic import initialize_db as initialize_db
 from .generic import list_year_profile_pairs as list_year_profile_pairs
 from .generic import remove_item as remove_item
+from .holdings import fetch_holdings as fetch_holdings
+from .holdings import refresh_holding_price as refresh_holding_price
 from .incomes import ISC as ISC
 from .incomes import IncomesSortingConfig as IncomesSortingConfig
 from .incomes import fetch_income_totals as fetch_income_totals

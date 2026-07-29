@@ -129,8 +129,8 @@ class DataContainer(ABC):
                 args = get_args(field_type)
                 field_type = next(a for a in args if a is not type(None))
 
-            # reconstruct enums
-            if isinstance(field_type, type) and issubclass(field_type, Enum):
+            # reconstruct enums, unless the stored value is a `None` for an `Enum | None` field
+            if isinstance(field_type, type) and issubclass(field_type, Enum) and value is not None:
                 kwargs[field.name] = field_type[value]
             else:
                 kwargs[field.name] = value

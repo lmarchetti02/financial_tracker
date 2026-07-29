@@ -12,7 +12,7 @@ import numpy as np
 
 from _helpers.constants import APP_DIRECTORY, DEFAULT_PROFILE_NAME
 
-from ..data_structures import Account, AccountBalance, DataContainer, Expense, Income, Transfer
+from ..data_structures import Account, AccountBalance, DataContainer, Expense, Holding, Income, Transfer
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -26,6 +26,7 @@ class WhichDb(Enum):
     TRANSFERS = auto()
     ACCOUNTS = auto()
     ACCOUNT_BALANCES = auto()
+    HOLDINGS = auto()
 
 
 _DB_TO_CLASS = {
@@ -34,6 +35,7 @@ _DB_TO_CLASS = {
     WhichDb.TRANSFERS: Transfer,
     WhichDb.ACCOUNTS: Account,
     WhichDb.ACCOUNT_BALANCES: AccountBalance,
+    WhichDb.HOLDINGS: Holding,
 }
 _CLASS_TO_DB = {
     Expense: WhichDb.EXPENSES,
@@ -41,6 +43,7 @@ _CLASS_TO_DB = {
     Transfer: WhichDb.TRANSFERS,
     Account: WhichDb.ACCOUNTS,
     AccountBalance: WhichDb.ACCOUNT_BALANCES,
+    Holding: WhichDb.HOLDINGS,
 }
 
 
@@ -210,8 +213,8 @@ def initialize_db(location: DbLocation, db: WhichDb) -> None:
 
         # create index on categories for more efficient filtering
         db_name = _DB_TO_CLASS[db].db_name
-        if db != WhichDb.ACCOUNTS:
-            # `Account` has no `month` column, unlike every other domain
+        if db not in (WhichDb.ACCOUNTS, WhichDb.HOLDINGS):
+            # `Account`/`Holding` have no `month` column, unlike every other domain
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
         if db == WhichDb.EXPENSES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")
@@ -235,6 +238,8 @@ def fetch_by_id(location: DbLocation, db: Literal[WhichDb.TRANSFERS], row_id: in
 def fetch_by_id(location: DbLocation, db: Literal[WhichDb.ACCOUNTS], row_id: int) -> Account: ...
 @overload
 def fetch_by_id(location: DbLocation, db: Literal[WhichDb.ACCOUNT_BALANCES], row_id: int) -> AccountBalance: ...
+@overload
+def fetch_by_id(location: DbLocation, db: Literal[WhichDb.HOLDINGS], row_id: int) -> Holding: ...
 def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer:
     """Fetches the expense with the desired ID.
 
@@ -269,6 +274,8 @@ def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer
         elif db == WhichDb.ACCOUNTS:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         elif db == WhichDb.ACCOUNT_BALANCES:
+            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        elif db == WhichDb.HOLDINGS:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         logger.debug(f"Object retrieved by ID:\n{data}")
 

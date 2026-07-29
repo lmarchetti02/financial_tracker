@@ -5,8 +5,14 @@ from .data_structures import Account as Account
 from .data_structures import AccountBalance as AccountBalance
 from .data_structures import AccountKind as AccountKind
 from .data_structures import DataContainer as DataContainer
+from .data_structures import DistributionPolicy as DistributionPolicy
 from .data_structures import Expense as Expense
+from .data_structures import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
+from .data_structures import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
+from .data_structures import Holding as Holding
+from .data_structures import HoldingKind as HoldingKind
 from .data_structures import Income as Income
+from .data_structures import ReplicationMethod as ReplicationMethod
 from .data_structures import Transfer as Transfer
 from .db_operations import ESC as ESC
 from .db_operations import ISC as ISC
@@ -36,6 +42,7 @@ from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_expense_totals as fetch_expense_totals
 from .db_operations import fetch_expenses as fetch_expenses
 from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
+from .db_operations import fetch_holdings as fetch_holdings
 from .db_operations import fetch_income_totals as fetch_income_totals
 from .db_operations import fetch_incomes as fetch_incomes
 from .db_operations import fetch_kinds as fetch_kinds
@@ -57,6 +64,7 @@ from .db_operations import initialize_db as initialize_db
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
 from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
+from .db_operations import refresh_holding_price as refresh_holding_price
 from .db_operations import remove_item as remove_item
 from .db_operations import rename_lookup_option as rename_lookup_option
 from .db_operations import save_account_opening_balance as save_account_opening_balance

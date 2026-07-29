@@ -14,6 +14,7 @@ from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view
+from ui.portfolio import portfolio_view
 from ui.settings import settings_view
 from ui.transfers import transfers_view
 from ui.welcome import welcome_page
@@ -72,6 +73,9 @@ def startup_layout(page: ft.Page) -> None:
                 main_content.content = accounts_view(page)
                 logger.debug("Accounts view selected")
             case 5:
+                main_content.content = portfolio_view(page)
+                logger.debug("Portfolio view selected")
+            case 6:
                 main_content.content = settings_view(page, go_to_welcome)
                 logger.debug("Settings view selected")
             case _:
@@ -94,6 +98,7 @@ def startup_layout(page: ft.Page) -> None:
             ft.NavigationRailDestination(icon=ft.Icons.MONEY, label="Income"),
             ft.NavigationRailDestination(icon=ft.Icons.PEOPLE, label="Transfers"),
             ft.NavigationRailDestination(icon=ft.Icons.ACCOUNT_BALANCE_OUTLINED, label="Accounts"),
+            ft.NavigationRailDestination(icon=ft.Icons.PIE_CHART_OUTLINE, label="Portfolio"),
             ft.NavigationRailDestination(icon=ft.Icons.SETTINGS, label="Settings"),
         ],
         on_change=menu_change,
