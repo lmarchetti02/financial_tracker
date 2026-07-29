@@ -51,9 +51,6 @@ def show_expenses_summary(page: ft.Page) -> None:
             alpha=0.8,
         )
 
-    total_per_month = np.sum(totals, axis=1)
-    plt.plot(months, total_per_month, color="black", label="Total", linewidth=2, linestyle="--")
-
     plt.grid(axis="y", linestyle="--", alpha=0.7)
     plt.grid(axis="x", linestyle="--", alpha=0.7)
     plt.xticks(months, MONTHS)
