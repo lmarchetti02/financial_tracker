@@ -104,6 +104,7 @@ class PortfolioView(ft.Column):
         )
 
         return [
+            ft.Text("Portfolio", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=40),
             upper_row,
             fund_details_row,

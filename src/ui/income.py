@@ -20,6 +20,7 @@ logger = getLogger("financial_tracker")
 class IncomeView(BaseCrudView):
     """Encapsulates the 'income' view logic and UI."""
 
+    _title = "Income"
     _heading_color = "#006400"
     _sorting_config_cls = db.IncomesSortingConfig
 

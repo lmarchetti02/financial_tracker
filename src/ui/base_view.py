@@ -20,6 +20,7 @@ logger = getLogger("financial_tracker")
 class BaseCrudView(ft.Column, ABC):
     """Shared scaffolding for a domain's add/edit/delete/sort/filter table view."""
 
+    _title: ClassVar[str]
     _heading_color: ClassVar[str]
     _sorting_config_cls: ClassVar[type[db.SortingConfig]]
 
@@ -42,7 +43,7 @@ class BaseCrudView(ft.Column, ABC):
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
         self._init_controls()
-        self.controls = self._build_layout()
+        self.controls = [ft.Text(self._title, size=30, weight=ft.FontWeight.BOLD), *self._build_layout()]
 
         try:
             self.refresh_table()

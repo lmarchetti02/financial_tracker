@@ -49,6 +49,7 @@ class SettingsView(ft.Column):
         )
 
         self.controls = [
+            ft.Text("Settings", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=40),
             year_section,
             ft.Container(height=20),

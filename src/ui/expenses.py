@@ -25,6 +25,7 @@ DATE_OPTIONS = [
 class ExpensesView(BaseCrudView):
     """Encapsulates the 'add expense' view logic and UI."""
 
+    _title = "Expenses"
     _heading_color = "#960000"
     _sorting_config_cls = db.ExpensesSortingConfig
 

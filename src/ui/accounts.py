@@ -77,6 +77,7 @@ class AccountsView(ft.Column):
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
         return [
+            ft.Text("Accounts", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=20),
             ft.Text("Monthly balances (€)", size=20, weight=ft.FontWeight.BOLD),
             self.balance_grid_container,

@@ -21,6 +21,7 @@ logger = getLogger("financial_tracker")
 class TransfersView(BaseCrudView):
     """Encapsulates the 'transfers' view logic and UI."""
 
+    _title = "Transfers"
     _heading_color = "#00008B"
     _sorting_config_cls = db.TransfersSortingConfig
 
