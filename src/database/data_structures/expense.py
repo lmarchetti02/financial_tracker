@@ -32,6 +32,9 @@ class Expense(DataContainer):
         category (str): The category of the expense, one of the entries managed from the
             settings page (see `database.db_operations.config`).
         cost (float): The cost of the expense (greater than zero).
+        cost_expression (str | None): The raw text (a number or an arithmetic expression) the
+            user typed into the cost field, redisplayed when editing the expense. `None` for
+            rows created before this field existed. Defaults to `None`.
     """
 
     db_name = EXPENSES_DB_NAME
@@ -42,6 +45,7 @@ class Expense(DataContainer):
     description: str
     category: str
     cost: float = Field(gt=0.0)
+    cost_expression: str | None = None
 
     @model_validator(mode="after")
     def valid_day_end(self) -> Self:

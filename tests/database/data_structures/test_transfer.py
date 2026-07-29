@@ -76,6 +76,22 @@ class TestTransfer:
         assert transfer.profit is None
         assert transfer.profit_income_id is None
 
+    def test_expression_fields_default_to_none(self) -> None:
+        """`amount_expression`/`fee_expression`/`profit_expression` default to `None`."""
+        transfer = make_transfer()
+
+        assert transfer.amount_expression is None
+        assert transfer.fee_expression is None
+        assert transfer.profit_expression is None
+
+    def test_expression_fields_round_trip_when_set(self) -> None:
+        """`amount_expression`/`fee_expression`/`profit_expression` store the raw text verbatim."""
+        transfer = make_transfer(amount_expression="50+50", fee_expression="1+0,5", profit_expression="10*2,5")
+
+        assert transfer.amount_expression == "50+50"
+        assert transfer.fee_expression == "1+0,5"
+        assert transfer.profit_expression == "10*2,5"
+
 
 class TestGetTableColumns:
     """Tests for `Transfer.get_table_columns`."""

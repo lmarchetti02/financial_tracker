@@ -7,7 +7,8 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.formatting import format_amount, parse_amount
+from _helpers.expression_parser import evaluate_expression
+from _helpers.formatting import format_amount
 from plotting import show_expenses_pie, show_expenses_summary
 
 from .base_view import BaseCrudView
@@ -159,9 +160,13 @@ class ExpensesView(BaseCrudView):
             return None
 
         try:
-            cost = parse_amount(self.cost_text.value)
+            cost = evaluate_expression(self.cost_text.value)
         except ValueError:
-            show_alert(self._page, "Invalid cost", "The cost must be a real number (comma for decimals allowed).")
+            show_alert(
+                self._page,
+                "Invalid cost",
+                "The cost must be a real number or arithmetic expression (comma for decimals allowed).",
+            )
             self._page.update()
             return None
 
@@ -202,6 +207,7 @@ class ExpensesView(BaseCrudView):
             description=self.description_text.value,
             category=self.category_picker.value,
             cost=cost,
+            cost_expression=self.cost_text.value,
         )
         logger.debug(f"Reconstructed expense:\n{expense}")
 
@@ -313,7 +319,9 @@ class ExpensesView(BaseCrudView):
     def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
         """Populates the add-expense controls with an existing expense's values."""
         self.category_picker.value = expense.category
-        self.cost_text.value = format_amount(expense.cost)
+        self.cost_text.value = (
+            expense.cost_expression if expense.cost_expression is not None else format_amount(expense.cost)
+        )
         self.description_text.value = expense.description
 
         if expense.day_end is not None:

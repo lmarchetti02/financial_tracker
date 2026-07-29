@@ -40,6 +40,13 @@ class Transfer(DataContainer):
             Defaults to `None`.
         profit_income_id (int | None): The id of the `:class:Income` row generated for `profit`,
             used to keep it in sync when the transfer is edited or deleted. Defaults to `None`.
+        amount_expression (str | None): The raw text (a number or an arithmetic expression) the
+            user typed into the amount field, redisplayed when editing the transfer. `None` for
+            rows created before this field existed. Defaults to `None`.
+        fee_expression (str | None): Same as `amount_expression`, but for `fee`. `None` when
+            `fee` is `None`. Defaults to `None`.
+        profit_expression (str | None): Same as `amount_expression`, but for `profit`. `None`
+            when `profit` is `None`. Defaults to `None`.
     """
 
     db_name = TRANSFERS_DB_NAME
@@ -55,6 +62,12 @@ class Transfer(DataContainer):
     fee_expense_id: int | None = None
     profit: float | None = Field(default=None, gt=0.0)
     profit_income_id: int | None = None
+    # These 3 must stay declared last: `add_missing_columns` always appends new columns to the
+    # physical end of an already-existing table, so a field declared anywhere else here would
+    # desync `init_from_tuple`'s positional zip for any transfer database that predates it.
+    amount_expression: str | None = None
+    fee_expression: str | None = None
+    profit_expression: str | None = None
 
     @model_validator(mode="after")
     def valid_source_or_destination(self) -> Self:

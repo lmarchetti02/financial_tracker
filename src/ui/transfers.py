@@ -9,7 +9,8 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import SYSTEM_CATEGORY_TRADING_FEE, SYSTEM_KIND_INVESTMENT, SYSTEM_SOURCE_INVESTMENTS
-from _helpers.formatting import format_amount, parse_amount
+from _helpers.expression_parser import evaluate_expression
+from _helpers.formatting import format_amount
 
 from .base_view import BaseCrudView
 from .common import show_alert
@@ -170,9 +171,13 @@ class TransfersView(BaseCrudView):
             return None
 
         try:
-            amount = parse_amount(self.amount_text.value)
+            amount = evaluate_expression(self.amount_text.value)
         except ValueError:
-            show_alert(self._page, "Invalid amount", "The amount must be a real number (comma for decimals allowed).")
+            show_alert(
+                self._page,
+                "Invalid amount",
+                "The amount must be a real number or arithmetic expression (comma for decimals allowed).",
+            )
             self._page.update()
             return None
 
@@ -188,11 +193,16 @@ class TransfersView(BaseCrudView):
             return None
 
         fee = None
+        fee_expression = None
         if self.fee_text.value:
             try:
-                fee = parse_amount(self.fee_text.value)
+                fee = evaluate_expression(self.fee_text.value)
             except ValueError:
-                show_alert(self._page, "Invalid fee", "The fee must be a real number (comma for decimals allowed).")
+                show_alert(
+                    self._page,
+                    "Invalid fee",
+                    "The fee must be a real number or arithmetic expression (comma for decimals allowed).",
+                )
                 self._page.update()
                 return None
 
@@ -201,13 +211,18 @@ class TransfersView(BaseCrudView):
                 self._page.update()
                 return None
 
+            fee_expression = self.fee_text.value
+
         profit = None
+        profit_expression = None
         if self.profit_text.value:
             try:
-                profit = parse_amount(self.profit_text.value)
+                profit = evaluate_expression(self.profit_text.value)
             except ValueError:
                 show_alert(
-                    self._page, "Invalid profit", "The profit must be a real number (comma for decimals allowed)."
+                    self._page,
+                    "Invalid profit",
+                    "The profit must be a real number or arithmetic expression (comma for decimals allowed).",
                 )
                 self._page.update()
                 return None
@@ -216,6 +231,8 @@ class TransfersView(BaseCrudView):
                 show_alert(self._page, "Invalid profit", "The profit must be greater than zero.")
                 self._page.update()
                 return None
+
+            profit_expression = self.profit_text.value
 
         date_local = self.date_picker.value.astimezone()
 
@@ -227,8 +244,11 @@ class TransfersView(BaseCrudView):
             source=source,
             destination=destination,
             amount=amount,
+            amount_expression=self.amount_text.value,
             fee=fee,
+            fee_expression=fee_expression,
             profit=profit,
+            profit_expression=profit_expression,
         )
         logger.debug(f"Reconstructed transfer:\n{transfer}")
 
@@ -445,9 +465,21 @@ class TransfersView(BaseCrudView):
         self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
         self.kind_picker.value = transfer.kind
         self.update_investment_fields_state()
-        self.amount_text.value = format_amount(transfer.amount)
-        self.fee_text.value = format_amount(transfer.fee) if transfer.fee is not None else ""
-        self.profit_text.value = format_amount(transfer.profit) if transfer.profit is not None else ""
+        self.amount_text.value = (
+            transfer.amount_expression if transfer.amount_expression is not None else format_amount(transfer.amount)
+        )
+        if transfer.fee is not None:
+            self.fee_text.value = (
+                transfer.fee_expression if transfer.fee_expression is not None else format_amount(transfer.fee)
+            )
+        else:
+            self.fee_text.value = ""
+        if transfer.profit is not None:
+            self.profit_text.value = (
+                transfer.profit_expression if transfer.profit_expression is not None else format_amount(transfer.profit)
+            )
+        else:
+            self.profit_text.value = ""
         self.description_text.value = transfer.description
         self.source_text.value = transfer.source or ""
         self.destination_text.value = transfer.destination or ""

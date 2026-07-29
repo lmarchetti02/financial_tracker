@@ -7,7 +7,8 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.formatting import format_amount, parse_amount
+from _helpers.expression_parser import evaluate_expression
+from _helpers.formatting import format_amount
 from plotting import show_income_pie, show_income_summary
 
 from .base_view import BaseCrudView
@@ -124,9 +125,13 @@ class IncomeView(BaseCrudView):
             return None
 
         try:
-            cost = parse_amount(self.amount_text.value)
+            cost = evaluate_expression(self.amount_text.value)
         except ValueError:
-            show_alert(self._page, "Invalid cost", "The cost must be a real number (comma for decimals allowed).")
+            show_alert(
+                self._page,
+                "Invalid cost",
+                "The cost must be a real number or arithmetic expression (comma for decimals allowed).",
+            )
             self._page.update()
             return None
 
@@ -135,6 +140,7 @@ class IncomeView(BaseCrudView):
             source=self.source_picker.value,
             description=self.description_text.value,
             amount=cost,
+            amount_expression=self.amount_text.value,
         )
         logger.debug(f"Reconstructed income:\n{income}")
 
@@ -233,7 +239,9 @@ class IncomeView(BaseCrudView):
         """Populates the add-income controls with an existing income's values."""
         self.month_picker.value = str(income.month)
         self.source_picker.value = income.source
-        self.amount_text.value = format_amount(income.amount)
+        self.amount_text.value = (
+            income.amount_expression if income.amount_expression is not None else format_amount(income.amount)
+        )
         self.description_text.value = income.description
 
     def reset_add_button(self) -> None:

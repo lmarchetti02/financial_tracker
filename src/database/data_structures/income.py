@@ -26,6 +26,9 @@ class Income(DataContainer):
         source (str): The source of income, one of the entries managed from the settings page
             (see `database.db_operations.config`).
         amount (float): The cost of the expense (greater than zero).
+        amount_expression (str | None): The raw text (a number or an arithmetic expression) the
+            user typed into the amount field, redisplayed when editing the income. `None` for
+            rows created before this field existed. Defaults to `None`.
     """
 
     db_name = INCOME_DB_NAME
@@ -34,6 +37,7 @@ class Income(DataContainer):
     source: str
     description: str
     amount: float = Field(gt=0.0)
+    amount_expression: str | None = None
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102

@@ -56,6 +56,18 @@ class TestExpense:
         with pytest.raises(ValueError):
             make_expense(cost=0.0)
 
+    def test_cost_expression_defaults_to_none(self) -> None:
+        """`cost_expression` defaults to `None` when not provided."""
+        expense = make_expense()
+
+        assert expense.cost_expression is None
+
+    def test_cost_expression_round_trips_when_set(self) -> None:
+        """`cost_expression` stores the raw text passed in verbatim."""
+        expense = make_expense(cost_expression="10+3-2")
+
+        assert expense.cost_expression == "10+3-2"
+
 
 class TestGetTableColumns:
     """Tests for `Expense.get_table_columns`."""

@@ -31,6 +31,18 @@ class TestIncome:
         with pytest.raises(ValueError):
             make_income(amount=0.0)
 
+    def test_amount_expression_defaults_to_none(self) -> None:
+        """`amount_expression` defaults to `None` when not provided."""
+        income = make_income()
+
+        assert income.amount_expression is None
+
+    def test_amount_expression_round_trips_when_set(self) -> None:
+        """`amount_expression` stores the raw text passed in verbatim."""
+        income = make_income(amount_expression="1000+500")
+
+        assert income.amount_expression == "1000+500"
+
 
 class TestGetTableColumns:
     """Tests for `Income.get_table_columns`."""
