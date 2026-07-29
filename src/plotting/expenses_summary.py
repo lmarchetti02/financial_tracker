@@ -18,18 +18,18 @@ from ._common import current_db_location
 logger = getLogger("financial_tracker")
 
 
-def show_expenses_summary(page: ft.Page) -> None:
-    """Generates the plot showing a summary of the expenses."""
+def show_expenses_summary(page: ft.Page, category: str | None = None) -> None:
+    """Generates the plot showing a summary of the expenses, optionally filtered to one category."""
     logger.info("Called 'show_expenses_summary'")
 
     location = current_db_location(page)
 
     # get data
-    categories = fetch_categories()
+    categories = [category] if category is not None else fetch_categories()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = np.zeros((len(months), len(categories)), dtype=np.float32)
-    for i, category in enumerate(categories):
-        totals[:, i] = fetch_category(location, category)
+    for i, cat in enumerate(categories):
+        totals[:, i] = fetch_category(location, cat)
 
     # plot
     fig = plt.figure()
@@ -56,7 +56,8 @@ def show_expenses_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Expenses Summary {location.year}")
+    title = f"Expenses Summary {location.year}"
+    plt.title(title if category is None else f"{title} — {category}")
     plt.ylabel("Total (€)", fontsize=12)
     plt.legend()
 

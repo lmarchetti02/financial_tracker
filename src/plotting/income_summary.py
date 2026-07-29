@@ -18,18 +18,18 @@ from ._common import current_db_location
 logger = getLogger("financial_tracker")
 
 
-def show_income_summary(page: ft.Page) -> None:
-    """Generates the plot showing a summary of the incomes."""
+def show_income_summary(page: ft.Page, source: str | None = None) -> None:
+    """Generates the plot showing a summary of the incomes, optionally filtered to one source."""
     logger.info("Called 'show_income_summary'")
 
     location = current_db_location(page)
 
     # get data
-    sources = fetch_sources()
+    sources = [source] if source is not None else fetch_sources()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = np.zeros((len(months), len(sources)), dtype=np.float32)
-    for i, source in enumerate(sources):
-        totals[:, i] = fetch_source(location, source)
+    for i, src in enumerate(sources):
+        totals[:, i] = fetch_source(location, src)
 
     # plot
     fig = plt.figure()
@@ -56,7 +56,8 @@ def show_income_summary(page: ft.Page) -> None:
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
-    plt.title(f"Income Summary {location.year}")
+    title = f"Income Summary {location.year}"
+    plt.title(title if source is None else f"{title} — {source}")
     plt.ylabel("Total (€)", fontsize=12)
     plt.legend()
 

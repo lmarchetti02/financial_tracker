@@ -78,7 +78,7 @@ class ExpensesView(BaseCrudView):
             "Show Summary",
             icon=ft.Icons.BAR_CHART,
             color="#006400",
-            on_click=lambda _: show_expenses_summary(self._page),
+            on_click=lambda _: show_expenses_summary(self._page, self.current_enum_filter),
         )
 
         self.pie_chart_button = ft.Button(
