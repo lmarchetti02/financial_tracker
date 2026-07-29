@@ -306,7 +306,10 @@ class PortfolioView(ft.Column):
 
         def info_row(label: str, value: str) -> ft.Row:
             """Builds one "label: value" line of the info dialog."""
-            return ft.Row([ft.Text(label, weight=ft.FontWeight.BOLD, width=110), ft.Text(value)])
+            return ft.Row(
+                [ft.Text(label, weight=ft.FontWeight.BOLD, width=110), ft.Text(value, expand=True)],
+                vertical_alignment=ft.CrossAxisAlignment.START,
+            )
 
         rows = [
             info_row("Ticker", holding.ticker),
@@ -327,8 +330,8 @@ class PortfolioView(ft.Column):
 
         self._page.show_dialog(
             ft.AlertDialog(
-                title=ft.Text(holding.name),
-                content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=420),
+                title=ft.Text(holding.name, width=380, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=450),
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
             )
         )
