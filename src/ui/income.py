@@ -9,7 +9,7 @@ import database as db
 from _helpers.constants import MONTHS
 from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
-from plotting import show_income_pie, show_income_summary
+from plotting import show_income_pie, show_income_summary, show_income_trend
 
 from .base_view import BaseCrudView
 from .common import show_alert
@@ -77,6 +77,13 @@ class IncomeView(BaseCrudView):
             on_click=lambda _: show_income_pie(self._page, self.current_month_filter),
         )
 
+        self.trend_button = ft.Button(
+            "Show Trend",
+            icon=ft.Icons.BAR_CHART,
+            color="#006400",
+            on_click=lambda _: show_income_trend(self._page),
+        )
+
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
         upper_row = ft.Row(
@@ -97,7 +104,9 @@ class IncomeView(BaseCrudView):
             ft.Row([self.add_income_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=10),
             self.table_column,
-            ft.Row([self.summary_button, self.pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Row(
+                [self.summary_button, self.pie_chart_button, self.trend_button], alignment=ft.MainAxisAlignment.CENTER
+            ),
         ]
 
     def get_income_from_inputs(self) -> db.Income | None:

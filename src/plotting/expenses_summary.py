@@ -11,7 +11,7 @@ from matplotlib.colors import TABLEAU_COLORS
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
-from database import fetch_categories, fetch_category
+from database import fetch_categories, fetch_category, fetch_expense_totals
 
 from ._common import current_db_location
 
@@ -58,6 +58,72 @@ def show_expenses_summary(page: ft.Page, category: str | None = None) -> None:
 
     title = f"Expenses Summary {location.year}"
     plt.title(title if category is None else f"{title} — {category}")
+    plt.ylabel("Total (€)", fontsize=12)
+    plt.legend()
+
+    fig.tight_layout()
+
+    # show popup
+    if page.width is None or page.height is None:
+        raise RuntimeError("Cannot retrieve the page size.")
+
+    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    popup = ft.AlertDialog(
+        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
+        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
+    )
+
+    page.show_dialog(popup)
+    page.update()
+
+
+def show_expenses_trend(page: ft.Page) -> None:
+    """Generates a line plot of total expenses by month, with the yearly average as a dotted reference line."""
+    logger.info("Called 'show_expenses_trend'")
+
+    location = current_db_location(page)
+
+    # get data
+    months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
+    totals = fetch_expense_totals(location)
+
+    if not totals.any():
+        page.show_dialog(
+            ft.AlertDialog(
+                ft.Text("Empty monthly expenses"),
+                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
+            )
+        )
+        page.update()
+        return
+
+    average = totals.mean()
+
+    # plot
+    fig = plt.figure()
+
+    plt.axhline(average, linestyle=":", color="firebrick", linewidth=1.5, label=f"{location.year} average")
+    plt.plot(months, totals, color="#960000", linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
+    plt.plot(months, totals, marker="o", linestyle="none", color="#960000", markersize=6, zorder=2)
+
+    percent_of_average = (totals - average) / average * 100
+    for month, value, pct in zip(months, totals, percent_of_average):
+        plt.annotate(
+            f"{pct:+.1f}%",
+            (month, value),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            fontsize=8,
+            color="darkgreen" if pct <= 0 else "firebrick",
+        )
+
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.xticks(months, MONTHS)
+    plt.xlim(0.75, 12.25)
+
+    plt.title(f"Expenses Trend {location.year}")
     plt.ylabel("Total (€)", fontsize=12)
     plt.legend()
 

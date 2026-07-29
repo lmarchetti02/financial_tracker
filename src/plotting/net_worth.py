@@ -46,7 +46,8 @@ def show_net_worth_summary(page: ft.Page) -> None:
     plt.axhline(
         previous_year_end, linestyle="--", color="firebrick", linewidth=1.5, label=f"{location.year - 1} year-end"
     )
-    plt.plot(months, net_worth, marker="o", color="#1565C0", linewidth=2, markersize=6, label=str(location.year))
+    plt.plot(months, net_worth, color="#1565C0", linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
+    plt.plot(months, net_worth, marker="o", linestyle="none", color="#1565C0", markersize=6, zorder=2)
 
     if previous_year_end != 0:
         percent_change = (net_worth - previous_year_end) / previous_year_end * 100
