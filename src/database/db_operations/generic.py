@@ -12,7 +12,9 @@ import numpy as np
 
 from _helpers.constants import APP_DIRECTORY, DEFAULT_PROFILE_NAME
 
-from ..data_structures import Account, AccountBalance, DataContainer, Expense, Holding, Income, Transfer
+from ..data_structures import (Account, AccountBalance, DataContainer, Expense,
+                               Holding, HoldingRegionAllocation, Income,
+                               Transfer)
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -27,6 +29,7 @@ class WhichDb(Enum):
     ACCOUNTS = auto()
     ACCOUNT_BALANCES = auto()
     HOLDINGS = auto()
+    HOLDING_REGION_ALLOCATIONS = auto()
 
 
 _DB_TO_CLASS = {
@@ -36,6 +39,7 @@ _DB_TO_CLASS = {
     WhichDb.ACCOUNTS: Account,
     WhichDb.ACCOUNT_BALANCES: AccountBalance,
     WhichDb.HOLDINGS: Holding,
+    WhichDb.HOLDING_REGION_ALLOCATIONS: HoldingRegionAllocation,
 }
 _CLASS_TO_DB = {
     Expense: WhichDb.EXPENSES,
@@ -44,6 +48,7 @@ _CLASS_TO_DB = {
     Account: WhichDb.ACCOUNTS,
     AccountBalance: WhichDb.ACCOUNT_BALANCES,
     Holding: WhichDb.HOLDINGS,
+    HoldingRegionAllocation: WhichDb.HOLDING_REGION_ALLOCATIONS,
 }
 
 
@@ -213,8 +218,8 @@ def initialize_db(location: DbLocation, db: WhichDb) -> None:
 
         # create index on categories for more efficient filtering
         db_name = _DB_TO_CLASS[db].db_name
-        if db not in (WhichDb.ACCOUNTS, WhichDb.HOLDINGS):
-            # `Account`/`Holding` have no `month` column, unlike every other domain
+        if db not in (WhichDb.ACCOUNTS, WhichDb.HOLDINGS, WhichDb.HOLDING_REGION_ALLOCATIONS):
+            # `Account`/`Holding`/`HoldingRegionAllocation` have no `month` column, unlike every other domain
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
         if db == WhichDb.EXPENSES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")
@@ -224,6 +229,8 @@ def initialize_db(location: DbLocation, db: WhichDb) -> None:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_kind ON {db_name}(kind)")
         elif db == WhichDb.ACCOUNT_BALANCES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_account_id ON {db_name}(account_id)")
+        elif db == WhichDb.HOLDING_REGION_ALLOCATIONS:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_holding_id ON {db_name}(holding_id)")
 
         logger.debug(f"Created table '{db_name}' inside {db_path} if it didn't already exist.")
 
@@ -240,6 +247,10 @@ def fetch_by_id(location: DbLocation, db: Literal[WhichDb.ACCOUNTS], row_id: int
 def fetch_by_id(location: DbLocation, db: Literal[WhichDb.ACCOUNT_BALANCES], row_id: int) -> AccountBalance: ...
 @overload
 def fetch_by_id(location: DbLocation, db: Literal[WhichDb.HOLDINGS], row_id: int) -> Holding: ...
+@overload
+def fetch_by_id(
+    location: DbLocation, db: Literal[WhichDb.HOLDING_REGION_ALLOCATIONS], row_id: int
+) -> HoldingRegionAllocation: ...
 def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer:
     """Fetches the expense with the desired ID.
 
@@ -276,6 +287,8 @@ def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer
         elif db == WhichDb.ACCOUNT_BALANCES:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         elif db == WhichDb.HOLDINGS:
+            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        elif db == WhichDb.HOLDING_REGION_ALLOCATIONS:
             data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
         logger.debug(f"Object retrieved by ID:\n{data}")
 

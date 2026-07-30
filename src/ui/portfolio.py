@@ -8,7 +8,8 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
 from _helpers.formatting import enum_label, format_amount, parse_amount
-from plotting import show_portfolio_diversification
+from plotting import (show_detailed_region_diversification,
+                      show_portfolio_diversification)
 
 from .common import build_styled_data_table, current_db_location, show_alert
 
@@ -73,6 +74,12 @@ class PortfolioView(ft.Column):
             color=_HEADING_COLOR,
             on_click=lambda _: show_portfolio_diversification(self._page),
         )
+        self.detailed_diversification_button = ft.Button(
+            "Detailed Diversification",
+            icon=ft.Icons.TRAVEL_EXPLORE,
+            color=_HEADING_COLOR,
+            on_click=lambda _: show_detailed_region_diversification(self._page),
+        )
         self.holdings_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
 
     def _build_layout(self) -> list[ft.Control]:
@@ -121,7 +128,8 @@ class PortfolioView(ft.Column):
             ft.Container(height=10),
             self.holdings_table_container,
             ft.Row(
-                [self.refresh_prices_button, self.diversification_button], alignment=ft.MainAxisAlignment.CENTER
+                [self.refresh_prices_button, self.diversification_button, self.detailed_diversification_button],
+                alignment=ft.MainAxisAlignment.CENTER,
             ),
         ]
 
@@ -131,8 +139,8 @@ class PortfolioView(ft.Column):
         self.ticker_text.value = ""
         self.kind_dropdown.value = None
         self.issuer_text.value = ""
-        self.currency_text.value = ""
         self.region_text.value = ""
+        self.currency_text.value = ""
         self.replication_dropdown.value = None
         self.distribution_dropdown.value = None
         self.ter_text.value = ""
@@ -232,7 +240,7 @@ class PortfolioView(ft.Column):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the holding."""
-            db.remove_item(self.location, db.WhichDb.HOLDINGS, holding_id)
+            db.delete_holding(self.location, holding_id)
             self._page.pop_dialog()
             self.refresh()
 
@@ -289,8 +297,8 @@ class PortfolioView(ft.Column):
         self.ticker_text.value = holding.ticker
         self.kind_dropdown.value = str(holding.kind.value)
         self.issuer_text.value = holding.issuer
-        self.currency_text.value = holding.currency
         self.region_text.value = holding.region or ""
+        self.currency_text.value = holding.currency
         self.replication_dropdown.value = str(holding.replication.value) if holding.replication is not None else None
         self.distribution_dropdown.value = str(holding.distribution.value) if holding.distribution is not None else None
         self.ter_text.value = format_amount(holding.ter, decimals=2) if holding.ter is not None else ""
@@ -312,6 +320,7 @@ class PortfolioView(ft.Column):
         type_pct = (
             f"{format_amount(total / kind_total * 100, decimals=1)}%" if total is not None and kind_total else "—"
         )
+        region_summary = self._region_allocation_summary(holding_id)
 
         def info_row(label: str, value: str) -> ft.Row:
             """Builds one "label: value" line of the info dialog."""
@@ -326,6 +335,7 @@ class PortfolioView(ft.Column):
             info_row("Issuer", holding.issuer),
             info_row("Currency", holding.currency),
             info_row("Region", holding.region or "—"),
+            info_row("Detailed Regions", region_summary),
             info_row("Replication", enum_label(holding.replication) if holding.replication is not None else "—"),
             info_row("Distribution", enum_label(holding.distribution) if holding.distribution is not None else "—"),
             info_row("Notes", holding.notes or "—"),
@@ -342,6 +352,129 @@ class PortfolioView(ft.Column):
                 title=ft.Text(holding.name, width=380, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
                 content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=430),
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
+            )
+        )
+
+    def _region_allocation_summary(self, holding_id: int) -> str:
+        """Builds a human-readable summary of a holding's region breakdown, e.g. "Europe 60.0%, Unallocated 40.0%"."""
+        allocations = self.region_allocations.get(holding_id, {})
+        if not allocations:
+            return "—"
+
+        allocated_pct = sum(allocations.values())
+        remainder = max(0.0, 100.0 - allocated_pct)
+
+        parts = [f"{region} {format_amount(pct, decimals=1)}%" for region, pct in sorted(allocations.items())]
+        if remainder > 0:
+            parts.append(f"Unallocated {format_amount(remainder, decimals=1)}%")
+
+        return ", ".join(parts)
+
+    def edit_region_allocations(self, e: ft.Event) -> None:
+        """Opens a dialog to enter/edit a holding's regional-exposure percentage breakdown."""
+        logger.info("Called 'edit_region_allocations'")
+        holding_id = e.control.data
+        holding = next(h for hid, h in self.holdings if hid == holding_id)
+
+        regions = db.fetch_regions()
+        if not regions:
+            show_alert(self._page, "No regions configured", "There are no detailed regions configured yet.")
+            return
+
+        existing = self.region_allocations.get(holding_id, {})
+        total_text = ft.Text(f"Total: {format_amount(sum(existing.values()), decimals=2)}%", weight=ft.FontWeight.BOLD)
+
+        def update_total(_: ft.Event) -> None:
+            """Recomputes and displays the sum of every entered percentage."""
+            total = 0.0
+            for field in region_fields.values():
+                raw_value = (field.value or "").strip()
+                if not raw_value:
+                    continue
+                try:
+                    total += parse_amount(raw_value)
+                except ValueError:
+                    continue
+
+            total_text.value = f"Total: {format_amount(total, decimals=2)}%"
+            self._page.update()
+
+        region_fields = {
+            region: ft.TextField(
+                label=region,
+                value=format_amount(existing[region], decimals=2) if region in existing else "",
+                width=220,
+                suffix="%",
+                on_change=update_total,
+            )
+            for region in regions
+        }
+
+        def save(_: ft.Event) -> None:
+            """Validates and persists the entered breakdown."""
+            allocations: dict[str, float] = {}
+            total = 0.0
+            for region, field in region_fields.items():
+                raw_value = (field.value or "").strip()
+                if not raw_value:
+                    continue
+
+                try:
+                    percentage = parse_amount(raw_value)
+                except ValueError:
+                    show_alert(self._page, "Invalid percentage", f"'{region}' must be a real number.")
+                    return
+                if not (0 < percentage <= 100):
+                    show_alert(self._page, "Invalid percentage", f"'{region}' must be between 0 and 100.")
+                    return
+
+                allocations[region] = percentage
+                total += percentage
+
+            if total > 100.0001:
+                show_alert(self._page, "Allocation exceeds 100%", "The entered percentages add up to more than 100%.")
+                return
+
+            db.save_region_allocations(self.location, holding_id, allocations)
+            logger.debug(f"Saved region allocations for holding {holding_id}:\n{allocations}")
+
+            self._page.pop_dialog()
+            self.refresh()
+
+        fields = list(region_fields.values())
+        midpoint = (len(fields) + 1) // 2
+        columns = ft.Row(
+            controls=[  # type: ignore
+                ft.Column(controls=fields[:midpoint], tight=True),  # type: ignore
+                ft.Column(controls=fields[midpoint:], tight=True),  # type: ignore
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            spacing=20,
+        )
+
+        self._page.show_dialog(
+            ft.AlertDialog(
+                title=ft.Text(
+                    f"Detailed Regions — {holding.name}", width=420, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS
+                ),
+                content=ft.Column(
+                    controls=[
+                        total_text,
+                        ft.Column(
+                            controls=[ft.Container(columns, padding=ft.Padding(left=0, top=10, right=0, bottom=0))],
+                            tight=True,
+                            scroll=ft.ScrollMode.AUTO,
+                            height=430,
+                        ),
+                    ],
+                    tight=True,
+                    width=460,
+                ),
+                actions=[
+                    ft.TextButton("Save", on_click=save),
+                    ft.TextButton("Cancel", on_click=lambda _: self._page.pop_dialog()),
+                ],
             )
         )
 
@@ -394,6 +527,7 @@ class PortfolioView(ft.Column):
         logger.info("Called 'refresh'")
 
         self.holdings = db.fetch_holdings(self.location)
+        self.region_allocations = db.fetch_region_allocations(self.location)
         self._totals, self._grand_total, self._kind_totals, self._weighted_ter = self._compute_totals(self.holdings)
         self.holdings_table_container.controls = self._build_holdings_section()
 
@@ -451,7 +585,7 @@ class PortfolioView(ft.Column):
             DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150),
             DataColumn2(label=ft.Text("Total (%)"), numeric=True, fixed_width=100),
             DataColumn2(label=ft.Text("Type (%)"), numeric=True, fixed_width=100),
-            DataColumn2(label=ft.Text(""), fixed_width=190),
+            DataColumn2(label=ft.Text(""), fixed_width=240),
         ]
 
         rows = []
@@ -505,6 +639,15 @@ class PortfolioView(ft.Column):
                                 height=30,
                                 data=holding_id,
                                 on_click=self.show_holding_info,
+                            ),
+                            ft.Button(
+                                icon=ft.Icons.PUBLIC,
+                                width=50,
+                                height=30,
+                                data=holding_id,
+                                color=_HEADING_COLOR,
+                                tooltip="Detailed Regions",
+                                on_click=self.edit_region_allocations,
                             ),
                             ft.Button(
                                 icon=ft.Icons.EDIT,

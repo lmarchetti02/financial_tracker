@@ -5,11 +5,13 @@ from dataclasses import replace
 from datetime import date
 from logging import getLogger
 
-from _helpers.constants import HOLDINGS_DB_NAME
+from _helpers.constants import (HOLDING_REGION_ALLOCATIONS_DB_NAME,
+                                HOLDINGS_DB_NAME)
 from _helpers.market_data import fetch_price
 
-from ..data_structures import Holding
-from .generic import DbLocation, edit_item, get_db_path
+from ..data_structures import Holding, HoldingRegionAllocation
+from .generic import (DbLocation, WhichDb, add_item, edit_item, get_db_path,
+                      remove_item)
 
 logger = getLogger("financial_tracker")
 
@@ -67,3 +69,64 @@ def refresh_holding_price(location: DbLocation, holding_id: int, holding: Holdin
     logger.debug(f"Refreshed price for holding {holding_id} ('{holding.ticker}'): {price}")
 
     return updated
+
+
+def fetch_region_allocations(location: DbLocation) -> dict[int, dict[str, float]]:
+    """Fetches every holding's region breakdown at once.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the holdings in the database.
+
+    Returns:
+        dict[int, dict[str, float]]: For each holding id, a `{region: percentage}` mapping of its
+            entered breakdown. Holdings with no entered breakdown are simply absent.
+    """
+    logger.info("Called 'fetch_region_allocations'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        rows = connection.execute(
+            f"SELECT holding_id, region, percentage FROM {HOLDING_REGION_ALLOCATIONS_DB_NAME}"
+        ).fetchall()
+
+    allocations: dict[int, dict[str, float]] = {}
+    for holding_id, region, percentage in rows:
+        allocations.setdefault(holding_id, {})[region] = percentage
+
+    return allocations
+
+
+def save_region_allocations(location: DbLocation, holding_id: int, allocations: dict[str, float]) -> None:
+    """Replaces a holding's entire region breakdown.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the holding in the database.
+        holding_id (int): The id of the holding whose breakdown to replace.
+        allocations (dict[str, float]): The new `{region: percentage}` breakdown.
+    """
+    logger.info("Called 'save_region_allocations'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        connection.execute(f"DELETE FROM {HOLDING_REGION_ALLOCATIONS_DB_NAME} WHERE holding_id = ?", (holding_id,))
+
+    for region, percentage in allocations.items():
+        add_item(location, HoldingRegionAllocation(holding_id=holding_id, region=region, percentage=percentage))
+
+    logger.debug(f"Saved region allocations for holding {holding_id}:\n{allocations}")
+
+
+def delete_holding(location: DbLocation, holding_id: int) -> bool:
+    """Deletes a holding and its region allocations.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the holding in the database.
+        holding_id (int): The id of the holding to delete.
+
+    Returns:
+        bool: `True` if the holding was deleted, `False` otherwise.
+    """
+    logger.info("Called 'delete_holding'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        connection.execute(f"DELETE FROM {HOLDING_REGION_ALLOCATIONS_DB_NAME} WHERE holding_id = ?", (holding_id,))
+
+    return remove_item(location, WhichDb.HOLDINGS, holding_id)

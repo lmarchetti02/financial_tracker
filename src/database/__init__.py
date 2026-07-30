@@ -11,6 +11,7 @@ from .data_structures import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
 from .data_structures import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
 from .data_structures import Holding as Holding
 from .data_structures import HoldingKind as HoldingKind
+from .data_structures import HoldingRegionAllocation as HoldingRegionAllocation
 from .data_structures import Income as Income
 from .data_structures import ReplicationMethod as ReplicationMethod
 from .data_structures import Transfer as Transfer
@@ -31,6 +32,7 @@ from .db_operations import add_lookup_option as add_lookup_option
 from .db_operations import compute_holding_value as compute_holding_value
 from .db_operations import delete_account as delete_account
 from .db_operations import delete_balance as delete_balance
+from .db_operations import delete_holding as delete_holding
 from .db_operations import delete_lookup_option as delete_lookup_option
 from .db_operations import delete_previous_year_end_balance as delete_previous_year_end_balance
 from .db_operations import edit_item as edit_item
@@ -54,6 +56,8 @@ from .db_operations import fetch_previous_year_account_ids as fetch_previous_yea
 from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .db_operations import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
 from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
+from .db_operations import fetch_region_allocations as fetch_region_allocations
+from .db_operations import fetch_regions as fetch_regions
 from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_sources as fetch_sources
 from .db_operations import fetch_transfers as fetch_transfers
@@ -71,6 +75,7 @@ from .db_operations import rename_lookup_option as rename_lookup_option
 from .db_operations import save_account_opening_balance as save_account_opening_balance
 from .db_operations import save_balance as save_balance
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
+from .db_operations import save_region_allocations as save_region_allocations
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year
 from .db_operations import set_last_selection as set_last_selection
 from .db_operations import set_theme_preference as set_theme_preference

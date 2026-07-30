@@ -26,6 +26,7 @@ from .config import delete_lookup_option as delete_lookup_option
 from .config import fetch_categories as fetch_categories
 from .config import fetch_kinds as fetch_kinds
 from .config import fetch_lookup_options as fetch_lookup_options
+from .config import fetch_regions as fetch_regions
 from .config import fetch_sources as fetch_sources
 from .config import get_last_selection as get_last_selection
 from .config import get_theme_preference as get_theme_preference
@@ -48,8 +49,11 @@ from .generic import initialize_db as initialize_db
 from .generic import list_year_profile_pairs as list_year_profile_pairs
 from .generic import remove_item as remove_item
 from .holdings import compute_holding_value as compute_holding_value
+from .holdings import delete_holding as delete_holding
 from .holdings import fetch_holdings as fetch_holdings
+from .holdings import fetch_region_allocations as fetch_region_allocations
 from .holdings import refresh_holding_price as refresh_holding_price
+from .holdings import save_region_allocations as save_region_allocations
 from .incomes import ISC as ISC
 from .incomes import IncomesSortingConfig as IncomesSortingConfig
 from .incomes import fetch_income_totals as fetch_income_totals

@@ -6,7 +6,14 @@ import pytest
 
 from database.data_structures.holding import Holding, HoldingKind
 from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, initialize_db
-from database.db_operations.holdings import compute_holding_value, fetch_holdings, refresh_holding_price
+from database.db_operations.holdings import (
+    compute_holding_value,
+    delete_holding,
+    fetch_holdings,
+    fetch_region_allocations,
+    refresh_holding_price,
+    save_region_allocations,
+)
 
 YEAR = 2024
 LOCATION = DbLocation(YEAR)
@@ -99,3 +106,97 @@ class TestRefreshHoldingPrice:
 
         assert result is None
         assert fetch_by_id(LOCATION, WhichDb.HOLDINGS, holding_id).last_price == 163.74
+
+
+class TestFetchRegionAllocations:
+    """Tests for `fetch_region_allocations`."""
+
+    def test_returns_empty_dict_when_nothing_saved_yet(self) -> None:
+        """A holding with no entered breakdown is simply absent from the result."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        add_item(LOCATION, make_holding())
+
+        assert fetch_region_allocations(LOCATION) == {}
+
+    def test_groups_allocations_by_holding(self) -> None:
+        """Every holding's breakdown is returned, keyed by its id."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        holding_id = add_item(LOCATION, make_holding())
+
+        save_region_allocations(LOCATION, holding_id, {"North America": 60.0, "Europe": 25.0})
+
+        assert fetch_region_allocations(LOCATION) == {holding_id: {"North America": 60.0, "Europe": 25.0}}
+
+
+class TestSaveRegionAllocations:
+    """Tests for `save_region_allocations`."""
+
+    def test_persists_a_new_breakdown(self) -> None:
+        """Saving a breakdown for the first time persists every entry."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        holding_id = add_item(LOCATION, make_holding())
+
+        save_region_allocations(LOCATION, holding_id, {"North America": 60.0})
+
+        assert fetch_region_allocations(LOCATION) == {holding_id: {"North America": 60.0}}
+
+    def test_replaces_the_entire_previous_breakdown(self) -> None:
+        """Saving again drops every previously entered region, not just overlapping ones."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        holding_id = add_item(LOCATION, make_holding())
+
+        save_region_allocations(LOCATION, holding_id, {"North America": 60.0, "Europe": 25.0})
+        save_region_allocations(LOCATION, holding_id, {"Japan": 100.0})
+
+        assert fetch_region_allocations(LOCATION) == {holding_id: {"Japan": 100.0}}
+
+    def test_does_not_touch_other_holdings_breakdowns(self) -> None:
+        """Replacing one holding's breakdown leaves every other holding's breakdown untouched."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        first_id = add_item(LOCATION, make_holding(name="Fund A"))
+        second_id = add_item(LOCATION, make_holding(name="Fund B"))
+
+        save_region_allocations(LOCATION, first_id, {"North America": 100.0})
+        save_region_allocations(LOCATION, second_id, {"Europe": 100.0})
+        save_region_allocations(LOCATION, first_id, {"Japan": 100.0})
+
+        assert fetch_region_allocations(LOCATION) == {
+            first_id: {"Japan": 100.0},
+            second_id: {"Europe": 100.0},
+        }
+
+
+class TestDeleteHolding:
+    """Tests for `delete_holding`."""
+
+    def test_deletes_the_holding(self) -> None:
+        """The holding itself is removed."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        holding_id = add_item(LOCATION, make_holding())
+
+        assert delete_holding(LOCATION, holding_id) is True
+        assert fetch_holdings(LOCATION) == []
+
+    def test_cascades_to_its_region_allocations(self) -> None:
+        """Deleting a holding also removes its region breakdown, leaving no orphaned rows."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+        holding_id = add_item(LOCATION, make_holding())
+        save_region_allocations(LOCATION, holding_id, {"North America": 100.0})
+
+        delete_holding(LOCATION, holding_id)
+
+        assert fetch_region_allocations(LOCATION) == {}
+
+    def test_returns_false_for_a_nonexistent_holding(self) -> None:
+        """Deleting an id that doesn't exist reports failure."""
+        initialize_db(LOCATION, WhichDb.HOLDINGS)
+        initialize_db(LOCATION, WhichDb.HOLDING_REGION_ALLOCATIONS)
+
+        assert delete_holding(LOCATION, 999) is False

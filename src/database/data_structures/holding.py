@@ -9,7 +9,8 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from _helpers.constants import HOLDINGS_DB_NAME
+from _helpers.constants import (HOLDING_REGION_ALLOCATIONS_DB_NAME,
+                                HOLDINGS_DB_NAME)
 from _helpers.formatting import enum_label, format_amount
 
 from .base import DataContainer
@@ -72,7 +73,8 @@ class Holding(DataContainer):
         issuer (str): The fund provider/issuer, e.g. "Vanguard".
         currency (str): The holding's base currency (manual; purely informational, the app
             performs no currency conversion).
-        region (str | None): The geographic exposure, e.g. "All-world". Defaults to `None`.
+        region (str | None): An approximate, free-text geographic label, e.g. "All-world".
+            Defaults to `None`. For a real aggregate breakdown see `:class:HoldingRegionAllocation`.
         replication (ReplicationMethod | None): How an ETF replicates its index. Defaults to
             `None`, since it doesn't apply to every holding (e.g. a directly-held bond/stock).
         distribution (DistributionPolicy | None): Whether the fund pays out or reinvests
@@ -93,16 +95,16 @@ class Holding(DataContainer):
     kind: HoldingKind
     issuer: str
     currency: str
-    region: str | None = None
     replication: ReplicationMethod | None = None
     distribution: DistributionPolicy | None = None
     notes: str | None = None
     ter: float | None = Field(default=None, ge=0.0)
     quantity: float = Field(default=0.0, ge=0.0)
-    # These 2 must stay declared last: `add_missing_columns` always appends new columns to the
+    # These 3 must stay declared last: `add_missing_columns` always appends new columns to the
     # physical end of an already-existing table, mirroring the same convention in `Transfer`.
     last_price: float | None = None
     last_price_updated: str | None = None
+    region: str | None = None
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102
@@ -142,4 +144,37 @@ class Holding(DataContainer):
             ft.DataCell(ft.Text(notes)),
             ft.DataCell(ft.Text(ter)),
             ft.DataCell(ft.Text(format_amount(row["quantity"], decimals=4))),
+        ]
+
+
+@dataclass(frozen=True, kw_only=True)
+class HoldingRegionAllocation(DataContainer):
+    """One region's share of a holding's geographic exposure.
+
+    Attributes:
+        holding_id (int): The id of the `:class:Holding` this allocation belongs to.
+        region (str): The canonical region name (validated against the `regions` lookup list).
+        percentage (float): This region's share of the holding's value, in percent (0, 100].
+    """
+
+    db_name = HOLDING_REGION_ALLOCATIONS_DB_NAME
+
+    holding_id: int
+    region: str
+    percentage: float = Field(gt=0.0, le=100.0)
+
+    @staticmethod
+    def get_table_columns() -> list[DataColumn2]:  # noqa: D102
+        logger.info("Called 'HoldingRegionAllocation.get_table_columns'")
+
+        return [
+            DataColumn2(label=ft.Text("Region"), size=DataColumnSize.S),
+            DataColumn2(label=ft.Text("Percentage (%)"), numeric=True, fixed_width=120),
+        ]
+
+    @staticmethod
+    def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
+        return [
+            ft.DataCell(ft.Text(row["region"])),
+            ft.DataCell(ft.Text(format_amount(row["percentage"], decimals=2))),
         ]

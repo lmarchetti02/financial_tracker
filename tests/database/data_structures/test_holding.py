@@ -2,7 +2,13 @@
 
 import pytest
 
-from database.data_structures.holding import DistributionPolicy, Holding, HoldingKind, ReplicationMethod
+from database.data_structures.holding import (
+    DistributionPolicy,
+    Holding,
+    HoldingKind,
+    HoldingRegionAllocation,
+    ReplicationMethod,
+)
 
 
 def make_holding(**overrides: object) -> Holding:
@@ -127,3 +133,25 @@ class TestHoldingGetTableRow:
         assert cells[7].content.value == "—"
         assert cells[8].content.value == "—"
         assert cells[9].content.value == "—"
+
+
+class TestHoldingRegionAllocation:
+    """Tests for `HoldingRegionAllocation`."""
+
+    def test_construction_succeeds_with_valid_percentage(self) -> None:
+        """A holding id, region, and percentage between 0 (exclusive) and 100 (inclusive) are enough."""
+        allocation = HoldingRegionAllocation(holding_id=1, region="North America", percentage=60.0)
+
+        assert allocation.holding_id == 1
+        assert allocation.region == "North America"
+        assert allocation.percentage == 60.0
+
+    def test_construction_fails_for_zero_percentage(self) -> None:
+        """A zero percentage is rejected — an allocation with nothing in it shouldn't be stored."""
+        with pytest.raises(ValueError):
+            HoldingRegionAllocation(holding_id=1, region="North America", percentage=0.0)
+
+    def test_construction_fails_for_percentage_above_100(self) -> None:
+        """A percentage above 100 is rejected."""
+        with pytest.raises(ValueError):
+            HoldingRegionAllocation(holding_id=1, region="North America", percentage=100.1)

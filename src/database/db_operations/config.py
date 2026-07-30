@@ -6,15 +6,12 @@ from enum import Enum, auto
 from logging import getLogger
 from pathlib import Path
 
-from _helpers.constants import (
-    APP_DIRECTORY,
-    CONFIG_DB_NAME,
-    SYSTEM_CATEGORY_TRADING_FEE,
-    SYSTEM_KIND_CREDIT,
-    SYSTEM_KIND_DEBT,
-    SYSTEM_KIND_INVESTMENT,
-    SYSTEM_SOURCE_INVESTMENTS,
-)
+from _helpers.constants import (APP_DIRECTORY, CONFIG_DB_NAME,
+                                HOLDING_REGION_ALLOCATIONS_DB_NAME,
+                                SYSTEM_CATEGORY_TRADING_FEE,
+                                SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT,
+                                SYSTEM_KIND_INVESTMENT,
+                                SYSTEM_SOURCE_INVESTMENTS)
 
 from .generic import DbLocation, get_db_path, list_year_profile_pairs
 
@@ -22,17 +19,19 @@ logger = getLogger("financial_tracker")
 
 
 class LookupKind(Enum):
-    """The three user-editable lookup lists backing the `category`/`source`/`kind` fields."""
+    """The user-editable lookup lists backing the `category`/`source`/`kind`/`region` fields."""
 
     CATEGORIES = auto()
     SOURCES = auto()
     KINDS = auto()
+    REGIONS = auto()
 
 
 _LOOKUP_TABLE = {
     LookupKind.CATEGORIES: "categories",
     LookupKind.SOURCES: "sources",
     LookupKind.KINDS: "kinds",
+    LookupKind.REGIONS: "regions",
 }
 
 # (domain table, column) referencing each lookup, used for the in-use check and the rename cascade
@@ -40,6 +39,7 @@ _LOOKUP_REFERENCES = {
     LookupKind.CATEGORIES: ("expenses", "category"),
     LookupKind.SOURCES: ("income", "source"),
     LookupKind.KINDS: ("transfers", "kind"),
+    LookupKind.REGIONS: (HOLDING_REGION_ALLOCATIONS_DB_NAME, "region"),
 }
 
 # seed data: (display label, is_system)
@@ -70,10 +70,29 @@ _SEED_KINDS = [
     (SYSTEM_KIND_DEBT, True),
     (SYSTEM_KIND_INVESTMENT, True),
 ]
+_SEED_REGIONS = [
+    ("USA", False),
+    ("Canada", False),
+    ("Central America", False),
+    ("South America", False),
+    ("EU", False),
+    ("China & HK", False),
+    ("Japan", False),
+    ("Australia & NZ", False),
+    ("India", False),
+    ("UK", False),
+    ("Switzerland", False),
+    ("Middle East", False),
+    ("South-East Asia", False),
+    ("Korea", False),
+    ("Taiwan", False),
+    ("Africa", False),
+]
 _SEED_DATA = {
     LookupKind.CATEGORIES: _SEED_CATEGORIES,
     LookupKind.SOURCES: _SEED_SOURCES,
     LookupKind.KINDS: _SEED_KINDS,
+    LookupKind.REGIONS: _SEED_REGIONS,
 }
 
 
@@ -276,6 +295,11 @@ def fetch_sources() -> list[str]:
 def fetch_kinds() -> list[str]:
     """Fetches every kind's display name, sorted alphabetically."""
     return [option.name for option in fetch_lookup_options(LookupKind.KINDS)]
+
+
+def fetch_regions() -> list[str]:
+    """Fetches every region's display name, sorted alphabetically."""
+    return [option.name for option in fetch_lookup_options(LookupKind.REGIONS)]
 
 
 def get_theme_preference() -> str:

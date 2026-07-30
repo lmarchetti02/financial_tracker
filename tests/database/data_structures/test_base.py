@@ -137,7 +137,7 @@ class TestInitFromTuple:
     def test_restores_a_none_optional_enum_field_as_none(self) -> None:
         """An `Enum | None` field stored as `None` is reconstructed as `None`, not looked up."""
         holding = Holding(name="Fund", ticker="FND", kind=HoldingKind.STOCKS, issuer="Issuer", currency="EUR")
-        row = (holding.name, holding.ticker, holding.kind.name, holding.issuer, holding.currency, holding.region, None)
+        row = (holding.name, holding.ticker, holding.kind.name, holding.issuer, holding.currency, None)
 
         reconstructed = Holding.init_from_tuple(row)
 
@@ -159,7 +159,6 @@ class TestInitFromTuple:
             holding.kind.name,
             holding.issuer,
             holding.currency,
-            holding.region,
             holding.replication.name,
         )
 
