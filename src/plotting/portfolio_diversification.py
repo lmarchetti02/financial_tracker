@@ -5,6 +5,8 @@ from logging import getLogger
 import flet as ft
 import flet_charts as fch
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import ConnectionPatch
 
 import database as db
 from _helpers.formatting import format_amount
@@ -15,6 +17,7 @@ logger = getLogger("financial_tracker")
 
 _UNLABELED_REGION = "Unlabeled"
 _UNALLOCATED_REGION = "Unallocated"
+_MAX_DIRECT_SLICES = 4
 
 
 def _group_by_value(holdings: list[tuple[int, db.Holding]], key: str) -> dict[str, float]:
@@ -131,8 +134,88 @@ def show_portfolio_diversification(page: ft.Page) -> None:
     page.update()
 
 
+def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
+    """Builds a "bar of pie" figure: the top regions as pie wedges, the rest broken into a bar.
+
+    A plain pie with many small slivers reads as clutter, so once there's more than
+    `:const:_MAX_DIRECT_SLICES` regions with value, only the biggest ones get their own wedge; the
+    remainder are grouped into one exploded "Other" wedge, connected via lines to a stacked bar
+    that breaks "Other" back down into its constituent regions. Falls back to a single plain pie
+    when there aren't enough small regions to bother aggregating.
+    """
+    sorted_items = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+
+    if len(sorted_items) <= _MAX_DIRECT_SLICES + 1:
+        fig, ax = plt.subplots(figsize=(7, 6))
+        _plot_pie(ax, title, totals)
+        fig.tight_layout()
+        return fig
+
+    big_items = sorted_items[:_MAX_DIRECT_SLICES]
+    small_items = sorted_items[_MAX_DIRECT_SLICES:]
+    other_value = sum(value for _, value in small_items)
+
+    # "Other" goes first: with `startangle` below, that centers its wedge at 0° (3 o'clock),
+    # i.e. on the right, facing the bar it's connected to.
+    pie_names = ["Other"] + [name for name, _ in big_items]
+    pie_values = [other_value] + [value for _, value in big_items]
+    colors = [plt.get_cmap("tab20")(i % 20) for i in range(len(pie_names))]
+    explode = [0.1] + [0.0] * len(big_items)
+    startangle = -180 * (other_value / sum(pie_values))
+
+    fig = plt.figure(figsize=(11, 6))
+    ax1 = fig.add_subplot(121)
+    ax2 = fig.add_subplot(122)
+
+    wedges, *_ = ax1.pie(  # type: ignore
+        pie_values, labels=pie_names, colors=colors, autopct="%1.1f%%", explode=explode, startangle=startangle
+    )
+    ax1.set_title(title)
+
+    # break "Other" back down into a stacked bar, each region getting its own distinct color
+    grand_total = sum(pie_values)
+    bar_width = 0.3
+    small_colors = [plt.get_cmap("tab20")((len(pie_names) + i) % 20) for i in range(len(small_items))]
+    bottom = other_value
+    for (name, value), color in zip(small_items, small_colors):
+        bottom -= value
+        ax2.bar(0, value, bar_width, bottom=bottom, color=color)
+        # relative to the whole portfolio, matching the pie's own percentages - not just "Other"
+        pct = value / grand_total * 100 if grand_total else 0
+        ax2.text(
+            bar_width / 2 + 0.05,
+            bottom + value / 2,
+            f"{name} {format_amount(pct, decimals=1)}%",
+            va="center",
+            ha="left",
+            fontsize=8,
+        )
+
+    ax2.set_title("Other")
+    ax2.axis("off")
+    ax2.set_xlim(-2.5 * bar_width, 6 * bar_width)
+    ax2.set_ylim(0, other_value)
+
+    # connect the "Other" wedge (now on the right) to the bar with two lines, one per wedge edge
+    other_wedge = wedges[0]
+    theta1, theta2 = other_wedge.theta1, other_wedge.theta2
+    center, r = other_wedge.center, other_wedge.r
+
+    for theta, bar_y in ((theta2, other_value), (theta1, 0)):
+        x = r * np.cos(np.deg2rad(theta)) + center[0]
+        y = r * np.sin(np.deg2rad(theta)) + center[1]
+        connection = ConnectionPatch(
+            xyA=(-bar_width / 2, bar_y), coordsA=ax2.transData, xyB=(x, y), coordsB=ax1.transData
+        )
+        connection.set_color("gray")
+        ax2.add_artist(connection)
+
+    fig.tight_layout()
+    return fig
+
+
 def show_detailed_region_diversification(page: ft.Page) -> None:
-    """Generates a pie chart of the portfolio's value across the detailed per-holding region breakdown."""
+    """Generates a bar-of-pie chart of the portfolio's value across the detailed region breakdown."""
     logger.info("Called 'show_detailed_region_diversification'")
 
     location = current_db_location(page)
@@ -153,9 +236,7 @@ def show_detailed_region_diversification(page: ft.Page) -> None:
         return
 
     # plot
-    fig, ax = plt.subplots(figsize=(7, 6))
-    _plot_pie(ax, f"Detailed Diversification {location.year}", by_region)
-    fig.tight_layout()
+    fig = _build_bar_of_pie(by_region, f"Detailed Diversification {location.year}")
 
     # show popup
     if page.width is None or page.height is None:
