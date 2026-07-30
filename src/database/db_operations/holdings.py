@@ -31,6 +31,18 @@ def fetch_holdings(location: DbLocation) -> list[tuple[int, Holding]]:
     return [(row[0], Holding.init_from_tuple(row[1:])) for row in rows]
 
 
+def compute_holding_value(holding: Holding) -> float | None:
+    """Computes a holding's current market value.
+
+    Args:
+        holding (`:class:Holding`): The holding to value.
+
+    Returns:
+        float | None: `quantity * last_price`, or `None` if `last_price` hasn't been fetched yet.
+    """
+    return holding.quantity * holding.last_price if holding.last_price is not None else None
+
+
 def refresh_holding_price(location: DbLocation, holding_id: int, holding: Holding) -> Holding | None:
     """Fetches a holding's latest price and persists it if found.
 

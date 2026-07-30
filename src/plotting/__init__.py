@@ -9,5 +9,6 @@ from .income_summary import show_income_pie as show_income_pie
 from .income_summary import show_income_summary as show_income_summary
 from .income_summary import show_income_trend as show_income_trend
 from .net_worth import show_net_worth_summary as show_net_worth_summary
+from .portfolio_diversification import show_portfolio_diversification as show_portfolio_diversification
 from .savings_summary import show_savings_pie as show_savings_pie
 from .savings_summary import show_savings_summary as show_savings_summary

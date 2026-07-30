@@ -8,6 +8,7 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
 from _helpers.formatting import enum_label, format_amount, parse_amount
+from plotting import show_portfolio_diversification
 
 from .common import build_styled_data_table, current_db_location, show_alert
 
@@ -66,6 +67,12 @@ class PortfolioView(ft.Column):
         self.refresh_prices_button = ft.Button(
             "Refresh Prices", icon=ft.Icons.REFRESH, color=_HEADING_COLOR, on_click=self.refresh_prices
         )
+        self.diversification_button = ft.Button(
+            "Show Diversification",
+            icon=ft.Icons.PIE_CHART_OUTLINE,
+            color=_HEADING_COLOR,
+            on_click=lambda _: show_portfolio_diversification(self._page),
+        )
         self.holdings_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
 
     def _build_layout(self) -> list[ft.Control]:
@@ -113,7 +120,9 @@ class PortfolioView(ft.Column):
             ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=10),
             self.holdings_table_container,
-            ft.Row([self.refresh_prices_button], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Row(
+                [self.refresh_prices_button, self.diversification_button], alignment=ft.MainAxisAlignment.CENTER
+            ),
         ]
 
     def clear_inputs(self) -> None:
@@ -331,7 +340,7 @@ class PortfolioView(ft.Column):
         self._page.show_dialog(
             ft.AlertDialog(
                 title=ft.Text(holding.name, width=380, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
-                content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=450),
+                content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=430),
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
             )
         )
@@ -395,10 +404,7 @@ class PortfolioView(ft.Column):
         holdings: list[tuple[int, "db.Holding"]],
     ) -> tuple[dict[int, float | None], float, dict["db.HoldingKind", float], float | None]:
         """Computes each holding's market value, the portfolio grand total, per-kind totals, and blended TER."""
-        totals = {
-            holding_id: (holding.quantity * holding.last_price if holding.last_price is not None else None)
-            for holding_id, holding in holdings
-        }
+        totals = {holding_id: db.compute_holding_value(holding) for holding_id, holding in holdings}
         grand_total = sum(total for total in totals.values() if total is not None)
 
         kind_totals: dict[db.HoldingKind, float] = {}

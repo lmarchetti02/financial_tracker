@@ -2,9 +2,11 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from database.data_structures.holding import Holding, HoldingKind
 from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, initialize_db
-from database.db_operations.holdings import fetch_holdings, refresh_holding_price
+from database.db_operations.holdings import compute_holding_value, fetch_holdings, refresh_holding_price
 
 YEAR = 2024
 LOCATION = DbLocation(YEAR)
@@ -45,6 +47,22 @@ class TestFetchHoldings:
         names = [holding.name for _, holding in fetch_holdings(LOCATION)]
 
         assert names == ["Zeta Fund", "Alpha Fund"]
+
+
+class TestComputeHoldingValue:
+    """Tests for `compute_holding_value`."""
+
+    def test_multiplies_quantity_by_last_price(self) -> None:
+        """A priced holding's value is `quantity * last_price`."""
+        holding = make_holding(quantity=3.0, last_price=163.74)
+
+        assert compute_holding_value(holding) == pytest.approx(3.0 * 163.74)
+
+    def test_returns_none_when_unpriced(self) -> None:
+        """A holding with no fetched price yet has an unknown value."""
+        holding = make_holding(quantity=3.0, last_price=None)
+
+        assert compute_holding_value(holding) is None
 
 
 class TestRefreshHoldingPrice:
