@@ -130,7 +130,7 @@ class PortfolioView(ft.Column):
             ft.Container(height=10),
             self.holdings_table_container,
             ft.Row(
-                [self.refresh_prices_button, self.diversification_button, self.detailed_diversification_button],
+                [self.diversification_button, self.detailed_diversification_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
         ]
@@ -596,7 +596,10 @@ class PortfolioView(ft.Column):
             summary_text += f"  •  Total TER: {format_amount(self._weighted_ter, decimals=2)}%"
 
         summary = ft.Text(summary_text, size=16, weight=ft.FontWeight.BOLD)
-        header_row = ft.Row([summary, self.kind_filter_menu], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        header_row = ft.Row(
+            [summary, ft.Row([self.kind_filter_menu, self.refresh_prices_button])],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
         return [header_row, self._build_holdings_table()]
 
     def _build_holdings_table(self) -> ft.Control:
