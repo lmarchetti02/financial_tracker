@@ -41,6 +41,7 @@ class PortfolioView(ft.Column):
         self._page = page
 
         self.location = current_db_location(page)
+        self.current_kind_filter: db.HoldingKind | None = None
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -81,6 +82,7 @@ class PortfolioView(ft.Column):
             on_click=lambda _: show_detailed_region_diversification(self._page),
         )
         self.holdings_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+        self.kind_filter_menu = self._build_kind_filter_menu()
 
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout, matching the other CRUD pages."""
@@ -522,11 +524,36 @@ class PortfolioView(ft.Column):
                 f"Failed to fetch a price for: {', '.join(failed_tickers)}.",
             )
 
+    def _build_kind_filter_menu(self) -> ft.PopupMenuButton:
+        """Builds the "Filter by type" popup menu for the holdings table."""
+        return ft.PopupMenuButton(
+            icon=ft.Icons.FILTER_ALT,
+            icon_color=_HEADING_COLOR,
+            icon_size=20,
+            padding=0,
+            menu_padding=0,
+            tooltip="Filter by type",
+            items=[
+                ft.PopupMenuItem(enum_label(kind), data=kind, on_click=self.filter_kind)
+                for kind in sorted(db.HoldingKind, key=lambda k: k.name)
+            ]
+            + [ft.PopupMenuItem()]
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_kind)],
+        )
+
+    def filter_kind(self, e: ft.Event) -> None:
+        """Filters the holdings table down to one `:enum:HoldingKind`, or clears the filter."""
+        logger.info("Called 'filter_kind'")
+        self.current_kind_filter = e.control.data
+        self.refresh()
+
     def refresh(self) -> None:
         """Reloads the holdings, recomputes their totals, and rebuilds the table."""
         logger.info("Called 'refresh'")
 
         self.holdings = db.fetch_holdings(self.location)
+        if self.current_kind_filter is not None:
+            self.holdings = [(hid, h) for hid, h in self.holdings if h.kind == self.current_kind_filter]
         self.region_allocations = db.fetch_region_allocations(self.location)
         self._totals, self._grand_total, self._kind_totals, self._weighted_ter = self._compute_totals(self.holdings)
         self.holdings_table_container.controls = self._build_holdings_section()
@@ -569,7 +596,8 @@ class PortfolioView(ft.Column):
             summary_text += f"  •  Total TER: {format_amount(self._weighted_ter, decimals=2)}%"
 
         summary = ft.Text(summary_text, size=16, weight=ft.FontWeight.BOLD)
-        return [summary, self._build_holdings_table()]
+        header_row = ft.Row([summary, self.kind_filter_menu], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        return [header_row, self._build_holdings_table()]
 
     def _build_holdings_table(self) -> ft.Control:
         """Builds the holdings `:class:DataTable2`, one row per holding, kept to the bare-minimum columns.
