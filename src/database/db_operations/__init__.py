@@ -51,8 +51,10 @@ from .generic import remove_item as remove_item
 from .holdings import compute_holding_value as compute_holding_value
 from .holdings import delete_holding as delete_holding
 from .holdings import fetch_holdings as fetch_holdings
+from .holdings import fetch_kind_targets as fetch_kind_targets
 from .holdings import fetch_region_allocations as fetch_region_allocations
 from .holdings import refresh_holding_price as refresh_holding_price
+from .holdings import save_kind_targets as save_kind_targets
 from .holdings import save_region_allocations as save_region_allocations
 from .incomes import ISC as ISC
 from .incomes import IncomesSortingConfig as IncomesSortingConfig

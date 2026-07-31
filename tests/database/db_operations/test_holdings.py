@@ -10,8 +10,10 @@ from database.db_operations.holdings import (
     compute_holding_value,
     delete_holding,
     fetch_holdings,
+    fetch_kind_targets,
     fetch_region_allocations,
     refresh_holding_price,
+    save_kind_targets,
     save_region_allocations,
 )
 
@@ -169,6 +171,45 @@ class TestSaveRegionAllocations:
             first_id: {"Japan": 100.0},
             second_id: {"Europe": 100.0},
         }
+
+
+class TestFetchKindTargets:
+    """Tests for `fetch_kind_targets`."""
+
+    def test_returns_empty_dict_when_nothing_saved_yet(self) -> None:
+        """No target allocation is simply an empty breakdown."""
+        initialize_db(LOCATION, WhichDb.HOLDING_KIND_TARGETS)
+
+        assert fetch_kind_targets(LOCATION) == {}
+
+    def test_returns_the_saved_breakdown(self) -> None:
+        """Every saved kind's target percentage is returned, keyed by `:enum:HoldingKind`."""
+        initialize_db(LOCATION, WhichDb.HOLDING_KIND_TARGETS)
+
+        save_kind_targets(LOCATION, {HoldingKind.STOCKS: 60.0, HoldingKind.BONDS: 40.0})
+
+        assert fetch_kind_targets(LOCATION) == {HoldingKind.STOCKS: 60.0, HoldingKind.BONDS: 40.0}
+
+
+class TestSaveKindTargets:
+    """Tests for `save_kind_targets`."""
+
+    def test_persists_a_new_breakdown(self) -> None:
+        """Saving a breakdown for the first time persists every entry."""
+        initialize_db(LOCATION, WhichDb.HOLDING_KIND_TARGETS)
+
+        save_kind_targets(LOCATION, {HoldingKind.STOCKS: 100.0})
+
+        assert fetch_kind_targets(LOCATION) == {HoldingKind.STOCKS: 100.0}
+
+    def test_replaces_the_entire_previous_breakdown(self) -> None:
+        """Saving again drops every previously targeted kind, not just overlapping ones."""
+        initialize_db(LOCATION, WhichDb.HOLDING_KIND_TARGETS)
+
+        save_kind_targets(LOCATION, {HoldingKind.STOCKS: 60.0, HoldingKind.BONDS: 40.0})
+        save_kind_targets(LOCATION, {HoldingKind.CRYPTO: 100.0})
+
+        assert fetch_kind_targets(LOCATION) == {HoldingKind.CRYPTO: 100.0}
 
 
 class TestDeleteHolding:

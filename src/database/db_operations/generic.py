@@ -13,8 +13,8 @@ import numpy as np
 from _helpers.constants import APP_DIRECTORY, DEFAULT_PROFILE_NAME
 
 from ..data_structures import (Account, AccountBalance, DataContainer, Expense,
-                               Holding, HoldingRegionAllocation, Income,
-                               Transfer)
+                               Holding, HoldingKindTarget,
+                               HoldingRegionAllocation, Income, Transfer)
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -30,6 +30,7 @@ class WhichDb(Enum):
     ACCOUNT_BALANCES = auto()
     HOLDINGS = auto()
     HOLDING_REGION_ALLOCATIONS = auto()
+    HOLDING_KIND_TARGETS = auto()
 
 
 _DB_TO_CLASS = {
@@ -40,6 +41,7 @@ _DB_TO_CLASS = {
     WhichDb.ACCOUNT_BALANCES: AccountBalance,
     WhichDb.HOLDINGS: Holding,
     WhichDb.HOLDING_REGION_ALLOCATIONS: HoldingRegionAllocation,
+    WhichDb.HOLDING_KIND_TARGETS: HoldingKindTarget,
 }
 _CLASS_TO_DB = {
     Expense: WhichDb.EXPENSES,
@@ -49,6 +51,7 @@ _CLASS_TO_DB = {
     AccountBalance: WhichDb.ACCOUNT_BALANCES,
     Holding: WhichDb.HOLDINGS,
     HoldingRegionAllocation: WhichDb.HOLDING_REGION_ALLOCATIONS,
+    HoldingKindTarget: WhichDb.HOLDING_KIND_TARGETS,
 }
 
 
@@ -218,8 +221,14 @@ def initialize_db(location: DbLocation, db: WhichDb) -> None:
 
         # create index on categories for more efficient filtering
         db_name = _DB_TO_CLASS[db].db_name
-        if db not in (WhichDb.ACCOUNTS, WhichDb.HOLDINGS, WhichDb.HOLDING_REGION_ALLOCATIONS):
-            # `Account`/`Holding`/`HoldingRegionAllocation` have no `month` column, unlike every other domain
+        if db not in (
+            WhichDb.ACCOUNTS,
+            WhichDb.HOLDINGS,
+            WhichDb.HOLDING_REGION_ALLOCATIONS,
+            WhichDb.HOLDING_KIND_TARGETS,
+        ):
+            # `Account`/`Holding`/`HoldingRegionAllocation`/`HoldingKindTarget` have no `month` column,
+            # unlike every other domain
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_month ON {db_name}(month)")
         if db == WhichDb.EXPENSES:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS idx_category ON {db_name}(category)")

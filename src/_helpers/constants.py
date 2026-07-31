@@ -12,6 +12,7 @@ ACCOUNTS_DB_NAME = "accounts"
 ACCOUNT_BALANCES_DB_NAME = "account_balances"
 HOLDINGS_DB_NAME = "holdings"
 HOLDING_REGION_ALLOCATIONS_DB_NAME = "holding_region_allocations"
+HOLDING_KIND_TARGETS_DB_NAME = "holding_kind_targets"
 CONFIG_DB_NAME = "config"
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]

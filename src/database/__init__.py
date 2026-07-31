@@ -11,6 +11,7 @@ from .data_structures import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
 from .data_structures import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
 from .data_structures import Holding as Holding
 from .data_structures import HoldingKind as HoldingKind
+from .data_structures import HoldingKindTarget as HoldingKindTarget
 from .data_structures import HoldingRegionAllocation as HoldingRegionAllocation
 from .data_structures import Income as Income
 from .data_structures import ReplicationMethod as ReplicationMethod
@@ -48,6 +49,7 @@ from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
 from .db_operations import fetch_holdings as fetch_holdings
 from .db_operations import fetch_income_totals as fetch_income_totals
 from .db_operations import fetch_incomes as fetch_incomes
+from .db_operations import fetch_kind_targets as fetch_kind_targets
 from .db_operations import fetch_kinds as fetch_kinds
 from .db_operations import fetch_lookup_options as fetch_lookup_options
 from .db_operations import fetch_net_worth_components as fetch_net_worth_components
@@ -74,6 +76,7 @@ from .db_operations import remove_item as remove_item
 from .db_operations import rename_lookup_option as rename_lookup_option
 from .db_operations import save_account_opening_balance as save_account_opening_balance
 from .db_operations import save_balance as save_balance
+from .db_operations import save_kind_targets as save_kind_targets
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
 from .db_operations import save_region_allocations as save_region_allocations
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year

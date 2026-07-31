@@ -6,6 +6,7 @@ from database.data_structures.holding import (
     DistributionPolicy,
     Holding,
     HoldingKind,
+    HoldingKindTarget,
     HoldingRegionAllocation,
     ReplicationMethod,
 )
@@ -155,3 +156,45 @@ class TestHoldingRegionAllocation:
         """A percentage above 100 is rejected."""
         with pytest.raises(ValueError):
             HoldingRegionAllocation(holding_id=1, region="North America", percentage=100.1)
+
+
+class TestHoldingKindTarget:
+    """Tests for `HoldingKindTarget`."""
+
+    def test_construction_succeeds_with_valid_percentage(self) -> None:
+        """A kind and a percentage between 0 (exclusive) and 100 (inclusive) are enough."""
+        target = HoldingKindTarget(kind=HoldingKind.STOCKS, percentage=60.0)
+
+        assert target.kind == HoldingKind.STOCKS
+        assert target.percentage == 60.0
+
+    def test_construction_fails_for_zero_percentage(self) -> None:
+        """A zero percentage is rejected — a target with nothing in it shouldn't be stored."""
+        with pytest.raises(ValueError):
+            HoldingKindTarget(kind=HoldingKind.STOCKS, percentage=0.0)
+
+    def test_construction_fails_for_percentage_above_100(self) -> None:
+        """A percentage above 100 is rejected."""
+        with pytest.raises(ValueError):
+            HoldingKindTarget(kind=HoldingKind.STOCKS, percentage=100.1)
+
+
+class TestHoldingKindTargetGetTableColumns:
+    """Tests for `HoldingKindTarget.get_table_columns`."""
+
+    def test_returns_one_column_per_displayed_field(self) -> None:
+        """One column each for kind and percentage."""
+        assert len(HoldingKindTarget.get_table_columns()) == 2
+
+
+class TestHoldingKindTargetGetTableRow:
+    """Tests for `HoldingKindTarget.get_table_row`."""
+
+    def test_formats_the_kind_as_a_human_readable_label(self) -> None:
+        """The stored enum name is rendered via `enum_label`, not the raw name."""
+        row = {"kind": "STOCKS", "percentage": 60.0}
+
+        cells = HoldingKindTarget.get_table_row(row)
+
+        assert cells[0].content.value == "Stocks"
+        assert cells[1].content.value == "60,00"

@@ -1,4 +1,4 @@
-"""Plots the diversification of portfolio holdings by issuer, region, currency, and detailed region."""
+"""Plots the diversification of portfolio holdings by issuer, region, currency, asset class, and detailed region."""
 
 from logging import getLogger
 
@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.patches import ConnectionPatch
 
 import database as db
-from _helpers.formatting import format_amount
+from _helpers.formatting import enum_label, format_amount
 
 from ._common import current_db_location
 
@@ -87,6 +87,35 @@ def _plot_pie(ax: plt.Axes, title: str, totals: dict[str, float]) -> None:
 
     legend_labels = [f"{name}: € {format_amount(value, decimals=0)}" for name, value in zip(names, values)]
     ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05), fontsize=8)
+
+
+def build_kind_allocation_pie(kind_totals: dict[db.HoldingKind, float]) -> plt.Figure:
+    """Builds a pie-chart figure of the portfolio's value broken down by `:enum:HoldingKind`.
+
+    Unlike the other charts in this module, this doesn't show its own popup - it's meant to be
+    embedded inside another dialog (the Portfolio page's asset-allocation tool), alongside the
+    editable target-allocation form that dialog also shows.
+
+    Args:
+        kind_totals (dict[HoldingKind, float]): Total portfolio value per kind, e.g. as computed
+            by `:meth:PortfolioView._compute_totals`. Must be non-empty.
+
+    Returns:
+        plt.Figure: The built pie chart.
+    """
+    names = sorted(kind_totals, key=lambda kind: kind_totals[kind], reverse=True)
+    values = [kind_totals[name] for name in names]
+    colors = [db.HOLDING_KIND_COLORS.get(name, "#808080") for name in names]
+    labels = [enum_label(name) for name in names]
+
+    fig, ax = plt.subplots(figsize=(5, 6.5))
+    patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%")  # type: ignore
+
+    legend_labels = [f"{label}: € {format_amount(value, decimals=0)}" for label, value in zip(labels, values)]
+    ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05), fontsize=8)
+    fig.tight_layout()
+
+    return fig
 
 
 def show_portfolio_diversification(page: ft.Page) -> None:

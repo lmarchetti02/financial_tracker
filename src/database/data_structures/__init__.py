@@ -11,6 +11,7 @@ from .holding import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
 from .holding import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
 from .holding import Holding as Holding
 from .holding import HoldingKind as HoldingKind
+from .holding import HoldingKindTarget as HoldingKindTarget
 from .holding import HoldingRegionAllocation as HoldingRegionAllocation
 from .holding import ReplicationMethod as ReplicationMethod
 from .income import Income as Income

@@ -4,11 +4,13 @@ from dataclasses import replace
 from logging import getLogger
 
 import flet as ft
+import flet_charts as fch
 from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
 from _helpers.formatting import enum_label, format_amount, parse_amount
-from plotting import (show_detailed_region_diversification,
+from plotting import (build_kind_allocation_pie,
+                      show_detailed_region_diversification,
                       show_portfolio_diversification)
 
 from .common import build_styled_data_table, current_db_location, show_alert
@@ -16,6 +18,7 @@ from .common import build_styled_data_table, current_db_location, show_alert
 logger = getLogger("financial_tracker")
 
 _HEADING_COLOR = "#00695C"
+_CHART_ASPECT_RATIO = 5 / 7
 
 _KIND_OPTIONS = [
     ft.DropdownOption(key=str(kind.value), text=enum_label(kind))
@@ -81,6 +84,12 @@ class PortfolioView(ft.Column):
             color=_HEADING_COLOR,
             on_click=lambda _: show_detailed_region_diversification(self._page),
         )
+        self.asset_allocation_button = ft.Button(
+            "Asset Allocation",
+            icon=ft.Icons.DONUT_LARGE,
+            color=_HEADING_COLOR,
+            on_click=self.show_asset_allocation,
+        )
         self.holdings_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
         self.kind_filter_menu = self._build_kind_filter_menu()
 
@@ -130,7 +139,7 @@ class PortfolioView(ft.Column):
             ft.Container(height=10),
             self.holdings_table_container,
             ft.Row(
-                [self.diversification_button, self.detailed_diversification_button],
+                [self.diversification_button, self.detailed_diversification_button, self.asset_allocation_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
         ]
@@ -472,6 +481,181 @@ class PortfolioView(ft.Column):
                     ],
                     tight=True,
                     width=460,
+                ),
+                actions=[
+                    ft.TextButton("Save", on_click=save),
+                    ft.TextButton("Cancel", on_click=lambda _: self._page.pop_dialog()),
+                ],
+            )
+        )
+
+    def show_asset_allocation(self, _: ft.Event) -> None:
+        """Opens a dialog with the portfolio's current allocation by `:enum:HoldingKind` and a target-allocation form.
+
+        Shows a pie chart of the current allocation alongside an editable form to set a target %
+        per kind, live-updating how much to buy/sell in each asset class to reach it. Totals are
+        recomputed from every holding regardless of `self.current_kind_filter`, since both the
+        chart and the rebalancing calculation must always be portfolio-wide.
+        """
+        logger.info("Called 'show_asset_allocation'")
+
+        if self._page.width is None or self._page.height is None:
+            raise RuntimeError("Cannot retrieve the page size.")
+
+        all_holdings = db.fetch_holdings(self.location)
+        _, grand_total, kind_totals, _ = self._compute_totals(all_holdings)  # type: ignore
+
+        if not grand_total:
+            show_alert(
+                self._page,
+                "No priced holdings yet",
+                "Add and price some holdings before viewing the asset allocation.",
+            )
+            return
+
+        dialog_width = self._page.width * 0.9
+        dialog_height = self._page.height * 0.9
+        rows_height = dialog_height - 50
+        chart_width = rows_height * _CHART_ASPECT_RATIO
+
+        chart = fch.MatplotlibChart(
+            figure=build_kind_allocation_pie(kind_totals),
+            expand=True,
+            align=ft.Alignment.CENTER,
+        )
+
+        existing = db.fetch_kind_targets(self.location)
+        kinds = sorted(db.HoldingKind, key=lambda k: k.name)
+
+        total_text = ft.Text(
+            f"Target total: {format_amount(sum(existing.values()), decimals=2)}%", weight=ft.FontWeight.BOLD
+        )
+        delta_texts = {kind: ft.Text("—", size=12) for kind in kinds}
+
+        def update_deltas() -> None:
+            """Recomputes and displays the buy/sell amount for every kind from its entered target."""
+            for kind in kinds:
+                raw_value = (kind_fields[kind].value or "").strip()
+                try:
+                    target_pct = parse_amount(raw_value) if raw_value else 0.0
+                except ValueError:
+                    delta_texts[kind].value = "—"
+                    delta_texts[kind].color = None
+                    continue
+
+                delta = target_pct / 100 * grand_total - kind_totals.get(kind, 0.0)
+                if abs(delta) < 0.005:
+                    delta_texts[kind].value = "Balanced"
+                    delta_texts[kind].color = None
+                elif delta > 0:
+                    delta_texts[kind].value = f"Buy € {format_amount(delta)}"
+                    delta_texts[kind].color = ft.Colors.GREEN
+                else:
+                    delta_texts[kind].value = f"Sell € {format_amount(abs(delta))}"
+                    delta_texts[kind].color = ft.Colors.RED
+
+        def update_total(_: ft.Event) -> None:
+            """Recomputes and displays the sum of every entered target percentage."""
+            total = 0.0
+            for field in kind_fields.values():
+                raw_value = (field.value or "").strip()
+                if not raw_value:
+                    continue
+                try:
+                    total += parse_amount(raw_value)
+                except ValueError:
+                    continue
+
+            total_text.value = f"Target total: {format_amount(total, decimals=2)}%"
+            update_deltas()
+            self._page.update()
+
+        kind_fields = {
+            kind: ft.TextField(
+                label=f"{enum_label(kind)} (current {format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=1)}%)",
+                value=format_amount(existing[kind], decimals=2) if kind in existing else "",
+                width=400,
+                suffix="%",
+                on_change=update_total,
+            )
+            for kind in kinds
+        }
+        update_deltas()
+
+        def save(_: ft.Event) -> None:
+            """Validates and persists the entered target allocation."""
+            targets: dict[db.HoldingKind, float] = {}
+            total = 0.0
+            for kind, field in kind_fields.items():
+                raw_value = (field.value or "").strip()
+                if not raw_value:
+                    continue
+
+                try:
+                    percentage = parse_amount(raw_value)
+                except ValueError:
+                    show_alert(self._page, "Invalid percentage", f"'{enum_label(kind)}' must be a real number.")
+                    return
+                if not (0 < percentage <= 100):
+                    show_alert(self._page, "Invalid percentage", f"'{enum_label(kind)}' must be between 0 and 100.")
+                    return
+
+                targets[kind] = percentage
+                total += percentage
+
+            if abs(total - 100.0) > 0.01:
+                show_alert(
+                    self._page,
+                    "Target must total 100%",
+                    f"The entered percentages add up to {format_amount(total, decimals=2)}%, not 100%.",
+                )
+                return
+
+            db.save_kind_targets(self.location, targets)
+            logger.debug(f"Saved kind targets:\n{targets}")
+
+            self._page.pop_dialog()
+
+        rows = [
+            ft.Row(
+                [kind_fields[kind], delta_texts[kind]],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+            for kind in kinds
+        ]
+
+        caption = ft.Text(
+            "Buy/sell amounts assume rebalancing within your current portfolio value - not new "
+            "deposits or withdrawals - so every buy is matched by an equal sell.",
+            size=12,
+            color=ft.Colors.GREY,
+        )
+
+        self._page.show_dialog(
+            ft.AlertDialog(
+                title=ft.Text("Asset Allocation"),
+                content=ft.Row(
+                    controls=[
+                        ft.Container(  # type: ignore
+                            ft.Container(chart, width=chart_width, height=rows_height),
+                            expand=9,
+                            alignment=ft.Alignment.CENTER,
+                        ),
+                        ft.Column(
+                            controls=[  # type: ignore
+                                total_text,
+                                ft.Column(controls=rows, tight=True, spacing=15),
+                                ft.Container(height=10),
+                                caption,
+                            ],
+                            tight=True,
+                            expand=10,
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    width=dialog_width,
+                    spacing=30,
                 ),
                 actions=[
                     ft.TextButton("Save", on_click=save),

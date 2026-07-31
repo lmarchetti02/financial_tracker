@@ -9,7 +9,8 @@ from flet_datatable2 import DataColumn2, DataColumnSize
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from _helpers.constants import (HOLDING_REGION_ALLOCATIONS_DB_NAME,
+from _helpers.constants import (HOLDING_KIND_TARGETS_DB_NAME,
+                                HOLDING_REGION_ALLOCATIONS_DB_NAME,
                                 HOLDINGS_DB_NAME)
 from _helpers.formatting import enum_label, format_amount
 
@@ -176,5 +177,36 @@ class HoldingRegionAllocation(DataContainer):
     def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
         return [
             ft.DataCell(ft.Text(row["region"])),
+            ft.DataCell(ft.Text(format_amount(row["percentage"], decimals=2))),
+        ]
+
+
+@dataclass(frozen=True, kw_only=True)
+class HoldingKindTarget(DataContainer):
+    """One asset-class's target share of the portfolio's total value.
+
+    Attributes:
+        kind (HoldingKind): The asset-class exposure this target applies to.
+        percentage (float): This kind's target share of total portfolio value, in percent (0, 100].
+    """
+
+    db_name = HOLDING_KIND_TARGETS_DB_NAME
+
+    kind: HoldingKind
+    percentage: float = Field(gt=0.0, le=100.0)
+
+    @staticmethod
+    def get_table_columns() -> list[DataColumn2]:  # noqa: D102
+        logger.info("Called 'HoldingKindTarget.get_table_columns'")
+
+        return [
+            DataColumn2(label=ft.Text("Kind"), size=DataColumnSize.S),
+            DataColumn2(label=ft.Text("Percentage (%)"), numeric=True, fixed_width=120),
+        ]
+
+    @staticmethod
+    def get_table_row(row: Row) -> list[ft.DataCell]:  # noqa: D102
+        return [
+            ft.DataCell(ft.Text(enum_label(HoldingKind[row["kind"]]))),
             ft.DataCell(ft.Text(format_amount(row["percentage"], decimals=2))),
         ]

@@ -5,11 +5,13 @@ from dataclasses import replace
 from datetime import date
 from logging import getLogger
 
-from _helpers.constants import (HOLDING_REGION_ALLOCATIONS_DB_NAME,
+from _helpers.constants import (HOLDING_KIND_TARGETS_DB_NAME,
+                                HOLDING_REGION_ALLOCATIONS_DB_NAME,
                                 HOLDINGS_DB_NAME)
 from _helpers.market_data import fetch_price
 
-from ..data_structures import Holding, HoldingRegionAllocation
+from ..data_structures import (Holding, HoldingKind, HoldingKindTarget,
+                               HoldingRegionAllocation)
 from .generic import (DbLocation, WhichDb, add_item, edit_item, get_db_path,
                       remove_item)
 
@@ -112,6 +114,42 @@ def save_region_allocations(location: DbLocation, holding_id: int, allocations: 
         add_item(location, HoldingRegionAllocation(holding_id=holding_id, region=region, percentage=percentage))
 
     logger.debug(f"Saved region allocations for holding {holding_id}:\n{allocations}")
+
+
+def fetch_kind_targets(location: DbLocation) -> dict[HoldingKind, float]:
+    """Fetches the portfolio's target allocation breakdown by `:enum:HoldingKind`.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the target allocation to fetch.
+
+    Returns:
+        dict[HoldingKind, float]: The `{kind: target_percentage}` breakdown. Kinds with no target
+            set are simply absent.
+    """
+    logger.info("Called 'fetch_kind_targets'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        rows = connection.execute(f"SELECT kind, percentage FROM {HOLDING_KIND_TARGETS_DB_NAME}").fetchall()
+
+    return {HoldingKind[kind]: percentage for kind, percentage in rows}
+
+
+def save_kind_targets(location: DbLocation, targets: dict[HoldingKind, float]) -> None:
+    """Replaces the portfolio's entire target allocation breakdown.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the target allocation to replace.
+        targets (dict[HoldingKind, float]): The new `{kind: target_percentage}` breakdown.
+    """
+    logger.info("Called 'save_kind_targets'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        connection.execute(f"DELETE FROM {HOLDING_KIND_TARGETS_DB_NAME}")
+
+    for kind, percentage in targets.items():
+        add_item(location, HoldingKindTarget(kind=kind, percentage=percentage))
+
+    logger.debug(f"Saved kind targets:\n{targets}")
 
 
 def delete_holding(location: DbLocation, holding_id: int) -> bool:
