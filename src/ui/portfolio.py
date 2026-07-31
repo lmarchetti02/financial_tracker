@@ -19,6 +19,8 @@ logger = getLogger("financial_tracker")
 
 _HEADING_COLOR = "#00695C"
 _CHART_ASPECT_RATIO = 5 / 7
+_LOCK_COLUMN_WIDTH = 70
+_DELTA_COLUMN_WIDTH = 170
 
 _KIND_OPTIONS = [
     ft.DropdownOption(key=str(kind.value), text=enum_label(kind))
@@ -535,6 +537,13 @@ class PortfolioView(ft.Column):
         def update_deltas() -> None:
             """Recomputes and displays the buy/sell amount for every kind from its entered target."""
             for kind in kinds:
+                if lock_checkboxes[kind].value:
+                    # locked kinds are left untouched by definition - always exactly balanced,
+                    # regardless of any rounding in the displayed current-percentage value
+                    delta_texts[kind].value = "Balanced"
+                    delta_texts[kind].color = None
+                    continue
+
                 raw_value = (kind_fields[kind].value or "").strip()
                 try:
                     target_pct = parse_amount(raw_value) if raw_value else 0.0
@@ -580,6 +589,28 @@ class PortfolioView(ft.Column):
             )
             for kind in kinds
         }
+
+        locked_previous_values: dict[db.HoldingKind, str] = {}
+
+        def toggle_lock(e: ft.Event, kind: db.HoldingKind) -> None:
+            """Locks/unlocks a kind's target field to its current allocation percentage."""
+            field = kind_fields[kind]
+            if e.control.value:
+                locked_previous_values[kind] = field.value or ""
+                field.value = format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=2)
+                field.read_only = True
+            else:
+                field.value = locked_previous_values.pop(kind, "")
+                field.read_only = False
+            update_total(e)
+
+        lock_checkboxes = {
+            kind: ft.Checkbox(
+                tooltip=f"Lock {enum_label(kind)} to its current allocation",
+                on_change=lambda e, kind=kind: toggle_lock(e, kind),
+            )
+            for kind in kinds
+        }
         update_deltas()
 
         def save(_: ft.Event) -> None:
@@ -596,6 +627,9 @@ class PortfolioView(ft.Column):
                 except ValueError:
                     show_alert(self._page, "Invalid percentage", f"'{enum_label(kind)}' must be a real number.")
                     return
+                if percentage == 0:
+                    # a zero target (typed, or locked to a currently-empty kind) is the same as unset
+                    continue
                 if not (0 < percentage <= 100):
                     show_alert(self._page, "Invalid percentage", f"'{enum_label(kind)}' must be between 0 and 100.")
                     return
@@ -603,7 +637,7 @@ class PortfolioView(ft.Column):
                 targets[kind] = percentage
                 total += percentage
 
-            if abs(total - 100.0) > 0.01:
+            if abs(total - 100.0) > 0.05:
                 show_alert(
                     self._page,
                     "Target must total 100%",
@@ -616,10 +650,30 @@ class PortfolioView(ft.Column):
 
             self._page.pop_dialog()
 
+        header_row = ft.Row(
+            [
+                ft.Container(width=400),
+                ft.Container(width=30),
+                ft.Container(
+                    ft.Text("Lock", size=12, weight=ft.FontWeight.BOLD),
+                    width=_LOCK_COLUMN_WIDTH,
+                    alignment=ft.Alignment.CENTER,
+                ),
+                ft.Container(width=8),
+                ft.Container(width=_DELTA_COLUMN_WIDTH),
+            ],
+            spacing=0,
+        )
         rows = [
             ft.Row(
-                [kind_fields[kind], delta_texts[kind]],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                [
+                    kind_fields[kind],
+                    ft.Container(width=30),
+                    ft.Container(lock_checkboxes[kind], width=_LOCK_COLUMN_WIDTH, alignment=ft.Alignment.CENTER),
+                    ft.Container(width=8),
+                    ft.Container(delta_texts[kind], width=_DELTA_COLUMN_WIDTH, alignment=ft.Alignment.CENTER_RIGHT),
+                ],
+                spacing=0,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             )
             for kind in kinds
@@ -645,6 +699,7 @@ class PortfolioView(ft.Column):
                         ft.Column(
                             controls=[  # type: ignore
                                 total_text,
+                                header_row,
                                 ft.Column(controls=rows, tight=True, spacing=15),
                                 ft.Container(height=10),
                                 caption,
