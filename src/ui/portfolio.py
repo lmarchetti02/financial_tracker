@@ -56,6 +56,7 @@ class PortfolioView(ft.Column):
 
         self.location = current_db_location(page)
         self.current_kind_filter: db.HoldingKind | None = None
+        self.total_sort_ascending: bool | None = None
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -856,6 +857,12 @@ class PortfolioView(ft.Column):
         self.current_kind_filter = e.control.data
         self.refresh()
 
+    def sort_by_total(self, e: ft.DataColumnSortEvent) -> None:
+        """Sorts the holdings table by market value (the "Total" column)."""
+        logger.info("Called 'sort_by_total'")
+        self.total_sort_ascending = e.ascending
+        self.refresh()
+
     def refresh(self) -> None:
         """Reloads the holdings, recomputes their totals, and rebuilds the table."""
         logger.info("Called 'refresh'")
@@ -865,9 +872,19 @@ class PortfolioView(ft.Column):
             self.holdings = [(hid, h) for hid, h in self.holdings if h.kind == self.current_kind_filter]
         self.region_allocations = db.fetch_region_allocations(self.location)
         self._totals, self._grand_total, self._kind_totals, self._weighted_ter = self._compute_totals(self.holdings)
+        if self.total_sort_ascending is not None:
+            self.holdings.sort(key=self._total_sort_key)
         self.holdings_table_container.controls = self._build_holdings_section()
 
         self._page.update()
+
+    def _total_sort_key(self, item: tuple[int, "db.Holding"]) -> tuple[bool, float]:
+        """Sort key for `self.holdings` by market value, always placing unpriced holdings last."""
+        holding_id, _ = item
+        total = self._totals[holding_id]
+        if total is None:
+            return True, 0.0
+        return False, total if self.total_sort_ascending else -total
 
     @staticmethod
     def _compute_totals(
@@ -918,11 +935,12 @@ class PortfolioView(ft.Column):
         available from the info button rather than taking up table width, since the window can't be
         zoomed out like a spreadsheet to fit them all.
         """
+        total_column_index = 3
         columns = [
             DataColumn2(label=ft.Text("Name"), size=DataColumnSize.S),
             DataColumn2(label=ft.Text("TER (%)"), numeric=True, fixed_width=90),
             DataColumn2(label=ft.Text("Shares"), numeric=True, fixed_width=120),
-            DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150),
+            DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150, on_sort=self.sort_by_total),
             DataColumn2(label=ft.Text("Total (%)"), numeric=True, fixed_width=100),
             DataColumn2(label=ft.Text("Type (%)"), numeric=True, fixed_width=100),
             DataColumn2(label=ft.Text(""), fixed_width=240),
@@ -1011,7 +1029,11 @@ class PortfolioView(ft.Column):
             ]
             rows.append(ft.DataRow(cells=cells))
 
-        return build_styled_data_table(columns, rows, _HEADING_COLOR)
+        table = build_styled_data_table(columns, rows, _HEADING_COLOR)
+        if self.total_sort_ascending is not None:
+            table.sort_column_index = total_column_index
+            table.sort_ascending = self.total_sort_ascending
+        return table
 
 
 def portfolio_view(page: ft.Page) -> ft.Control:
