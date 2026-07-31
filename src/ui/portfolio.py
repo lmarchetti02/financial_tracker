@@ -22,6 +22,15 @@ _CHART_ASPECT_RATIO = 5 / 7
 _LOCK_COLUMN_WIDTH = 70
 _DELTA_COLUMN_WIDTH = 170
 
+_REBALANCE_CAPTION = (
+    "Buy/sell amounts assume rebalancing within your current portfolio value - not new "
+    "deposits or withdrawals - so every buy is matched by an equal sell."
+)
+_CONTRIBUTION_CAPTION = (
+    "Amounts show how to invest your new money across the underweight kinds so the portfolio "
+    "moves toward target without selling anything. Locked kinds never receive any of it."
+)
+
 _KIND_OPTIONS = [
     ft.DropdownOption(key=str(kind.value), text=enum_label(kind))
     for kind in sorted(db.HoldingKind, key=lambda k: k.name)
@@ -533,47 +542,103 @@ class PortfolioView(ft.Column):
             f"Target total: {format_amount(sum(existing.values()), decimals=2)}%", weight=ft.FontWeight.BOLD
         )
         delta_texts = {kind: ft.Text("—", size=12) for kind in kinds}
+        unallocated_text = ft.Text("", size=12, color=ft.Colors.GREY)
 
-        def update_deltas() -> None:
-            """Recomputes and displays the buy/sell amount for every kind from its entered target."""
+        def _parsed_target_percentages() -> dict[db.HoldingKind, float]:
+            """Parses every kind's currently entered target percentage, skipping blank/invalid ones."""
+            targets: dict[db.HoldingKind, float] = {}
             for kind in kinds:
-                if lock_checkboxes[kind].value:
-                    # locked kinds are left untouched by definition - always exactly balanced,
-                    # regardless of any rounding in the displayed current-percentage value
-                    delta_texts[kind].value = "Balanced"
-                    delta_texts[kind].color = None
-                    continue
-
                 raw_value = (kind_fields[kind].value or "").strip()
-                try:
-                    target_pct = parse_amount(raw_value) if raw_value else 0.0
-                except ValueError:
-                    delta_texts[kind].value = "—"
-                    delta_texts[kind].color = None
-                    continue
-
-                delta = target_pct / 100 * grand_total - kind_totals.get(kind, 0.0)
-                if abs(delta) < 0.005:
-                    delta_texts[kind].value = "Balanced"
-                    delta_texts[kind].color = None
-                elif delta > 0:
-                    delta_texts[kind].value = f"Buy € {format_amount(delta)}"
-                    delta_texts[kind].color = ft.Colors.GREEN
-                else:
-                    delta_texts[kind].value = f"Sell € {format_amount(abs(delta))}"
-                    delta_texts[kind].color = ft.Colors.RED
-
-        def update_total(_: ft.Event) -> None:
-            """Recomputes and displays the sum of every entered target percentage."""
-            total = 0.0
-            for field in kind_fields.values():
-                raw_value = (field.value or "").strip()
                 if not raw_value:
                     continue
                 try:
-                    total += parse_amount(raw_value)
+                    targets[kind] = parse_amount(raw_value)
                 except ValueError:
                     continue
+            return targets
+
+        def update_deltas() -> None:
+            """Recomputes and displays the buy/sell (or buy-only, in contribution mode) amount per kind."""
+            try:
+                contribution = parse_amount((contribution_field.value or "").strip())
+            except ValueError:
+                contribution = 0.0
+
+            if contribution <= 0:
+                unallocated_text.value = ""
+                caption.value = _REBALANCE_CAPTION
+                for kind in kinds:
+                    if lock_checkboxes[kind].value:
+                        # locked kinds are left untouched by definition - always exactly balanced,
+                        # regardless of any rounding in the displayed current-percentage value
+                        delta_texts[kind].value = "Balanced"
+                        delta_texts[kind].color = None
+                        continue
+
+                    raw_value = (kind_fields[kind].value or "").strip()
+                    try:
+                        target_pct = parse_amount(raw_value) if raw_value else 0.0
+                    except ValueError:
+                        delta_texts[kind].value = "—"
+                        delta_texts[kind].color = None
+                        continue
+
+                    delta = target_pct / 100 * grand_total - kind_totals.get(kind, 0.0)
+                    if abs(delta) < 0.005:
+                        delta_texts[kind].value = "Balanced"
+                        delta_texts[kind].color = None
+                    elif delta > 0:
+                        delta_texts[kind].value = f"Buy € {format_amount(delta)}"
+                        delta_texts[kind].color = ft.Colors.GREEN
+                    else:
+                        delta_texts[kind].value = f"Sell € {format_amount(abs(delta))}"
+                        delta_texts[kind].color = ft.Colors.RED
+                return
+
+            # contribution mode: only ever buy, never sell, and locked kinds never receive any of it
+            caption.value = _CONTRIBUTION_CAPTION
+            new_total = grand_total + contribution
+            target_pcts = _parsed_target_percentages()
+            unlocked = [kind for kind in kinds if not lock_checkboxes[kind].value]
+
+            raw_needed = {
+                kind: max(0.0, target_pcts[kind] / 100 * new_total - kind_totals.get(kind, 0.0))
+                for kind in unlocked
+                if kind in target_pcts
+            }
+            total_needed = sum(raw_needed.values())
+
+            allocation: dict[db.HoldingKind, float] = {}
+            if total_needed <= contribution:
+                leftover = contribution - total_needed
+                total_unlocked_pct = sum(target_pcts.get(kind, 0.0) for kind in unlocked)
+                for kind in raw_needed:
+                    share = target_pcts[kind] / total_unlocked_pct * leftover if total_unlocked_pct else 0.0
+                    allocation[kind] = raw_needed[kind] + share
+            else:
+                for kind, needed in raw_needed.items():
+                    allocation[kind] = needed / total_needed * contribution
+
+            for kind in kinds:
+                if lock_checkboxes[kind].value or kind not in allocation:
+                    delta_texts[kind].value = "Balanced"
+                    delta_texts[kind].color = None
+                    continue
+
+                amount = allocation[kind]
+                if amount < 0.005:
+                    delta_texts[kind].value = "Balanced"
+                    delta_texts[kind].color = None
+                else:
+                    delta_texts[kind].value = f"Buy € {format_amount(amount)}"
+                    delta_texts[kind].color = ft.Colors.GREEN
+
+            unallocated = contribution - sum(allocation.values())
+            unallocated_text.value = f"Unallocated: € {format_amount(unallocated)}" if unallocated > 0.005 else ""
+
+        def update_total(_: ft.Event) -> None:
+            """Recomputes and displays the sum of every entered target percentage."""
+            total = sum(_parsed_target_percentages().values())
 
             total_text.value = f"Target total: {format_amount(total, decimals=2)}%"
             update_deltas()
@@ -611,6 +676,15 @@ class PortfolioView(ft.Column):
             )
             for kind in kinds
         }
+
+        contribution_field = ft.TextField(
+            label="New money to invest (€)",
+            width=400,
+            suffix="€",
+            on_change=update_total,
+        )
+        caption = ft.Text(_REBALANCE_CAPTION, size=12, color=ft.Colors.GREY)
+
         update_deltas()
 
         def save(_: ft.Event) -> None:
@@ -679,13 +753,6 @@ class PortfolioView(ft.Column):
             for kind in kinds
         ]
 
-        caption = ft.Text(
-            "Buy/sell amounts assume rebalancing within your current portfolio value - not new "
-            "deposits or withdrawals - so every buy is matched by an equal sell.",
-            size=12,
-            color=ft.Colors.GREY,
-        )
-
         self._page.show_dialog(
             ft.AlertDialog(
                 title=ft.Text("Asset Allocation"),
@@ -699,6 +766,9 @@ class PortfolioView(ft.Column):
                         ft.Column(
                             controls=[  # type: ignore
                                 total_text,
+                                contribution_field,
+                                unallocated_text,
+                                ft.Container(height=10),
                                 header_row,
                                 ft.Column(controls=rows, tight=True, spacing=15),
                                 ft.Container(height=10),

@@ -26,7 +26,6 @@ class HoldingKind(Enum):
     BONDS = auto()
     COMMODITIES = auto()
     CRYPTO = auto()
-    OTHER = auto()
 
 
 class ReplicationMethod(Enum):
@@ -49,7 +48,6 @@ HOLDING_KIND_COLORS = {
     HoldingKind.BONDS: "#6A1B9A",
     HoldingKind.COMMODITIES: "#FF8F00",
     HoldingKind.CRYPTO: "#FDD835",
-    HoldingKind.OTHER: "#757575",
 }
 
 HOLDING_KIND_ICONS = {
@@ -57,7 +55,6 @@ HOLDING_KIND_ICONS = {
     HoldingKind.BONDS: ft.Icons.ACCOUNT_BALANCE,
     HoldingKind.COMMODITIES: ft.Icons.DIAMOND,
     HoldingKind.CRYPTO: ft.Icons.CURRENCY_BITCOIN,
-    HoldingKind.OTHER: ft.Icons.MORE_HORIZ,
 }
 
 
