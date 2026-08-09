@@ -539,12 +539,21 @@ class PortfolioView(ft.Column):
 
         existing = db.fetch_kind_targets(self.location)
         kinds = sorted(db.HoldingKind, key=lambda k: k.name)
+        current_pcts = {kind: kind_totals.get(kind, 0.0) / grand_total * 100 for kind in kinds}
 
         total_text = ft.Text(
             f"Target total: {format_amount(sum(existing.values()), decimals=2)}%", weight=ft.FontWeight.BOLD
         )
         delta_texts = {kind: ft.Text("—", size=12) for kind in kinds}
         unallocated_text = ft.Text("", size=12, color=ft.Colors.GREY)
+
+        def _set_kind_label(kind: db.HoldingKind, resulting_pct: float | None) -> None:
+            """Updates a kind field's label with its current %, and projected new % once known."""
+            base = f"{enum_label(kind)} (current {format_amount(current_pcts[kind], decimals=2)}%"
+            if resulting_pct is None:
+                kind_fields[kind].label = f"{base})"
+            else:
+                kind_fields[kind].label = f"{base} → {format_amount(resulting_pct, decimals=2)}%)"
 
         def _parsed_target_percentages() -> dict[db.HoldingKind, float]:
             """Parses every kind's currently entered target percentage, skipping blank/invalid ones."""
@@ -575,6 +584,7 @@ class PortfolioView(ft.Column):
                         # regardless of any rounding in the displayed current-percentage value
                         delta_texts[kind].value = "Balanced"
                         delta_texts[kind].color = None
+                        _set_kind_label(kind, current_pcts[kind])
                         continue
 
                     raw_value = (kind_fields[kind].value or "").strip()
@@ -583,6 +593,7 @@ class PortfolioView(ft.Column):
                     except ValueError:
                         delta_texts[kind].value = "—"
                         delta_texts[kind].color = None
+                        _set_kind_label(kind, None)
                         continue
 
                     delta = target_pct / 100 * grand_total - kind_totals.get(kind, 0.0)
@@ -595,6 +606,7 @@ class PortfolioView(ft.Column):
                     else:
                         delta_texts[kind].value = f"Sell € {format_amount(abs(delta))}"
                         delta_texts[kind].color = ft.Colors.RED
+                    _set_kind_label(kind, target_pct)
                 return
 
             # contribution mode: only ever buy, never sell, and locked kinds never receive any of it
@@ -625,6 +637,7 @@ class PortfolioView(ft.Column):
                 if lock_checkboxes[kind].value or kind not in allocation:
                     delta_texts[kind].value = "Balanced"
                     delta_texts[kind].color = None
+                    _set_kind_label(kind, kind_totals.get(kind, 0.0) / new_total * 100)
                     continue
 
                 amount = allocation[kind]
@@ -634,6 +647,7 @@ class PortfolioView(ft.Column):
                 else:
                     delta_texts[kind].value = f"Buy € {format_amount(amount)}"
                     delta_texts[kind].color = ft.Colors.GREEN
+                _set_kind_label(kind, (kind_totals.get(kind, 0.0) + amount) / new_total * 100)
 
             unallocated = contribution - sum(allocation.values())
             unallocated_text.value = f"Unallocated: € {format_amount(unallocated)}" if unallocated > 0.005 else ""
@@ -648,7 +662,7 @@ class PortfolioView(ft.Column):
 
         kind_fields = {
             kind: ft.TextField(
-                label=f"{enum_label(kind)} (current {format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=2)}%)",
+                label=f"{enum_label(kind)} (current {format_amount(current_pcts[kind], decimals=2)}%)",
                 value=format_amount(existing[kind], decimals=2) if kind in existing else "",
                 width=400,
                 suffix="%",
@@ -664,7 +678,7 @@ class PortfolioView(ft.Column):
             field = kind_fields[kind]
             if e.control.value:
                 locked_previous_values[kind] = field.value or ""
-                field.value = format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=2)
+                field.value = format_amount(current_pcts[kind], decimals=2)
                 field.read_only = True
             else:
                 field.value = locked_previous_values.pop(kind, "")
