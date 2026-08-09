@@ -8,6 +8,7 @@ import flet_charts as fch
 from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
+from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import (build_kind_allocation_pie,
                       show_detailed_region_diversification,
@@ -553,7 +554,7 @@ class PortfolioView(ft.Column):
                 if not raw_value:
                     continue
                 try:
-                    targets[kind] = parse_amount(raw_value)
+                    targets[kind] = evaluate_expression(raw_value)
                 except ValueError:
                     continue
             return targets
@@ -561,7 +562,7 @@ class PortfolioView(ft.Column):
         def update_deltas() -> None:
             """Recomputes and displays the buy/sell (or buy-only, in contribution mode) amount per kind."""
             try:
-                contribution = parse_amount((contribution_field.value or "").strip())
+                contribution = evaluate_expression((contribution_field.value or "").strip())
             except ValueError:
                 contribution = 0.0
 
@@ -578,7 +579,7 @@ class PortfolioView(ft.Column):
 
                     raw_value = (kind_fields[kind].value or "").strip()
                     try:
-                        target_pct = parse_amount(raw_value) if raw_value else 0.0
+                        target_pct = evaluate_expression(raw_value) if raw_value else 0.0
                     except ValueError:
                         delta_texts[kind].value = "—"
                         delta_texts[kind].color = None
@@ -647,7 +648,7 @@ class PortfolioView(ft.Column):
 
         kind_fields = {
             kind: ft.TextField(
-                label=f"{enum_label(kind)} (current {format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=1)}%)",
+                label=f"{enum_label(kind)} (current {format_amount(kind_totals.get(kind, 0.0) / grand_total * 100, decimals=2)}%)",
                 value=format_amount(existing[kind], decimals=2) if kind in existing else "",
                 width=400,
                 suffix="%",
@@ -698,9 +699,14 @@ class PortfolioView(ft.Column):
                     continue
 
                 try:
-                    percentage = parse_amount(raw_value)
+                    percentage = evaluate_expression(raw_value)
                 except ValueError:
-                    show_alert(self._page, "Invalid percentage", f"'{enum_label(kind)}' must be a real number.")
+                    show_alert(
+                        self._page,
+                        "Invalid percentage",
+                        f"'{enum_label(kind)}' must be a real number or arithmetic expression (comma for "
+                        "decimals allowed).",
+                    )
                     return
                 if percentage == 0:
                     # a zero target (typed, or locked to a currently-empty kind) is the same as unset
