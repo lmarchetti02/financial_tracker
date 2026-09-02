@@ -33,6 +33,7 @@ def home_view(page: ft.Page) -> ft.Control:
     savings_rate = np.zeros_like(income)
     np.divide(net_savings, income, out=savings_rate, where=income != 0)
     savings_rate *= 100
+    savings_rate = np.clip(savings_rate, 0, None)
 
     logger.debug(f"Income per month:\n{income}")
     logger.debug(f"Expenses per month:\n{expenses}")
