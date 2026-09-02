@@ -1,6 +1,6 @@
 [project]
 name = "financial-tracker"
-version = "1.2.1"
+version = "1.2.2"
 description = "Luca Marchetti's Financial Tracker"
 readme = "README.md"
 requires-python = "==3.12.*"
