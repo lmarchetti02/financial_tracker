@@ -1222,6 +1222,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                         text_align=ft.TextAlign.RIGHT,
                         text_size=14,
                         border=ft.InputBorder.NONE,
+                        border_width=0,
                         content_padding=6,
                         dense=True,
                         data=holding_id,
