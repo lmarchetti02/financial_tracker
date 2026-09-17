@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from logging import getLogger
+from typing import ClassVar
 
 import flet as ft
 from flet_datatable2 import DataColumn2
@@ -9,7 +10,8 @@ from flet_datatable2 import DataColumn2
 import database as db
 from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
-from plotting import show_expenses_pie, show_expenses_summary, show_expenses_trend
+from plotting import (show_expenses_pie, show_expenses_summary,
+                      show_expenses_trend)
 
 from .base_view import BaseCrudView
 from .common import show_alert
@@ -28,6 +30,8 @@ class ExpensesView(BaseCrudView):
     _title = "Expenses"
     _heading_color = "#960000"
     _sorting_config_cls = db.ExpensesSortingConfig
+    _item_label = "Expense"
+    _form_height: ClassVar[int] = 170
 
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
@@ -61,6 +65,27 @@ class ExpensesView(BaseCrudView):
         # button
         self.add_expense_button = ft.Button("Add Expense", on_click=self.add_new_expense)
         self.clear_button = self._build_clear_button()
+
+        # collapsible form
+        self.form_content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        self.date_options_dropdown,
+                        self.date_button,
+                        ft.Container(width=20),
+                        self.category_picker,
+                        ft.Container(width=20),
+                        self.cost_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                self.description_text,
+                ft.Row([self.add_expense_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
         # data table
         columns = db.Expense.get_table_columns()
@@ -98,24 +123,11 @@ class ExpensesView(BaseCrudView):
 
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
-        upper_row = ft.Row(
-            controls=[
-                self.date_options_dropdown,
-                self.date_button,
-                ft.Container(width=20),
-                self.category_picker,
-                ft.Container(width=20),
-                self.cost_text,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-
         return [
-            ft.Container(height=40),
-            upper_row,
-            self.description_text,
-            ft.Row([self.add_expense_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=10),
+            ft.Container(height=5),
+            ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
+            self.form_container,
+            ft.Container(height=5),
             self.table_column,
             ft.Row(
                 [self.summary_button, self.pie_chart_button, self.trend_button], alignment=ft.MainAxisAlignment.CENTER
@@ -252,6 +264,7 @@ class ExpensesView(BaseCrudView):
 
         db.add_item(self.location, expense)
         self.clear_inputs()
+        self._set_form_expanded(False)
         self.refresh_table()
 
     def delete_item(self, e: ft.Event) -> None:
@@ -301,6 +314,7 @@ class ExpensesView(BaseCrudView):
 
             self.clear_inputs()
             self.reset_add_button()
+            self._set_form_expanded(False)
 
             self.refresh_table()
 
@@ -308,6 +322,7 @@ class ExpensesView(BaseCrudView):
         self.add_expense_button.color = ft.Colors.PURPLE
         self.add_expense_button.on_click = modify
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_expense(old_expense, e)
 
     def copy_this_item(self, e: ft.Event) -> None:
@@ -318,6 +333,7 @@ class ExpensesView(BaseCrudView):
 
         self.reset_add_button()
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_expense(expense, e)
 
     def reset_add_button(self) -> None:

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import date
 from logging import getLogger
+from typing import ClassVar
 
 import flet as ft
 import flet_charts as fch
@@ -16,7 +17,8 @@ from plotting import (build_kind_allocation_pie,
                       show_detailed_region_diversification,
                       show_portfolio_diversification)
 
-from .common import build_styled_data_table, current_db_location, show_alert
+from .common import (CollapsibleFormMixin, build_styled_data_table,
+                     current_db_location, show_alert)
 
 logger = getLogger("financial_tracker")
 
@@ -48,7 +50,7 @@ _DISTRIBUTION_OPTIONS = [
 ]
 
 
-class PortfolioView(ft.Column):
+class PortfolioView(CollapsibleFormMixin, ft.Column):
     """Encapsulates the portfolio view: manage holdings and refresh their live prices.
 
     Holdings are split into two independent sections: "Long Term Assets" (open-ended holdings,
@@ -56,6 +58,9 @@ class PortfolioView(ft.Column):
     bond or a target-maturity ETF like an iBonds series). Both sections share a single add/edit
     form; which one a holding lands in is decided purely by whether a maturity date was entered.
     """
+
+    _item_label: ClassVar[str] = "Holding"
+    _form_height: ClassVar[int] = 330
 
     def __init__(self, page: ft.Page) -> None:
         """Initializes the view, state variables, and layout."""
@@ -74,6 +79,7 @@ class PortfolioView(ft.Column):
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
         self._init_controls()
+        self._init_collapsible_form()
         self.controls = self._build_layout()
         self.refresh()
 
@@ -130,8 +136,7 @@ class PortfolioView(ft.Column):
         self.long_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_long_term_kind)
         self.fixed_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_fixed_term_kind)
 
-    def _build_layout(self) -> list[ft.Control]:
-        """Assembles the initialized controls into the final layout, matching the other CRUD pages."""
+        # collapsible form
         upper_row = ft.Row(
             controls=[self.name_text, ft.Container(width=20), self.ticker_text],
             alignment=ft.MainAxisAlignment.CENTER,
@@ -164,16 +169,27 @@ class PortfolioView(ft.Column):
             alignment=ft.MainAxisAlignment.CENTER,
         )
 
+        self.form_content = ft.Column(
+            controls=[
+                upper_row,
+                maturity_row,
+                fund_details_row,
+                issuer_row,
+                self.notes_text,
+                ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _build_layout(self) -> list[ft.Control]:
+        """Assembles the initialized controls into the final layout, matching the other CRUD pages."""
         return [
             ft.Text("Portfolio", size=30, weight=ft.FontWeight.BOLD),
-            ft.Container(height=40),
-            upper_row,
-            maturity_row,
-            fund_details_row,
-            issuer_row,
-            self.notes_text,
-            ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=20),
+            ft.Container(height=5),
+            ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
+            self.form_container,
+            ft.Container(height=5),
             ft.Text("Long Term Assets", size=20, weight=ft.FontWeight.BOLD, color=_HEADING_COLOR),
             self.long_term_table_container,
             ft.Row(
@@ -320,6 +336,7 @@ class PortfolioView(ft.Column):
         logger.debug(f"Added holding:\n{holding}")
 
         self.clear_inputs()
+        self._set_form_expanded(False)
         self.refresh()
 
     def delete_holding(self, e: ft.Event) -> None:
@@ -366,12 +383,14 @@ class PortfolioView(ft.Column):
 
             self.clear_inputs()
             self.reset_add_button()
+            self._set_form_expanded(False)
             self.refresh()
 
         self.add_button.content = "Edit Holding"
         self.add_button.color = ft.Colors.PURPLE
         self.add_button.on_click = modify
 
+        self._set_form_expanded(True)
         self._fill_inputs_from_holding(old_holding)
 
     def reset_add_button(self) -> None:

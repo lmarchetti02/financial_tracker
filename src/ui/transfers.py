@@ -3,12 +3,15 @@
 from dataclasses import replace
 from datetime import datetime
 from logging import getLogger
+from typing import ClassVar
 
 import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.constants import SYSTEM_CATEGORY_TRADING_FEE, SYSTEM_KIND_INVESTMENT, SYSTEM_SOURCE_INVESTMENTS
+from _helpers.constants import (SYSTEM_CATEGORY_TRADING_FEE,
+                                SYSTEM_KIND_INVESTMENT,
+                                SYSTEM_SOURCE_INVESTMENTS)
 from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
 
@@ -24,6 +27,8 @@ class TransfersView(BaseCrudView):
     _title = "Transfers"
     _heading_color = "#00008B"
     _sorting_config_cls = db.TransfersSortingConfig
+    _item_label = "Transfer"
+    _form_height: ClassVar[int] = 230
 
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
@@ -64,6 +69,43 @@ class TransfersView(BaseCrudView):
         self.add_transfer_button = ft.Button("Add Transfer", on_click=self.add_new_transfer)
         self.clear_button = self._build_clear_button()
 
+        # collapsible form
+        self.form_content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        self.date_button,
+                        ft.Container(width=40),
+                        self.kind_picker,
+                        ft.Container(width=40),
+                        self.amount_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Row(
+                    controls=[
+                        self.source_text,
+                        ft.Container(width=40),
+                        self.destination_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Row(
+                    controls=[
+                        self.description_text,
+                        ft.Container(width=5),
+                        self.fee_text,
+                        ft.Container(width=5),
+                        self.profit_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Row([self.add_transfer_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
         # data table
         columns = db.Transfer.get_table_columns()
         columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
@@ -78,44 +120,11 @@ class TransfersView(BaseCrudView):
 
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
-        upper_row = ft.Row(
-            controls=[
-                self.date_button,
-                ft.Container(width=40),
-                self.kind_picker,
-                ft.Container(width=40),
-                self.amount_text,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-
-        source_destination_row = ft.Row(
-            controls=[
-                self.source_text,
-                ft.Container(width=40),
-                self.destination_text,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-
-        description_row = ft.Row(
-            controls=[
-                self.description_text,
-                ft.Container(width=5),
-                self.fee_text,
-                ft.Container(width=5),
-                self.profit_text,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-
         return [
-            ft.Container(height=40),
-            upper_row,
-            source_destination_row,
-            description_row,
-            ft.Row([self.add_transfer_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=10),
+            ft.Container(height=5),
+            ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
+            self.form_container,
+            ft.Container(height=5),
             self.table_column,
         ]
 
@@ -324,6 +333,7 @@ class TransfersView(BaseCrudView):
         self._sync_transfer_accounts(transfer)
 
         self.clear_inputs()
+        self._set_form_expanded(False)
         self.refresh_table()
 
     def delete_item(self, e: ft.Event) -> None:
@@ -436,6 +446,7 @@ class TransfersView(BaseCrudView):
 
             self.clear_inputs()
             self.reset_add_button()
+            self._set_form_expanded(False)
 
             self.refresh_table()
 
@@ -443,6 +454,7 @@ class TransfersView(BaseCrudView):
         self.add_transfer_button.color = ft.Colors.PURPLE
         self.add_transfer_button.on_click = modify
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_transfer(old_transfer, e)
 
     def copy_this_item(self, e: ft.Event) -> None:
@@ -453,6 +465,7 @@ class TransfersView(BaseCrudView):
 
         self.reset_add_button()
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_transfer(transfer, e)
 
     def reset_add_button(self) -> None:

@@ -12,12 +12,12 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import MONTHS
 
-from .common import build_styled_data_table, current_db_location
+from .common import CollapsibleFormMixin, build_styled_data_table, current_db_location
 
 logger = getLogger("financial_tracker")
 
 
-class BaseCrudView(ft.Column, ABC):
+class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     """Shared scaffolding for a domain's add/edit/delete/sort/filter table view."""
 
     _title: ClassVar[str]
@@ -43,6 +43,8 @@ class BaseCrudView(ft.Column, ABC):
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
         self._init_controls()
+        self._init_collapsible_form()
+
         self.controls = [ft.Text(self._title, size=30, weight=ft.FontWeight.BOLD), *self._build_layout()]
 
         try:
@@ -52,7 +54,7 @@ class BaseCrudView(ft.Column, ABC):
 
     @abstractmethod
     def _init_controls(self) -> None:
-        """Instantiates all Flet controls used in the view."""
+        """Instantiates all Flet controls used in the view, including `self.form_content`."""
 
     @abstractmethod
     def _build_layout(self) -> list[ft.Control]:

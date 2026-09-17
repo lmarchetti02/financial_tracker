@@ -1,6 +1,7 @@
 """Implementation of the 'income' layout."""
 
 from logging import getLogger
+from typing import ClassVar
 
 import flet as ft
 from flet_datatable2 import DataColumn2
@@ -23,6 +24,8 @@ class IncomeView(BaseCrudView):
     _title = "Income"
     _heading_color = "#006400"
     _sorting_config_cls = db.IncomesSortingConfig
+    _item_label = "Income"
+    _form_height: ClassVar[int] = 170
 
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
@@ -50,6 +53,26 @@ class IncomeView(BaseCrudView):
         # button
         self.add_income_button = ft.Button("Add Income", on_click=self.add_new_income)
         self.clear_button = self._build_clear_button()
+
+        # collapsible form
+        self.form_content = ft.Column(
+            controls=[
+                ft.Row(
+                    controls=[
+                        self.month_picker,
+                        ft.Container(width=20),
+                        self.source_picker,
+                        ft.Container(width=20),
+                        self.amount_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                self.description_text,
+                ft.Row([self.add_income_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            tight=True,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
         # data table
         columns = db.Income.get_table_columns()
@@ -87,23 +110,11 @@ class IncomeView(BaseCrudView):
 
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
-        upper_row = ft.Row(
-            controls=[
-                self.month_picker,
-                ft.Container(width=20),
-                self.source_picker,
-                ft.Container(width=20),
-                self.amount_text,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-
         return [
-            ft.Container(height=40),
-            upper_row,
-            self.description_text,
-            ft.Row([self.add_income_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=10),
+            ft.Container(height=5),
+            ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
+            self.form_container,
+            ft.Container(height=5),
             self.table_column,
             ft.Row(
                 [self.summary_button, self.pie_chart_button, self.trend_button], alignment=ft.MainAxisAlignment.CENTER
@@ -176,6 +187,7 @@ class IncomeView(BaseCrudView):
 
         db.add_item(self.location, income)
         self.clear_inputs()
+        self._set_form_expanded(False)
         self.refresh_table()
 
     def delete_item(self, e: ft.Event) -> None:
@@ -226,6 +238,7 @@ class IncomeView(BaseCrudView):
 
             self.clear_inputs()
             self.reset_add_button()
+            self._set_form_expanded(False)
 
             self.refresh_table()
 
@@ -233,6 +246,7 @@ class IncomeView(BaseCrudView):
         self.add_income_button.color = ft.Colors.PURPLE
         self.add_income_button.on_click = modify
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_income(old_income)
 
     def copy_this_item(self, e: ft.Event) -> None:
@@ -243,6 +257,7 @@ class IncomeView(BaseCrudView):
 
         self.reset_add_button()
 
+        self._set_form_expanded(True)
         self.fill_inputs_from_income(income)
 
     def fill_inputs_from_income(self, income: db.Income) -> None:

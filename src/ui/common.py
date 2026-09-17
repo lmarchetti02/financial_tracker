@@ -1,9 +1,51 @@
 """Shared UI helpers used across views."""
 
+from typing import ClassVar
+
 import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
+
+
+class CollapsibleFormMixin:
+    """Shared expand/collapse behavior for a view's add/edit form, hidden until toggled open.
+
+    A host class must build `self.form_content` (the `ft.Column` of input fields) and call
+    `_init_collapsible_form()` right after, and must implement `clear_inputs()`/`reset_add_button()`
+    (both `:class:BaseCrudView` and `:class:PortfolioView` already do, independently).
+    """
+
+    _item_label: ClassVar[str]
+    _form_height: ClassVar[int] = 240
+
+    def _init_collapsible_form(self) -> None:
+        """Wraps `self.form_content` in a `form_container` and builds the `toggle_form_button`."""
+        self._form_expanded = False
+        self.toggle_form_button = ft.IconButton(
+            icon=ft.Icons.ADD_CIRCLE_OUTLINE, tooltip=f"Add {self._item_label}", on_click=self.toggle_form
+        )
+        self.form_container = ft.Container(
+            content=self.form_content,
+            height=0,
+            animate=ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        )
+
+    def toggle_form(self, _: ft.Event) -> None:
+        """Expands or collapses the add/edit form, animating the transition."""
+        if not self._form_expanded:
+            self.clear_inputs()
+            self.reset_add_button()
+        self._set_form_expanded(not self._form_expanded)
+        self._page.update()
+
+    def _set_form_expanded(self, expanded: bool) -> None:
+        """Sets whether the add/edit form is shown, without pushing the change to the page."""
+        self._form_expanded = expanded
+        self.form_container.height = self._form_height if expanded else 0
+        self.toggle_form_button.icon = ft.Icons.EXPAND_LESS if expanded else ft.Icons.ADD_CIRCLE_OUTLINE
+        self.toggle_form_button.tooltip = "Hide form" if expanded else f"Add {self._item_label}"
 
 
 def current_db_location(page: ft.Page) -> db.DbLocation:
