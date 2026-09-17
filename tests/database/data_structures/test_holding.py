@@ -39,7 +39,7 @@ class TestHolding:
         assert holding.currency == "USD"
 
     def test_optional_fields_default_to_none(self) -> None:
-        """Region, replication, distribution, notes, and TER are optional."""
+        """Region, replication, distribution, notes, TER, and maturity date are optional."""
         holding = make_holding()
 
         assert holding.region is None
@@ -47,6 +47,13 @@ class TestHolding:
         assert holding.distribution is None
         assert holding.notes is None
         assert holding.ter is None
+        assert holding.maturity_date is None
+
+    def test_construction_succeeds_with_maturity_date_set(self) -> None:
+        """A maturity date can be set to mark the holding as fixed-term."""
+        holding = make_holding(maturity_date="2027-06-15")
+
+        assert holding.maturity_date == "2027-06-15"
 
     def test_quantity_defaults_to_zero(self) -> None:
         """A newly-defined holding starts with no shares/units."""
@@ -74,8 +81,8 @@ class TestHoldingGetTableColumns:
     """Tests for `Holding.get_table_columns`."""
 
     def test_returns_one_column_per_displayed_field(self) -> None:
-        """One column each for name, ticker, kind, issuer, currency, region, replication, distribution, notes, TER, shares."""
-        assert len(Holding.get_table_columns()) == 11
+        """One column each for name, ticker, kind, issuer, currency, region, replication, distribution, notes, TER, shares, maturity date."""
+        assert len(Holding.get_table_columns()) == 12
 
 
 class TestHoldingGetTableRow:
@@ -95,6 +102,7 @@ class TestHoldingGetTableRow:
             "notes": "Large/medium-sized companies",
             "ter": 0.21,
             "quantity": 5.0,
+            "maturity_date": "2027-06-15",
         }
 
         cells = Holding.get_table_row(row)
@@ -110,9 +118,10 @@ class TestHoldingGetTableRow:
         assert cells[8].content.value == "Large/medium-sized companies"
         assert cells[9].content.value == "0,21%"
         assert cells[10].content.value == "5,0000"
+        assert cells[11].content.value == "2027-06-15"
 
     def test_formats_unset_optional_fields_as_a_placeholder(self) -> None:
-        """Region, replication, distribution, notes, and TER render as "—" when unset."""
+        """Region, replication, distribution, notes, TER, and maturity date render as "—" when unset."""
         row = {
             "name": "FTSE AllWld UCITS ETF USD A (XETR:VWCE)",
             "ticker": "VWCE.DE",
@@ -125,6 +134,7 @@ class TestHoldingGetTableRow:
             "notes": None,
             "ter": None,
             "quantity": 0.0,
+            "maturity_date": None,
         }
 
         cells = Holding.get_table_row(row)
@@ -134,6 +144,7 @@ class TestHoldingGetTableRow:
         assert cells[7].content.value == "—"
         assert cells[8].content.value == "—"
         assert cells[9].content.value == "—"
+        assert cells[11].content.value == "—"
 
 
 class TestHoldingRegionAllocation:

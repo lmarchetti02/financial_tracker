@@ -47,6 +47,33 @@ def compute_holding_value(holding: Holding) -> float | None:
     return holding.quantity * holding.last_price if holding.last_price is not None else None
 
 
+def is_fixed_term(holding: Holding) -> bool:
+    """Whether a holding has a defined maturity date.
+
+    Args:
+        holding (`:class:Holding`): The holding to check.
+
+    Returns:
+        bool: `True` for a fixed-maturity instrument (an individual bond, or a target-maturity
+            ETF like an iBonds series), `False` for an open-ended holding meant to be held
+            indefinitely (a plain stock/ETF).
+    """
+    return holding.maturity_date is not None
+
+
+def is_expired(holding: Holding) -> bool:
+    """Whether a fixed-term holding's maturity date has already arrived.
+
+    Args:
+        holding (`:class:Holding`): The holding to check.
+
+    Returns:
+        bool: `True` if `maturity_date` is set and is today or in the past. Always `False` for a
+            long-term holding, since it has no `maturity_date` to compare.
+    """
+    return holding.maturity_date is not None and holding.maturity_date <= date.today().isoformat()
+
+
 def refresh_holding_price(location: DbLocation, holding_id: int, holding: Holding) -> Holding | None:
     """Fetches a holding's latest price and persists it if found.
 

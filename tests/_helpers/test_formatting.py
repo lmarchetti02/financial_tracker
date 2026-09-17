@@ -22,8 +22,8 @@ class TestEnumLabel:
         assert enum_label(_Color.RED) == "Red"
 
     def test_formats_a_multi_word_member(self) -> None:
-        """Underscores in a multi-word member name become spaces."""
-        assert enum_label(_Color.DARK_BLUE) == "Dark blue"
+        """Underscores in a multi-word member name become spaces, and every word is capitalized."""
+        assert enum_label(_Color.DARK_BLUE) == "Dark Blue"
 
 
 class TestFormatAmount:

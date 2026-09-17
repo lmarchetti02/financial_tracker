@@ -53,6 +53,8 @@ from .holdings import delete_holding as delete_holding
 from .holdings import fetch_holdings as fetch_holdings
 from .holdings import fetch_kind_targets as fetch_kind_targets
 from .holdings import fetch_region_allocations as fetch_region_allocations
+from .holdings import is_expired as is_expired
+from .holdings import is_fixed_term as is_fixed_term
 from .holdings import refresh_holding_price as refresh_holding_price
 from .holdings import save_kind_targets as save_kind_targets
 from .holdings import save_region_allocations as save_region_allocations

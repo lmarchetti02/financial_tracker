@@ -119,13 +119,17 @@ def build_kind_allocation_pie(kind_totals: dict[db.HoldingKind, float]) -> plt.F
 
 
 def show_portfolio_diversification(page: ft.Page) -> None:
-    """Generates a side-by-side pie-chart breakdown of the portfolio's value by issuer, region, and currency."""
+    """Generates a side-by-side pie-chart breakdown of the long-term portfolio's value by issuer, region, and currency.
+
+    Fixed-term holdings (a defined maturity date) are excluded, since they're held to maturity
+    rather than diversified/rebalanced like the long-term portfolio.
+    """
     logger.info("Called 'show_portfolio_diversification'")
 
     location = current_db_location(page)
 
     # get data
-    holdings = db.fetch_holdings(location)
+    holdings = [(hid, h) for hid, h in db.fetch_holdings(location) if not db.is_fixed_term(h)]
     by_issuer = _group_by_value(holdings, "issuer")
     by_region = _group_by_value(holdings, "region")
     by_currency = _group_by_value(holdings, "currency")
@@ -244,13 +248,17 @@ def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
 
 
 def show_detailed_region_diversification(page: ft.Page) -> None:
-    """Generates a bar-of-pie chart of the portfolio's value across the detailed region breakdown."""
+    """Generates a bar-of-pie chart of the long-term portfolio's value across the detailed region breakdown.
+
+    Fixed-term holdings (a defined maturity date) are excluded, for the same reason as
+    `:func:show_portfolio_diversification`.
+    """
     logger.info("Called 'show_detailed_region_diversification'")
 
     location = current_db_location(page)
 
     # get data
-    holdings = db.fetch_holdings(location)
+    holdings = [(hid, h) for hid, h in db.fetch_holdings(location) if not db.is_fixed_term(h)]
     region_allocations = db.fetch_region_allocations(location)
     by_region = _region_totals(holdings, region_allocations)
 

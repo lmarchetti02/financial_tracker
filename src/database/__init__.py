@@ -68,6 +68,8 @@ from .db_operations import get_or_create_debt_credit_account as get_or_create_de
 from .db_operations import get_theme_preference as get_theme_preference
 from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
+from .db_operations import is_expired as is_expired
+from .db_operations import is_fixed_term as is_fixed_term
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
 from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances

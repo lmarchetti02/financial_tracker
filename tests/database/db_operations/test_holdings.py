@@ -1,5 +1,6 @@
 """Unit tests for `database.db_operations.holdings`."""
 
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,8 @@ from database.db_operations.holdings import (
     fetch_holdings,
     fetch_kind_targets,
     fetch_region_allocations,
+    is_expired,
+    is_fixed_term,
     refresh_holding_price,
     save_kind_targets,
     save_region_allocations,
@@ -72,6 +75,42 @@ class TestComputeHoldingValue:
         holding = make_holding(quantity=3.0, last_price=None)
 
         assert compute_holding_value(holding) is None
+
+
+class TestIsFixedTerm:
+    """Tests for `is_fixed_term`."""
+
+    def test_returns_true_when_maturity_date_is_set(self) -> None:
+        """A holding with a maturity date is fixed-term."""
+        assert is_fixed_term(make_holding(maturity_date="2027-06-15")) is True
+
+    def test_returns_false_when_maturity_date_is_unset(self) -> None:
+        """A holding with no maturity date is long-term."""
+        assert is_fixed_term(make_holding()) is False
+
+
+class TestIsExpired:
+    """Tests for `is_expired`."""
+
+    def test_returns_true_for_a_past_maturity_date(self) -> None:
+        """A maturity date before today has already expired."""
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+        assert is_expired(make_holding(maturity_date=yesterday)) is True
+
+    def test_returns_true_for_todays_maturity_date(self) -> None:
+        """A holding matures on its maturity date, so today counts as expired."""
+        assert is_expired(make_holding(maturity_date=date.today().isoformat())) is True
+
+    def test_returns_false_for_a_future_maturity_date(self) -> None:
+        """A maturity date after today hasn't expired yet."""
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+        assert is_expired(make_holding(maturity_date=tomorrow)) is False
+
+    def test_returns_false_when_maturity_date_is_unset(self) -> None:
+        """A long-term holding, with no maturity date, is never expired."""
+        assert is_expired(make_holding()) is False
 
 
 class TestRefreshHoldingPrice:

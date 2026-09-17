@@ -1,6 +1,8 @@
 """Implementation of the portfolio layout."""
 
+from collections.abc import Callable
 from dataclasses import replace
+from datetime import date
 from logging import getLogger
 
 import flet as ft
@@ -47,7 +49,13 @@ _DISTRIBUTION_OPTIONS = [
 
 
 class PortfolioView(ft.Column):
-    """Encapsulates the portfolio view: manage holdings and refresh their live prices."""
+    """Encapsulates the portfolio view: manage holdings and refresh their live prices.
+
+    Holdings are split into two independent sections: "Long Term Assets" (open-ended holdings,
+    with no `maturity_date`) and "Fixed Term Assets" (a defined maturity date, e.g. an individual
+    bond or a target-maturity ETF like an iBonds series). Both sections share a single add/edit
+    form; which one a holding lands in is decided purely by whether a maturity date was entered.
+    """
 
     def __init__(self, page: ft.Page) -> None:
         """Initializes the view, state variables, and layout."""
@@ -56,8 +64,10 @@ class PortfolioView(ft.Column):
         self._page = page
 
         self.location = current_db_location(page)
-        self.current_kind_filter: db.HoldingKind | None = None
-        self.total_sort_ascending: bool | None = None
+        self.long_term_kind_filter: db.HoldingKind | None = None
+        self.fixed_term_kind_filter: db.HoldingKind | None = None
+        self.long_term_sort_ascending: bool | None = None
+        self.fixed_term_sort_ascending: bool | None = None
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -69,21 +79,33 @@ class PortfolioView(ft.Column):
 
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
-        self.name_text = ft.TextField(label="Name", width=300)
-        self.ticker_text = ft.TextField(label="Ticker", width=110)
-        self.kind_dropdown = ft.Dropdown(label="Type", options=_KIND_OPTIONS, width=170)
-        self.issuer_text = ft.TextField(label="Issuer", width=230)
-        self.region_text = ft.TextField(label="Region", width=230)
-        self.currency_text = ft.TextField(label="Currency", width=120)
+        self.name_text = ft.TextField(label="Name", width=450)
+        self.ticker_text = ft.TextField(label="Ticker", width=170)
+        self.kind_dropdown = ft.Dropdown(
+            label="Type", options=_KIND_OPTIONS, width=280, on_select=self._handle_kind_change
+        )
+        self.maturity_date_text = ft.TextField(label="Maturity Date (YYYY-MM-DD)", width=340, disabled=True)
         self.replication_dropdown = ft.Dropdown(label="Replication", options=_REPLICATION_OPTIONS, width=230)
         self.distribution_dropdown = ft.Dropdown(label="Distribution", options=_DISTRIBUTION_OPTIONS, width=230)
         self.ter_text = ft.TextField(label="TER (%)", width=120)
+        self.issuer_text = ft.TextField(label="Issuer", width=230)
+        self.region_text = ft.TextField(label="Region", width=230)
+        self.currency_text = ft.TextField(label="Currency", width=120)
         self.notes_text = ft.TextField(label="Notes", width=660, multiline=True)
         self.add_button = ft.Button("Add Holding", on_click=self.add_holding)
         self.clear_button = ft.Button("Clear Fields", on_click=self._handle_clear_click)
 
-        self.refresh_prices_button = ft.Button(
-            "Refresh Prices", icon=ft.Icons.REFRESH, color=_HEADING_COLOR, on_click=self.refresh_prices
+        self.long_term_refresh_prices_button = ft.Button(
+            "Refresh Prices",
+            icon=ft.Icons.REFRESH,
+            color=_HEADING_COLOR,
+            on_click=lambda _: self.refresh_prices(self.long_term_holdings),
+        )
+        self.fixed_term_refresh_prices_button = ft.Button(
+            "Refresh Prices",
+            icon=ft.Icons.REFRESH,
+            color=_HEADING_COLOR,
+            on_click=lambda _: self.refresh_prices(self.fixed_term_holdings),
         )
         self.diversification_button = ft.Button(
             "Show Diversification",
@@ -103,19 +125,15 @@ class PortfolioView(ft.Column):
             color=_HEADING_COLOR,
             on_click=self.show_asset_allocation,
         )
-        self.holdings_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
-        self.kind_filter_menu = self._build_kind_filter_menu()
+        self.long_term_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+        self.fixed_term_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+        self.long_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_long_term_kind)
+        self.fixed_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_fixed_term_kind)
 
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout, matching the other CRUD pages."""
         upper_row = ft.Row(
-            controls=[
-                self.name_text,
-                ft.Container(width=20),
-                self.ticker_text,
-                ft.Container(width=20),
-                self.kind_dropdown,
-            ],
+            controls=[self.name_text, ft.Container(width=20), self.ticker_text],
             alignment=ft.MainAxisAlignment.CENTER,
         )
 
@@ -141,20 +159,30 @@ class PortfolioView(ft.Column):
             alignment=ft.MainAxisAlignment.CENTER,
         )
 
+        maturity_row = ft.Row(
+            controls=[self.kind_dropdown, ft.Container(width=20), self.maturity_date_text],
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
         return [
             ft.Text("Portfolio", size=30, weight=ft.FontWeight.BOLD),
             ft.Container(height=40),
             upper_row,
+            maturity_row,
             fund_details_row,
             issuer_row,
             self.notes_text,
             ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=10),
-            self.holdings_table_container,
+            ft.Container(height=20),
+            ft.Text("Long Term Assets", size=20, weight=ft.FontWeight.BOLD, color=_HEADING_COLOR),
+            self.long_term_table_container,
             ft.Row(
                 [self.diversification_button, self.detailed_diversification_button, self.asset_allocation_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
+            ft.Container(height=20),
+            ft.Text("Fixed Term Assets", size=20, weight=ft.FontWeight.BOLD, color=_HEADING_COLOR),
+            self.fixed_term_table_container,
         ]
 
     def clear_inputs(self) -> None:
@@ -168,7 +196,18 @@ class PortfolioView(ft.Column):
         self.replication_dropdown.value = None
         self.distribution_dropdown.value = None
         self.ter_text.value = ""
+        self.maturity_date_text.value = ""
+        self.maturity_date_text.disabled = True
         self.notes_text.value = ""
+
+    def _handle_kind_change(self, _: ft.Event) -> None:
+        """Enables the maturity field only for a Fixed Maturity Bond, clearing it for every other type."""
+        logger.info("Called '_handle_kind_change'")
+        is_fixed_maturity_bond = self.kind_dropdown.value == str(db.HoldingKind.FIXED_MATURITY_BOND.value)
+        if not is_fixed_maturity_bond:
+            self.maturity_date_text.value = ""
+        self.maturity_date_text.disabled = not is_fixed_maturity_bond
+        self._page.update()
 
     def _handle_clear_click(self, _: ft.Event) -> None:
         """Clears the add-holding inputs, resets the add button, and pushes the change to the page."""
@@ -201,6 +240,7 @@ class PortfolioView(ft.Column):
         if self.kind_dropdown.value is None:
             show_alert(self._page, "Missing type", "You must choose a type for the holding.")
             return None
+        kind = db.HoldingKind(int(self.kind_dropdown.value))
         if not issuer:
             show_alert(self._page, "Missing issuer", "You must give the holding an issuer.")
             return None
@@ -208,7 +248,7 @@ class PortfolioView(ft.Column):
             show_alert(self._page, "Missing currency", "You must give the holding a currency.")
             return None
 
-        existing_names = {holding.name.lower() for hid, holding in self.holdings if hid != exclude_id}
+        existing_names = {holding.name.lower() for hid, holding in self._holdings_by_id.items() if hid != exclude_id}
         if name.lower() in existing_names:
             show_alert(self._page, "Duplicate holding", f"A holding named '{name}' already exists.")
             return None
@@ -219,10 +259,28 @@ class PortfolioView(ft.Column):
             show_alert(self._page, "Invalid TER", "The TER must be a real number (comma for decimals allowed).")
             return None
 
+        try:
+            maturity_date = self._parse_optional_maturity_date(self.maturity_date_text.value)
+        except ValueError:
+            show_alert(
+                self._page,
+                "Invalid maturity date",
+                "The maturity date must be a valid date in YYYY-MM-DD format.",
+            )
+            return None
+
+        if kind == db.HoldingKind.FIXED_MATURITY_BOND and maturity_date is None:
+            show_alert(
+                self._page,
+                "Missing maturity date",
+                "You must set a maturity date for a fixed-maturity bond.",
+            )
+            return None
+
         return {
             "name": name,
             "ticker": ticker,
-            "kind": db.HoldingKind(int(self.kind_dropdown.value)),
+            "kind": kind,
             "issuer": issuer,
             "currency": currency,
             "region": (self.region_text.value or "").strip() or None,
@@ -234,6 +292,7 @@ class PortfolioView(ft.Column):
             else None,
             "notes": (self.notes_text.value or "").strip() or None,
             "ter": ter,
+            "maturity_date": maturity_date,
         }
 
     @staticmethod
@@ -241,6 +300,12 @@ class PortfolioView(ft.Column):
         """Parses the TER field, treating a blank value as `None`."""
         raw = (raw or "").strip()
         return parse_amount(raw) if raw else None
+
+    @staticmethod
+    def _parse_optional_maturity_date(raw: str | None) -> str | None:
+        """Parses the maturity date field, treating a blank value as `None` (a long-term holding)."""
+        raw = (raw or "").strip()
+        return date.fromisoformat(raw).isoformat() if raw else None
 
     def add_holding(self, _: ft.Event) -> None:
         """Adds a new holding based on the user's inputs."""
@@ -283,7 +348,7 @@ class PortfolioView(ft.Column):
         """Prefills the add-holding inputs from an existing holding, to edit it in place."""
         logger.info("Called 'edit_holding'")
         holding_id = e.control.data
-        old_holding = next(h for hid, h in self.holdings if hid == holding_id)
+        old_holding = self._holdings_by_id[holding_id]
 
         def modify(_: ft.Event) -> None:
             """Actually persists the edited holding."""
@@ -326,20 +391,33 @@ class PortfolioView(ft.Column):
         self.replication_dropdown.value = str(holding.replication.value) if holding.replication is not None else None
         self.distribution_dropdown.value = str(holding.distribution.value) if holding.distribution is not None else None
         self.ter_text.value = format_amount(holding.ter, decimals=2) if holding.ter is not None else ""
+        self.maturity_date_text.value = holding.maturity_date or ""
+        self.maturity_date_text.disabled = holding.kind != db.HoldingKind.FIXED_MATURITY_BOND
         self.notes_text.value = holding.notes or ""
 
     def show_holding_info(self, e: ft.Event) -> None:
         """Shows every field of a holding, including the ones left out of the compact table."""
         logger.info("Called 'show_holding_info'")
         holding_id = e.control.data
-        holding = next(h for hid, h in self.holdings if hid == holding_id)
+        holding = self._holdings_by_id[holding_id]
 
-        total = self._totals[holding_id]
-        kind_total = self._kind_totals.get(holding.kind, 0.0)
+        if db.is_fixed_term(holding):
+            totals, kind_totals, grand_total = (
+                self._fixed_term_totals,
+                self._fixed_term_kind_totals,
+                self._fixed_term_grand_total,
+            )
+        else:
+            totals, kind_totals, grand_total = (
+                self._long_term_totals,
+                self._long_term_kind_totals,
+                self._long_term_grand_total,
+            )
+
+        total = totals[holding_id]
+        kind_total = kind_totals.get(holding.kind, 0.0)
         total_pct = (
-            f"{format_amount(total / self._grand_total * 100, decimals=1)}%"
-            if total is not None and self._grand_total
-            else "—"
+            f"{format_amount(total / grand_total * 100, decimals=1)}%" if total is not None and grand_total else "—"
         )
         type_pct = (
             f"{format_amount(total / kind_total * 100, decimals=1)}%" if total is not None and kind_total else "—"
@@ -362,6 +440,7 @@ class PortfolioView(ft.Column):
             info_row("Detailed Regions", region_summary),
             info_row("Replication", enum_label(holding.replication) if holding.replication is not None else "—"),
             info_row("Distribution", enum_label(holding.distribution) if holding.distribution is not None else "—"),
+            info_row("Maturity Date", holding.maturity_date or "—"),
             info_row("Notes", holding.notes or "—"),
             info_row("TER (%)", f"{format_amount(holding.ter, decimals=2)}%" if holding.ter is not None else "—"),
             info_row("Price", f"€ {format_amount(holding.last_price)}" if holding.last_price is not None else "—"),
@@ -371,9 +450,18 @@ class PortfolioView(ft.Column):
             info_row("Type (%)", type_pct),
         ]
 
+        expired = db.is_expired(holding)
+        title_text = f"{holding.name} (EXPIRED)" if expired else holding.name
+
         self._page.show_dialog(
             ft.AlertDialog(
-                title=ft.Text(holding.name, width=380, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                title=ft.Text(
+                    title_text,
+                    width=380,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                    color=ft.Colors.RED if expired else None,
+                ),
                 content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=430),
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
             )
@@ -398,7 +486,7 @@ class PortfolioView(ft.Column):
         """Opens a dialog to enter/edit a holding's regional-exposure percentage breakdown."""
         logger.info("Called 'edit_region_allocations'")
         holding_id = e.control.data
-        holding = next(h for hid, h in self.holdings if hid == holding_id)
+        holding = self._holdings_by_id[holding_id]
 
         regions = db.fetch_regions()
         if not regions:
@@ -503,26 +591,28 @@ class PortfolioView(ft.Column):
         )
 
     def show_asset_allocation(self, _: ft.Event) -> None:
-        """Opens a dialog with the portfolio's current allocation by `:enum:HoldingKind` and a target-allocation form.
+        """Opens a dialog with the long-term portfolio's current allocation by `:enum:HoldingKind` and a target form.
 
         Shows a pie chart of the current allocation alongside an editable form to set a target %
         per kind, live-updating how much to buy/sell in each asset class to reach it. Totals are
-        recomputed from every holding regardless of `self.current_kind_filter`, since both the
-        chart and the rebalancing calculation must always be portfolio-wide.
+        recomputed from every long-term holding regardless of `self.long_term_kind_filter`, since
+        both the chart and the rebalancing calculation must always be long-term-portfolio-wide.
+        Fixed-term holdings are excluded entirely, since they're held to maturity rather than
+        rebalanced.
         """
         logger.info("Called 'show_asset_allocation'")
 
         if self._page.width is None or self._page.height is None:
             raise RuntimeError("Cannot retrieve the page size.")
 
-        all_holdings = db.fetch_holdings(self.location)
+        all_holdings = [(hid, h) for hid, h in db.fetch_holdings(self.location) if not db.is_fixed_term(h)]
         _, grand_total, kind_totals, _ = self._compute_totals(all_holdings)  # type: ignore
 
         if not grand_total:
             show_alert(
                 self._page,
-                "No priced holdings yet",
-                "Add and price some holdings before viewing the asset allocation.",
+                "No priced long-term holdings yet",
+                "Add and price some long-term holdings before viewing the asset allocation.",
             )
             return
 
@@ -538,7 +628,12 @@ class PortfolioView(ft.Column):
         )
 
         existing = db.fetch_kind_targets(self.location)
-        kinds = sorted(db.HoldingKind, key=lambda k: k.name)
+        # a Fixed Maturity Bond always carries a maturity date, so it's always excluded from
+        # `all_holdings` above - it could never have a long-term total to rebalance towards
+        kinds = sorted(
+            (kind for kind in db.HoldingKind if kind is not db.HoldingKind.FIXED_MATURITY_BOND),
+            key=lambda k: k.name,
+        )
         current_pcts = {kind: kind_totals.get(kind, 0.0) / grand_total * 100 for kind in kinds}
 
         total_text = ft.Text(
@@ -814,7 +909,7 @@ class PortfolioView(ft.Column):
         """Persists the number of shares/units for the holding whose cell was just edited."""
         logger.info("Called 'commit_quantity_cell'")
         holding_id = e.control.data
-        holding = next(h for hid, h in self.holdings if hid == holding_id)
+        holding = self._holdings_by_id[holding_id]
         raw_value = (e.control.value or "").strip()
 
         try:
@@ -836,12 +931,12 @@ class PortfolioView(ft.Column):
 
         self.refresh()
 
-    def refresh_prices(self, _: ft.Event) -> None:
-        """Refreshes the live price of every holding, reporting any tickers that failed."""
+    def refresh_prices(self, holdings: list[tuple[int, "db.Holding"]]) -> None:
+        """Refreshes the live price of every given holding, reporting any tickers that failed."""
         logger.info("Called 'refresh_prices'")
 
         failed_tickers = []
-        for holding_id, holding in self.holdings:
+        for holding_id, holding in holdings:
             if db.refresh_holding_price(self.location, holding_id, holding) is None:
                 failed_tickers.append(holding.ticker)
 
@@ -854,8 +949,9 @@ class PortfolioView(ft.Column):
                 f"Failed to fetch a price for: {', '.join(failed_tickers)}.",
             )
 
-    def _build_kind_filter_menu(self) -> ft.PopupMenuButton:
-        """Builds the "Filter by type" popup menu for the holdings table."""
+    @staticmethod
+    def _build_kind_filter_menu(on_click: Callable[[ft.Event], None]) -> ft.PopupMenuButton:
+        """Builds a "Filter by type" popup menu for a holdings table."""
         return ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
             icon_color=_HEADING_COLOR,
@@ -864,53 +960,130 @@ class PortfolioView(ft.Column):
             menu_padding=0,
             tooltip="Filter by type",
             items=[
-                ft.PopupMenuItem(enum_label(kind), data=kind, on_click=self.filter_kind)
+                ft.PopupMenuItem(enum_label(kind), data=kind, on_click=on_click)
                 for kind in sorted(db.HoldingKind, key=lambda k: k.name)
             ]
             + [ft.PopupMenuItem()]
-            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_kind)],
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=on_click)],
         )
 
-    def filter_kind(self, e: ft.Event) -> None:
-        """Filters the holdings table down to one `:enum:HoldingKind`, or clears the filter."""
-        logger.info("Called 'filter_kind'")
-        self.current_kind_filter = e.control.data
+    def filter_long_term_kind(self, e: ft.Event) -> None:
+        """Filters the long-term holdings table down to one `:enum:HoldingKind`, or clears the filter."""
+        logger.info("Called 'filter_long_term_kind'")
+        self.long_term_kind_filter = e.control.data
         self.refresh()
 
-    def sort_by_total(self, e: ft.DataColumnSortEvent) -> None:
-        """Sorts the holdings table by market value (the "Total" column)."""
-        logger.info("Called 'sort_by_total'")
-        self.total_sort_ascending = e.ascending
+    def filter_fixed_term_kind(self, e: ft.Event) -> None:
+        """Filters the fixed-term holdings table down to one `:enum:HoldingKind`, or clears the filter."""
+        logger.info("Called 'filter_fixed_term_kind'")
+        self.fixed_term_kind_filter = e.control.data
+        self.refresh()
+
+    def sort_long_term_by_total(self, e: ft.DataColumnSortEvent) -> None:
+        """Sorts the long-term holdings table by market value (the "Total" column)."""
+        logger.info("Called 'sort_long_term_by_total'")
+        self.long_term_sort_ascending = e.ascending
+        self.refresh()
+
+    def sort_fixed_term_by_total(self, e: ft.DataColumnSortEvent) -> None:
+        """Sorts the fixed-term holdings table by market value (the "Total" column)."""
+        logger.info("Called 'sort_fixed_term_by_total'")
+        self.fixed_term_sort_ascending = e.ascending
         self.refresh()
 
     def refresh(self) -> None:
-        """Reloads the holdings, recomputes their totals, and rebuilds the table."""
+        """Reloads the holdings, splits them into long-/fixed-term groups, and rebuilds both tables."""
         logger.info("Called 'refresh'")
 
-        self.holdings = db.fetch_holdings(self.location)
-        if self.current_kind_filter is not None:
-            self.holdings = [(hid, h) for hid, h in self.holdings if h.kind == self.current_kind_filter]
+        all_holdings = db.fetch_holdings(self.location)
+        self._holdings_by_id: dict[int, db.Holding] = dict(all_holdings)
         self.region_allocations = db.fetch_region_allocations(self.location)
-        self._totals, self._grand_total, self._kind_totals, self._weighted_ter = self._compute_totals(self.holdings)
-        if self.total_sort_ascending is not None:
-            self.holdings.sort(key=self._total_sort_key)
-        self.holdings_table_container.controls = self._build_holdings_section()
+
+        (
+            self.long_term_holdings,
+            self._long_term_totals,
+            self._long_term_grand_total,
+            self._long_term_kind_totals,
+            self._long_term_weighted_ter,
+        ) = self._prepare_group(
+            [(hid, h) for hid, h in all_holdings if not db.is_fixed_term(h)],
+            self.long_term_kind_filter,
+            self.long_term_sort_ascending,
+        )
+        (
+            self.fixed_term_holdings,
+            self._fixed_term_totals,
+            self._fixed_term_grand_total,
+            self._fixed_term_kind_totals,
+            self._fixed_term_weighted_ter,
+        ) = self._prepare_group(
+            [(hid, h) for hid, h in all_holdings if db.is_fixed_term(h)],
+            self.fixed_term_kind_filter,
+            self.fixed_term_sort_ascending,
+        )
+
+        self.long_term_table_container.controls = self._build_holdings_section(
+            holdings=self.long_term_holdings,
+            totals=self._long_term_totals,
+            kind_totals=self._long_term_kind_totals,
+            grand_total=self._long_term_grand_total,
+            weighted_ter=self._long_term_weighted_ter,
+            kind_filter_menu=self.long_term_kind_filter_menu,
+            refresh_button=self.long_term_refresh_prices_button,
+            sort_ascending=self.long_term_sort_ascending,
+            sort_handler=self.sort_long_term_by_total,
+            show_maturity_column=False,
+            empty_message="Add a holding above to start tracking your long-term portfolio.",
+        )
+        self.fixed_term_table_container.controls = self._build_holdings_section(
+            holdings=self.fixed_term_holdings,
+            totals=self._fixed_term_totals,
+            kind_totals=self._fixed_term_kind_totals,
+            grand_total=self._fixed_term_grand_total,
+            weighted_ter=self._fixed_term_weighted_ter,
+            kind_filter_menu=self.fixed_term_kind_filter_menu,
+            refresh_button=self.fixed_term_refresh_prices_button,
+            sort_ascending=self.fixed_term_sort_ascending,
+            sort_handler=self.sort_fixed_term_by_total,
+            show_maturity_column=True,
+            empty_message="Add a holding above with a Maturity Date (e.g. a bond or an iBonds-style ETF) to "
+            "track it here.",
+        )
 
         self._page.update()
 
-    def _total_sort_key(self, item: tuple[int, "db.Holding"]) -> tuple[bool, float]:
-        """Sort key for `self.holdings` by market value, always placing unpriced holdings last."""
-        holding_id, _ = item
-        total = self._totals[holding_id]
+    def _prepare_group(
+        self,
+        holdings: list[tuple[int, "db.Holding"]],
+        kind_filter: db.HoldingKind | None,
+        sort_ascending: bool | None,
+    ) -> tuple[
+        list[tuple[int, "db.Holding"]], dict[int, float | None], float, dict["db.HoldingKind", float], float | None
+    ]:
+        """Filters one group's holdings by kind, computes its totals, and sorts it by value if requested."""
+        if kind_filter is not None:
+            holdings = [(hid, h) for hid, h in holdings if h.kind == kind_filter]
+
+        totals, grand_total, kind_totals, weighted_ter = self._compute_totals(holdings)
+
+        if sort_ascending is not None:
+            holdings = sorted(holdings, key=lambda item: self._total_sort_key(item[0], totals, sort_ascending))
+
+        return holdings, totals, grand_total, kind_totals, weighted_ter
+
+    @staticmethod
+    def _total_sort_key(holding_id: int, totals: dict[int, float | None], sort_ascending: bool) -> tuple[bool, float]:
+        """Sort key for a holdings list by market value, always placing unpriced holdings last."""
+        total = totals[holding_id]
         if total is None:
             return True, 0.0
-        return False, total if self.total_sort_ascending else -total
+        return False, total if sort_ascending else -total
 
     @staticmethod
     def _compute_totals(
         holdings: list[tuple[int, "db.Holding"]],
     ) -> tuple[dict[int, float | None], float, dict["db.HoldingKind", float], float | None]:
-        """Computes each holding's market value, the portfolio grand total, per-kind totals, and blended TER."""
+        """Computes each holding's market value, the group's grand total, per-kind totals, and blended TER."""
         totals = {holding_id: db.compute_holding_value(holding) for holding_id, holding in holdings}
         grand_total = sum(total for total in totals.values() if total is not None)
 
@@ -932,24 +1105,50 @@ class PortfolioView(ft.Column):
 
         return totals, grand_total, kind_totals, weighted_ter
 
-    def _build_holdings_section(self) -> list[ft.Control]:
-        """Builds the portfolio summary line and the holdings table."""
-        if not self.holdings:
-            return [ft.Text("Add a holding above to start tracking your portfolio.")]
+    def _build_holdings_section(
+        self,
+        *,
+        holdings: list[tuple[int, "db.Holding"]],
+        totals: dict[int, float | None],
+        kind_totals: dict["db.HoldingKind", float],
+        grand_total: float,
+        weighted_ter: float | None,
+        kind_filter_menu: ft.PopupMenuButton,
+        refresh_button: ft.Button,
+        sort_ascending: bool | None,
+        sort_handler: Callable[[ft.DataColumnSortEvent], None],
+        show_maturity_column: bool,
+        empty_message: str,
+    ) -> list[ft.Control]:
+        """Builds one group's summary line and holdings table."""
+        if not holdings:
+            return [ft.Text(empty_message)]
 
-        summary_text = f"Total portfolio value: € {format_amount(self._grand_total)}"
-        if self._weighted_ter is not None:
-            summary_text += f"  •  Total TER: {format_amount(self._weighted_ter, decimals=2)}%"
+        summary_text = f"Total value: € {format_amount(grand_total)}"
+        if weighted_ter is not None:
+            summary_text += f"  •  Total TER: {format_amount(weighted_ter, decimals=2)}%"
 
         summary = ft.Text(summary_text, size=16, weight=ft.FontWeight.BOLD)
         header_row = ft.Row(
-            [summary, ft.Row([self.kind_filter_menu, self.refresh_prices_button])],
+            [summary, ft.Row([kind_filter_menu, refresh_button])],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
-        return [header_row, self._build_holdings_table()]
+        table = self._build_holdings_table(
+            holdings, totals, kind_totals, grand_total, sort_ascending, sort_handler, show_maturity_column
+        )
+        return [header_row, table]
 
-    def _build_holdings_table(self) -> ft.Control:
-        """Builds the holdings `:class:DataTable2`, one row per holding, kept to the bare-minimum columns.
+    def _build_holdings_table(
+        self,
+        holdings: list[tuple[int, "db.Holding"]],
+        totals: dict[int, float | None],
+        kind_totals: dict["db.HoldingKind", float],
+        grand_total: float,
+        sort_ascending: bool | None,
+        sort_handler: Callable[[ft.DataColumnSortEvent], None],
+        show_maturity_column: bool,
+    ) -> ft.Control:
+        """Builds one group's holdings `:class:DataTable2`, one row per holding, kept to the bare-minimum columns.
 
         Every other field (ticker, issuer, currency, region, replication, distribution, notes, price) is
         available from the info button rather than taking up table width, since the window can't be
@@ -960,33 +1159,39 @@ class PortfolioView(ft.Column):
             DataColumn2(label=ft.Text("Name"), size=DataColumnSize.S),
             DataColumn2(label=ft.Text("TER (%)"), numeric=True, fixed_width=90),
             DataColumn2(label=ft.Text("Shares"), numeric=True, fixed_width=120),
-            DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150, on_sort=self.sort_by_total),
+            DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150, on_sort=sort_handler),
             DataColumn2(label=ft.Text("Total (%)"), numeric=True, fixed_width=100),
             DataColumn2(label=ft.Text("Type (%)"), numeric=True, fixed_width=100),
-            DataColumn2(label=ft.Text(""), fixed_width=240),
         ]
+        if show_maturity_column:
+            columns.append(DataColumn2(label=ft.Text("Maturity"), fixed_width=120))
+        columns.append(DataColumn2(label=ft.Text(""), fixed_width=240))
 
         rows = []
-        for holding_id, holding in self.holdings:
+        for holding_id, holding in holdings:
             color = db.HOLDING_KIND_COLORS.get(holding.kind, "#000000")
             icon = db.HOLDING_KIND_ICONS.get(holding.kind, ft.Icons.HELP_OUTLINE)
-            total = self._totals[holding_id]
-            kind_total = self._kind_totals.get(holding.kind, 0.0)
+            total = totals[holding_id]
+            kind_total = kind_totals.get(holding.kind, 0.0)
 
             total_str = f"€ {format_amount(total)}" if total is not None else "—"
             total_pct = (
-                f"{format_amount(total / self._grand_total * 100, decimals=1)}%"
-                if total is not None and self._grand_total
-                else "—"
+                f"{format_amount(total / grand_total * 100, decimals=1)}%" if total is not None and grand_total else "—"
             )
             type_pct = (
                 f"{format_amount(total / kind_total * 100, decimals=1)}%" if total is not None and kind_total else "—"
             )
 
+            expired = db.is_expired(holding)
+            name_text = f"{holding.name} (EXPIRED)" if expired else holding.name
+
             cells = [
                 ft.DataCell(
                     ft.Row(
-                        controls=[ft.Icon(icon, color=color, size=18), ft.Text(holding.name)],
+                        controls=[
+                            ft.Icon(icon, color=color, size=18),
+                            ft.Text(name_text, color=ft.Colors.RED if expired else None),
+                        ],
                         spacing=6,
                         tight=True,
                     )
@@ -1008,51 +1213,58 @@ class PortfolioView(ft.Column):
                 ft.DataCell(ft.Text(total_str)),
                 ft.DataCell(ft.Text(total_pct)),
                 ft.DataCell(ft.Text(type_pct)),
-                ft.DataCell(
-                    ft.Row(
-                        controls=[
-                            ft.Button(
-                                icon=ft.Icons.INFO_OUTLINE,
-                                width=50,
-                                height=30,
-                                data=holding_id,
-                                on_click=self.show_holding_info,
-                            ),
-                            ft.Button(
-                                icon=ft.Icons.PUBLIC,
-                                width=50,
-                                height=30,
-                                data=holding_id,
-                                color=_HEADING_COLOR,
-                                tooltip="Detailed Regions",
-                                on_click=self.edit_region_allocations,
-                            ),
-                            ft.Button(
-                                icon=ft.Icons.EDIT,
-                                width=50,
-                                height=30,
-                                data=holding_id,
-                                color=ft.Colors.BLUE,
-                                on_click=self.edit_holding,
-                            ),
-                            ft.Button(
-                                icon=ft.Icons.DELETE,
-                                width=50,
-                                height=30,
-                                data=holding_id,
-                                on_click=self.delete_holding,
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.CENTER,
-                    )
+            ]
+            if show_maturity_column:
+                cells.append(ft.DataCell(ft.Text(holding.maturity_date)))
+
+            action_buttons = [
+                ft.Button(
+                    icon=ft.Icons.INFO_OUTLINE,
+                    width=50,
+                    height=30,
+                    data=holding_id,
+                    on_click=self.show_holding_info,
                 ),
             ]
+            if not show_maturity_column:
+                # region allocation only makes sense for a diversified, long-term holding - a
+                # fixed-term one is dropped from the diversification tools entirely (see
+                # `show_portfolio_diversification`/`show_detailed_region_diversification`)
+                action_buttons.append(
+                    ft.Button(
+                        icon=ft.Icons.PUBLIC,
+                        width=50,
+                        height=30,
+                        data=holding_id,
+                        color=_HEADING_COLOR,
+                        tooltip="Detailed Regions",
+                        on_click=self.edit_region_allocations,
+                    )
+                )
+            action_buttons += [
+                ft.Button(
+                    icon=ft.Icons.EDIT,
+                    width=50,
+                    height=30,
+                    data=holding_id,
+                    color=ft.Colors.BLUE,
+                    on_click=self.edit_holding,
+                ),
+                ft.Button(
+                    icon=ft.Icons.DELETE,
+                    width=50,
+                    height=30,
+                    data=holding_id,
+                    on_click=self.delete_holding,
+                ),
+            ]
+            cells.append(ft.DataCell(ft.Row(controls=action_buttons, alignment=ft.MainAxisAlignment.CENTER)))
             rows.append(ft.DataRow(cells=cells))
 
         table = build_styled_data_table(columns, rows, _HEADING_COLOR)
-        if self.total_sort_ascending is not None:
+        if sort_ascending is not None:
             table.sort_column_index = total_column_index
-            table.sort_ascending = self.total_sort_ascending
+            table.sort_ascending = sort_ascending
         return table
 
 

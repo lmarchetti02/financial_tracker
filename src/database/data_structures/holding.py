@@ -26,6 +26,7 @@ class HoldingKind(Enum):
     BONDS = auto()
     COMMODITIES = auto()
     CRYPTO = auto()
+    FIXED_MATURITY_BOND = auto()
 
 
 class ReplicationMethod(Enum):
@@ -48,6 +49,7 @@ HOLDING_KIND_COLORS = {
     HoldingKind.BONDS: "#6A1B9A",
     HoldingKind.COMMODITIES: "#FF8F00",
     HoldingKind.CRYPTO: "#FDD835",
+    HoldingKind.FIXED_MATURITY_BOND: "#00838F",
 }
 
 HOLDING_KIND_ICONS = {
@@ -55,6 +57,7 @@ HOLDING_KIND_ICONS = {
     HoldingKind.BONDS: ft.Icons.ACCOUNT_BALANCE,
     HoldingKind.COMMODITIES: ft.Icons.DIAMOND,
     HoldingKind.CRYPTO: ft.Icons.CURRENCY_BITCOIN,
+    HoldingKind.FIXED_MATURITY_BOND: ft.Icons.CALENDAR_MONTH,
 }
 
 
@@ -84,6 +87,11 @@ class Holding(DataContainer):
             `None` until a price refresh succeeds.
         last_price_updated (str | None): The ISO date `last_price` was fetched on. Defaults to
             `None`.
+        maturity_date (str | None): The ISO date this holding matures/is redeemed on, for a
+            fixed-maturity instrument (an individual bond, or a target-maturity ETF like an
+            iBonds series). `None` for an open-ended holding (a plain stock/ETF meant to be held
+            indefinitely) - presence of this field is what makes a holding "fixed term" rather
+            than "long term". Defaults to `None`.
     """
 
     db_name = HOLDINGS_DB_NAME
@@ -98,11 +106,12 @@ class Holding(DataContainer):
     notes: str | None = None
     ter: float | None = Field(default=None, ge=0.0)
     quantity: float = Field(default=0.0, ge=0.0)
-    # These 3 must stay declared last: `add_missing_columns` always appends new columns to the
+    # These 4 must stay declared last: `add_missing_columns` always appends new columns to the
     # physical end of an already-existing table, mirroring the same convention in `Transfer`.
     last_price: float | None = None
     last_price_updated: str | None = None
     region: str | None = None
+    maturity_date: str | None = None
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102
@@ -120,6 +129,7 @@ class Holding(DataContainer):
             DataColumn2(label=ft.Text("Notes"), size=DataColumnSize.S),
             DataColumn2(label=ft.Text("TER (%)"), numeric=True, fixed_width=90),
             DataColumn2(label=ft.Text("Shares"), numeric=True, fixed_width=100),
+            DataColumn2(label=ft.Text("Maturity Date"), fixed_width=120),
         ]
 
     @staticmethod
@@ -129,6 +139,7 @@ class Holding(DataContainer):
         distribution = enum_label(DistributionPolicy[row["distribution"]]) if row["distribution"] is not None else "—"
         notes = row["notes"] if row["notes"] is not None else "—"
         ter = f"{format_amount(row['ter'], decimals=2)}%" if row["ter"] is not None else "—"
+        maturity_date = row["maturity_date"] if row["maturity_date"] is not None else "—"
 
         return [
             ft.DataCell(ft.Text(row["name"])),
@@ -142,6 +153,7 @@ class Holding(DataContainer):
             ft.DataCell(ft.Text(notes)),
             ft.DataCell(ft.Text(ter)),
             ft.DataCell(ft.Text(format_amount(row["quantity"], decimals=4))),
+            ft.DataCell(ft.Text(maturity_date)),
         ]
 
 

@@ -13,9 +13,10 @@ def enum_label(value: Enum) -> str:
         value (Enum): The enum member to format, e.g. `AccountKind.EMERGENCY`.
 
     Returns:
-        str: The formatted label, e.g. "Emergency".
+        str: The formatted label, e.g. "Emergency", or "Fixed Maturity Bond" for a multi-word
+            member name.
     """
-    return value.name.lower().capitalize().replace("_", " ")
+    return value.name.replace("_", " ").title()
 
 
 def format_amount(value: float, decimals: int = 2) -> str:
