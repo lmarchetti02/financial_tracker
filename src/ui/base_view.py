@@ -12,7 +12,8 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import MONTHS
 
-from .common import CollapsibleFormMixin, build_styled_data_table, current_db_location
+from .common import (CollapsibleFormMixin, build_styled_data_table,
+                     current_db_location, sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -23,6 +24,8 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     _title: ClassVar[str]
     _heading_color: ClassVar[str]
     _sorting_config_cls: ClassVar[type[db.SortingConfig]]
+    # Whether the table opens filtered to the current month instead of showing the whole year.
+    _default_to_current_month: ClassVar[bool] = False
 
     def __init__(self, page: ft.Page) -> None:
         """Initializes the view, state variables, and layout."""
@@ -33,10 +36,10 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self.year = self.location.year
         self.profile = self.location.profile
 
-        self.current_month_filter: int | None = None
+        self.default_date = datetime.today()
+        self.current_month_filter: int | None = self.default_date.month if self._default_to_current_month else None
         self.current_enum_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None
-        self.default_date = datetime.today()
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -100,32 +103,45 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
 
     def _build_month_filter_menu(self) -> ft.PopupMenuButton:
         """Builds the "Filter month" popup menu shared by every subclass."""
-        return ft.PopupMenuButton(
+        self.month_filter_menu = ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
-            icon_color=ft.Colors.WHITE,
             icon_size=20,
             padding=0,
             menu_padding=0,
-            tooltip="Filter month",
             items=[
                 ft.PopupMenuItem(f"{MONTHS[i]} ({i + 1})", data=i + 1, on_click=self.filter_months) for i in range(12)
             ]
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
         )
+        self._sync_month_filter_menu()
+        return self.month_filter_menu
+
+    def _sync_month_filter_menu(self) -> None:
+        """Re-styles the month filter menu to reflect the active filter."""
+        month = self.current_month_filter
+        label = None if month is None else MONTHS[month - 1]
+        sync_filter_menu(self.month_filter_menu, label, ft.Colors.WHITE, "Filter month")
 
     def _build_lookup_filter_menu(self, options: list[str], tooltip: str) -> ft.PopupMenuButton:
         """Builds the domain-specific lookup-list filter popup menu shared by every subclass."""
-        return ft.PopupMenuButton(
+        self._lookup_filter_tooltip = tooltip
+        self.lookup_filter_menu = ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
-            icon_color=ft.Colors.WHITE,
             icon_size=20,
             padding=0,
             menu_padding=0,
-            tooltip=tooltip,
             items=[ft.PopupMenuItem(option, data=option, on_click=self.filter_enum) for option in sorted(options)]
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_enum)],
+        )
+        self._sync_lookup_filter_menu()
+        return self.lookup_filter_menu
+
+    def _sync_lookup_filter_menu(self) -> None:
+        """Re-styles the lookup-list filter menu to reflect the active filter."""
+        sync_filter_menu(
+            self.lookup_filter_menu, self.current_enum_filter, ft.Colors.WHITE, self._lookup_filter_tooltip
         )
 
     def _is_readonly(self, row_id: int) -> bool:
@@ -191,9 +207,11 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         """Filters the month column."""
         month = e.control.data
         self.current_month_filter = month if month > 0 else None
+        self._sync_month_filter_menu()
         self.refresh_table()
 
     def filter_enum(self, e: ft.Event) -> None:
         """Filters the domain-specific enum column."""
         self.current_enum_filter = e.control.data
+        self._sync_lookup_filter_menu()
         self.refresh_table()

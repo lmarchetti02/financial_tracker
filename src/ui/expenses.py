@@ -30,6 +30,7 @@ class ExpensesView(BaseCrudView):
     _title = "Expenses"
     _heading_color = "#960000"
     _sorting_config_cls = db.ExpensesSortingConfig
+    _default_to_current_month = True
     _item_label = "Expense"
     _form_height: ClassVar[int] = 170
 

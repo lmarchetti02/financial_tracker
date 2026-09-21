@@ -18,7 +18,7 @@ from plotting import (build_kind_allocation_pie,
                       show_portfolio_diversification)
 
 from .common import (CollapsibleFormMixin, build_styled_data_table,
-                     current_db_location, show_alert)
+                     current_db_location, show_alert, sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -990,13 +990,21 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         """Filters the long-term holdings table down to one `:enum:HoldingKind`, or clears the filter."""
         logger.info("Called 'filter_long_term_kind'")
         self.long_term_kind_filter = e.control.data
+        self._sync_kind_filter_menu(self.long_term_kind_filter_menu, self.long_term_kind_filter)
         self.refresh()
 
     def filter_fixed_term_kind(self, e: ft.Event) -> None:
         """Filters the fixed-term holdings table down to one `:enum:HoldingKind`, or clears the filter."""
         logger.info("Called 'filter_fixed_term_kind'")
         self.fixed_term_kind_filter = e.control.data
+        self._sync_kind_filter_menu(self.fixed_term_kind_filter_menu, self.fixed_term_kind_filter)
         self.refresh()
+
+    @staticmethod
+    def _sync_kind_filter_menu(menu: ft.PopupMenuButton, kind_filter: db.HoldingKind | None) -> None:
+        """Re-styles a holdings table's type filter menu to reflect the active filter."""
+        label = None if kind_filter is None else enum_label(kind_filter)
+        sync_filter_menu(menu, label, _HEADING_COLOR, "Filter by type")
 
     def sort_long_term_by_total(self, e: ft.DataColumnSortEvent) -> None:
         """Sorts the long-term holdings table by market value (the "Total" column)."""

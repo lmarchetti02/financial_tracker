@@ -7,6 +7,23 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 
+FILTER_ACTIVE_COLOR = ft.Colors.AMBER_700
+
+
+def sync_filter_menu(
+    menu: ft.PopupMenuButton, active_label: str | None, inactive_color: str, inactive_tooltip: str
+) -> None:
+    """Colors a filter popup menu's icon and updates its tooltip to reflect whether a filter is set.
+
+    Args:
+        menu (ft.PopupMenuButton): The filter menu to restyle in place.
+        active_label (str | None): The value currently filtered on, or `None` when the filter is cleared.
+        inactive_color (str): The icon color to restore when no filter is set.
+        inactive_tooltip (str): The tooltip to restore when no filter is set.
+    """
+    menu.icon_color = inactive_color if active_label is None else FILTER_ACTIVE_COLOR
+    menu.tooltip = inactive_tooltip if active_label is None else f"Showing {active_label} only"
+
 
 class CollapsibleFormMixin:
     """Shared expand/collapse behavior for a view's add/edit form, hidden until toggled open.
