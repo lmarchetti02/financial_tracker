@@ -8,6 +8,7 @@ from database.data_structures.expense import Expense
 from database.db_operations.config import (
     LookupKind,
     add_lookup_option,
+    clear_app_password,
     delete_lookup_option,
     fetch_categories,
     fetch_kinds,
@@ -18,14 +19,18 @@ from database.db_operations.config import (
     get_theme_preference,
     initialize_config_db,
     is_lookup_option_in_use,
+    is_password_set,
     rename_lookup_option,
+    set_app_password,
     set_last_selection,
     set_theme_preference,
+    verify_app_password,
 )
 from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, initialize_db
 
 YEAR = 2024
 LOCATION = DbLocation(YEAR)
+PASSWORD = "MyPassword!1"
 
 
 def make_expense(**overrides: object) -> Expense:
@@ -340,3 +345,105 @@ class TestLastSelection:
         set_last_selection(YEAR + 1, "Personal")
 
         assert get_last_selection() == (YEAR + 1, "Personal")
+
+
+class TestIsPasswordSet:
+    """Tests for `is_password_set`."""
+
+    def test_is_false_on_a_fresh_config_database(self) -> None:
+        """The startup lock is opt-in, so a new install has no password."""
+        initialize_config_db()
+
+        assert not is_password_set()
+
+    def test_is_true_once_a_password_has_been_set(self) -> None:
+        """Setting a password flips the flag the welcome page gates on."""
+        initialize_config_db()
+
+        set_app_password(PASSWORD)
+
+        assert is_password_set()
+
+
+class TestSetAppPassword:
+    """Tests for `set_app_password`."""
+
+    def test_stores_neither_the_plaintext_nor_a_reusable_value(self) -> None:
+        """Nothing in `preferences` may contain the password itself."""
+        initialize_config_db()
+
+        set_app_password(PASSWORD)
+
+        with sq.connect(get_config_db_path()) as connection:
+            values = [row[0] for row in connection.execute("SELECT value FROM preferences")]
+
+        assert values  # the salt/hash rows exist
+        assert all(PASSWORD not in value for value in values)
+
+    def test_setting_again_invalidates_the_previous_password(self) -> None:
+        """Re-setting replaces both the salt and the hash rather than adding a second password."""
+        initialize_config_db()
+
+        set_app_password(PASSWORD)
+        set_app_password("AnotherPass!2")
+
+        assert not verify_app_password(PASSWORD)
+        assert verify_app_password("AnotherPass!2")
+
+    def test_rejects_a_password_breaking_the_rules(self) -> None:
+        """The `ValueError` from `validate_password` propagates for the settings page to show."""
+        initialize_config_db()
+
+        with pytest.raises(ValueError, match="at least 10 characters"):
+            set_app_password("Short!1")
+
+        assert not is_password_set()
+
+
+class TestVerifyAppPassword:
+    """Tests for `verify_app_password`."""
+
+    def test_accepts_the_password_that_was_set(self) -> None:
+        """The stored salt/hash pair round-trips back to a successful check."""
+        initialize_config_db()
+
+        set_app_password(PASSWORD)
+
+        assert verify_app_password(PASSWORD)
+
+    def test_rejects_a_wrong_password(self) -> None:
+        """A near-miss doesn't unlock the app."""
+        initialize_config_db()
+
+        set_app_password(PASSWORD)
+
+        assert not verify_app_password("MyPassword!2")
+
+    def test_is_false_when_no_password_is_set(self) -> None:
+        """With no password stored there's nothing to match, so callers must check `is_password_set` first."""
+        initialize_config_db()
+
+        assert not verify_app_password(PASSWORD)
+
+
+class TestClearAppPassword:
+    """Tests for `clear_app_password`."""
+
+    def test_removes_an_existing_password(self) -> None:
+        """Clearing takes the app back to starting unlocked."""
+        initialize_config_db()
+        set_app_password(PASSWORD)
+
+        clear_app_password()
+
+        assert not is_password_set()
+        assert not verify_app_password(PASSWORD)
+
+    def test_is_a_no_op_when_no_password_is_set(self) -> None:
+        """Clearing twice, or on a fresh install, doesn't error."""
+        initialize_config_db()
+
+        clear_app_password()
+        clear_app_password()
+
+        assert not is_password_set()

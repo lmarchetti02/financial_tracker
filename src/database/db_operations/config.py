@@ -12,6 +12,8 @@ from _helpers.constants import (APP_DIRECTORY, CONFIG_DB_NAME,
                                 SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT,
                                 SYSTEM_KIND_INVESTMENT,
                                 SYSTEM_SOURCE_INVESTMENTS)
+from _helpers.security import (generate_salt, hash_password,
+                               validate_password, verify_password)
 
 from .generic import DbLocation, get_db_path, list_year_profile_pairs
 
@@ -354,3 +356,77 @@ def set_last_selection(year: int, profile: str) -> None:
     with sq.connect(get_config_db_path()) as connection:
         connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('last_year', ?)", (str(year),))
         connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('last_profile', ?)", (profile,))
+
+
+def is_password_set() -> bool:
+    """Whether a startup password has been set from the settings page."""
+    logger.info("Called 'is_password_set'")
+
+    return _fetch_password_credentials() is not None
+
+
+def set_app_password(password: str) -> None:
+    """Validates `password` and persists it, salted and hashed, replacing any existing one.
+
+    Args:
+        password (str): The new plaintext password.
+
+    Raises:
+        ValueError: If `password` doesn't satisfy `:func:_helpers.security.validate_password`.
+    """
+    logger.info("Called 'set_app_password'")
+
+    validate_password(password)
+
+    salt = generate_salt()
+    stored_hash = hash_password(password, salt)
+
+    with sq.connect(get_config_db_path()) as connection:
+        connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('password_salt', ?)", (salt,))
+        connection.execute("INSERT OR REPLACE INTO preferences (key, value) VALUES ('password_hash', ?)", (stored_hash,))
+
+    logger.debug("Persisted a new startup password.")
+
+
+def verify_app_password(password: str) -> bool:
+    """Whether `password` matches the persisted startup password.
+
+    Args:
+        password (str): The plaintext password to check.
+
+    Returns:
+        bool: `True` only if a password is set *and* `password` matches it. Callers gate on
+            `:func:is_password_set` first — a `False` here doesn't distinguish "wrong password"
+            from "no password set".
+    """
+    logger.info("Called 'verify_app_password'")
+
+    credentials = _fetch_password_credentials()
+    if credentials is None:
+        return False
+
+    salt, stored_hash = credentials
+    return verify_password(password, salt, stored_hash)
+
+
+def clear_app_password() -> None:
+    """Removes the startup password, if one is set."""
+    logger.info("Called 'clear_app_password'")
+
+    with sq.connect(get_config_db_path()) as connection:
+        connection.execute("DELETE FROM preferences WHERE key IN ('password_salt', 'password_hash')")
+
+    logger.debug("Removed the startup password.")
+
+
+def _fetch_password_credentials() -> tuple[str, str] | None:
+    """Returns the persisted `(salt, hash)` pair, or `None` if no password is set."""
+    with sq.connect(get_config_db_path()) as connection:
+        rows = dict(
+            connection.execute("SELECT key, value FROM preferences WHERE key IN ('password_salt', 'password_hash')")
+        )
+
+    if "password_salt" not in rows or "password_hash" not in rows:
+        return None
+
+    return rows["password_salt"], rows["password_hash"]

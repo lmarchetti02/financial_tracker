@@ -8,12 +8,13 @@ from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
 from database.db_operations import (DbLocation, WhichDb, get_theme_preference,
                                     initialize_config_db, initialize_db,
-                                    seed_accounts_for_new_year,
+                                    is_password_set, seed_accounts_for_new_year,
                                     set_last_selection)
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
 from ui.income import income_view
+from ui.lock import lock_screen
 from ui.portfolio import portfolio_view
 from ui.settings import settings_view
 from ui.transfers import transfers_view
@@ -130,7 +131,16 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK if get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.RED, font_family="JetBrains Mono")
 
-    welcome_page(page, lambda year, profile: initialize_tracker(page, year, profile))
+    def start(year: int, profile: str) -> None:
+        """Prepares and renders the tracker for the year/profile picked on the welcome page."""
+        initialize_tracker(page, year, profile)
+
+    # the welcome page is gated behind the lock screen only at launch: returning to it from
+    # settings ("Change Year/Profile") stays inside the already-unlocked session
+    if is_password_set():
+        lock_screen(page, lambda: welcome_page(page, start))
+    else:
+        welcome_page(page, start)
 
 
 ft.run(main)

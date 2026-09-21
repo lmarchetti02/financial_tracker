@@ -30,6 +30,7 @@ from .db_operations import TransfersSortingConfig as TransfersSortingConfig
 from .db_operations import WhichDb as WhichDb
 from .db_operations import add_item as add_item
 from .db_operations import add_lookup_option as add_lookup_option
+from .db_operations import clear_app_password as clear_app_password
 from .db_operations import compute_holding_value as compute_holding_value
 from .db_operations import delete_account as delete_account
 from .db_operations import delete_balance as delete_balance
@@ -70,6 +71,7 @@ from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
 from .db_operations import is_expired as is_expired
 from .db_operations import is_fixed_term as is_fixed_term
+from .db_operations import is_password_set as is_password_set
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
 from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
@@ -82,6 +84,8 @@ from .db_operations import save_kind_targets as save_kind_targets
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
 from .db_operations import save_region_allocations as save_region_allocations
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year
+from .db_operations import set_app_password as set_app_password
 from .db_operations import set_last_selection as set_last_selection
 from .db_operations import set_theme_preference as set_theme_preference
 from .db_operations import sync_transfer_accounts as sync_transfer_accounts
+from .db_operations import verify_app_password as verify_app_password

@@ -22,6 +22,7 @@ from .accounts import sync_transfer_accounts as sync_transfer_accounts
 from .config import LookupKind as LookupKind
 from .config import LookupOption as LookupOption
 from .config import add_lookup_option as add_lookup_option
+from .config import clear_app_password as clear_app_password
 from .config import delete_lookup_option as delete_lookup_option
 from .config import fetch_categories as fetch_categories
 from .config import fetch_kinds as fetch_kinds
@@ -31,9 +32,12 @@ from .config import fetch_sources as fetch_sources
 from .config import get_last_selection as get_last_selection
 from .config import get_theme_preference as get_theme_preference
 from .config import initialize_config_db as initialize_config_db
+from .config import is_password_set as is_password_set
 from .config import rename_lookup_option as rename_lookup_option
+from .config import set_app_password as set_app_password
 from .config import set_last_selection as set_last_selection
 from .config import set_theme_preference as set_theme_preference
+from .config import verify_app_password as verify_app_password
 from .expenses import ESC as ESC
 from .expenses import ExpensesSortingConfig as ExpensesSortingConfig
 from .expenses import SortingConfig as SortingConfig
