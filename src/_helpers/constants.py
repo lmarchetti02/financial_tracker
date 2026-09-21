@@ -27,3 +27,20 @@ SYSTEM_KIND_INVESTMENT = "Investment"
 # balance from a transfer's source/destination, so they can never be renamed or deleted either
 SYSTEM_KIND_DEBT = "Debt"
 SYSTEM_KIND_CREDIT = "Credit"
+
+# the iCloud Drive folder shared with the iPhone Shortcut that captures expenses on the go:
+# the Shortcut appends to `INBOX_FILE_NAME`, the app drains it at launch and writes the two
+# lookup exports back so the Shortcut's pickers can never drift from the real lists
+ICLOUD_DIRECTORY = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs" / "Financial Tracker"
+INBOX_FILE_NAME = "inbox.jsonl"
+INBOX_IMPORTED_FILE_NAME = "imported.jsonl"
+INBOX_REJECTED_FILE_NAME = "rejected.jsonl"
+# newline-delimited rather than JSON: the only consumer is the iPhone Shortcut, and its
+# "Split Text by New Lines -> Choose from List" path is far more dependable than asking it to
+# parse a JSON array (whose dictionary handling shows keys with value previews, not a flat list)
+INBOX_CATEGORIES_FILE_NAME = "categories.txt"
+INBOX_PROFILES_FILE_NAME = "profiles.txt"
+
+# the two archive files are append-only, so they get trimmed back to their most recent lines
+# every time something is added to them: they are an audit trail, not the system of record
+INBOX_ARCHIVE_MAX_LINES = 1000

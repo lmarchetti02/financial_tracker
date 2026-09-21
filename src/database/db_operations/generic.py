@@ -103,6 +103,17 @@ def list_year_profile_pairs() -> list[tuple[int, str]]:
     return pairs
 
 
+def list_profiles() -> list[str]:
+    """Lists every profile that has at least one year of data.
+
+    Returns:
+        list[str]: The distinct profile names found under `APP_DIRECTORY`, sorted.
+    """
+    logger.info("Called 'list_profiles'")
+
+    return sorted({profile for _, profile in list_year_profile_pairs()})
+
+
 def fetch_rows(
     location: DbLocation,
     table_name: str,

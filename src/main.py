@@ -13,6 +13,7 @@ from database.db_operations import (DbLocation, WhichDb, get_theme_preference,
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
+from ui.inbox import review_inbox, sync_lookups_for_phone
 from ui.income import income_view
 from ui.lock import lock_screen
 from ui.portfolio import portfolio_view
@@ -45,9 +46,20 @@ def initialize_tracker(page: ft.Page, selected_year: int, selected_profile: str)
     # remember this selection for the next time the app starts
     set_last_selection(selected_year, selected_profile)
 
+    def refresh_layout() -> None:
+        """Re-renders the main layout, so imported rows show up in the home totals."""
+        page.controls.clear()
+        startup_layout(page)
+        page.update()
+
     # start home
     startup_layout(page)
     page.update()
+
+    # keep the iPhone Shortcut's pickers in step with the real lists, then review whatever it
+    # captured while the app was closed
+    sync_lookups_for_phone()
+    review_inbox(page, on_imported=refresh_layout)
 
 
 def startup_layout(page: ft.Page) -> None:

@@ -8,6 +8,7 @@ import flet as ft
 import database as db
 
 from ..common import current_db_location, show_alert
+from ..inbox import review_inbox, sync_lookups_for_phone
 from .components import panel_title, setting_row, settings_card
 from .lookup_editor import LookupListEditor
 from .password import PasswordSettings
@@ -136,6 +137,16 @@ class SettingsView(ft.Row):
                         on_click=self._handle_recompute_debt_credit_balances,
                     ),
                 ),
+                setting_row(
+                    "Import from iPhone",
+                    "Reviews the expenses captured by the iPhone Shortcut and adds them to the year each one is "
+                    "dated in. This also runs automatically at startup, so it's only needed if you skipped it.",
+                    ft.Button(
+                        "Import",
+                        icon=ft.Icons.PHONE_IPHONE,
+                        on_click=self._handle_import_from_phone,
+                    ),
+                ),
             ],
         )
 
@@ -169,6 +180,19 @@ class SettingsView(ft.Row):
         self._page.theme_mode = mode
         db.set_theme_preference("dark" if mode == ft.ThemeMode.DARK else "light")
         self._page.update()
+
+    def _handle_import_from_phone(self, _: ft.Event) -> None:
+        """Reviews whatever the iPhone Shortcut captured, on demand.
+
+        The same review runs at startup; this is the escape hatch for when it was skipped, and
+        it re-exports the lookup lists too in case the phone's pickers are stale.
+        """
+        logger.info("Called '_handle_import_from_phone'")
+
+        sync_lookups_for_phone()
+
+        if not review_inbox(self._page):
+            show_alert(self._page, "Nothing to import", "Your iPhone hasn't captured any new expenses.")
 
     def _handle_recompute_debt_credit_balances(self, _: ft.Event) -> None:
         """Rebuilds every Debt/Credit account's balances, across every year and profile, from their transfers."""

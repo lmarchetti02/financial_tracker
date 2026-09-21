@@ -20,6 +20,7 @@ from database.db_operations.generic import (
     fetch_rows,
     get_db_path,
     initialize_db,
+    list_profiles,
     list_year_profile_pairs,
     remove_item,
 )
@@ -94,6 +95,34 @@ class TestListYearProfilePairs:
         initialize_db(DbLocation(YEAR + 1), WhichDb.EXPENSES)
 
         assert sorted(list_year_profile_pairs()) == [(YEAR, DEFAULT_PROFILE_NAME), (YEAR + 1, DEFAULT_PROFILE_NAME)]
+
+
+class TestListProfiles:
+    """Tests for `list_profiles`."""
+
+    def test_is_empty_when_no_database_exists(self) -> None:
+        """With no yearly database at all, there is no profile to list."""
+        assert list_profiles() == []
+
+    def test_lists_a_single_profile(self) -> None:
+        """A single database file is reported as its profile name."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+
+        assert list_profiles() == [DEFAULT_PROFILE_NAME]
+
+    def test_deduplicates_a_profile_present_in_several_years(self) -> None:
+        """The same profile across multiple years is reported once, not once per year."""
+        initialize_db(DbLocation(YEAR, "Personal"), WhichDb.EXPENSES)
+        initialize_db(DbLocation(YEAR + 1, "Personal"), WhichDb.EXPENSES)
+
+        assert list_profiles() == ["Personal"]
+
+    def test_returns_the_profiles_sorted(self) -> None:
+        """The list is sorted, so the phone's picker order is stable between launches."""
+        initialize_db(DbLocation(YEAR, "Shared"), WhichDb.EXPENSES)
+        initialize_db(DbLocation(YEAR, "Personal"), WhichDb.EXPENSES)
+
+        assert list_profiles() == ["Personal", "Shared"]
 
 
 class TestFetchRows:
