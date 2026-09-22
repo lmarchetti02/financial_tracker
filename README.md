@@ -70,21 +70,32 @@ to be kept in step by hand. In the Shortcuts app, tap **+** and add these in ord
 13. **Ask for Input** - *Input Type* **Text**, prompt `Description`
 14. **Set Variable** - name it `Desc`, value **Provided Input**
 
+**Date**
+
+15. **Date** - leave it set to *Current Date*
+16. **Set Variable** - name it `Day`, value **Current Date**
+
+    This records when you *logged* the expense, on the phone. Leave it out and the app instead
+    stamps the entry with the day it was **imported** - so anything captured on a Monday and
+    imported on the Friday would land in your books dated Friday. Sending the date is what makes
+    it safe to let the inbox sit for a few days.
+
 **Write the line**
 
-15. **Text** - paste this, replacing each `<...>` with the variable of that name from the
+17. **Text** - paste this, replacing each `<...>` with the variable of that name from the
     suggestion bar:
 
     ```
-    {"amount":"<Amt>","category":"<Cat>","description":"<Desc>","profile":"<Prof>"}
+    {"amount":"<Amt>","category":"<Cat>","description":"<Desc>","profile":"<Prof>","date":"<Day>"}
     ```
 
-    Keep the quotes exactly as shown, **including the ones around `<Amt>`**. The Number field
-    formats using your phone's locale, so on a comma-decimal device it produces `58,7`, which
-    unquoted is not valid JSON. Quoted, it is read with the same convention as every amount
-    field in the app: `,` for decimals, `.` for thousands.
+    Keep the quotes exactly as shown, **including the ones around `<Amt>` and `<Day>`**. The
+    Number field formats using your phone's locale, so on a comma-decimal device it produces
+    `58,7`, which unquoted is not valid JSON; the date is worse, since its spaces break the line
+    outright. Quoted, the amount is read with the same convention as every amount field in the
+    app: `,` for decimals, `.` for thousands.
 
-16. **Append to Text File** - *Service* **iCloud Drive**, *File Path*
+18. **Append to Text File** - *Service* **iCloud Drive**, *File Path*
     `/Financial Tracker/inbox.jsonl`, **Make New Line** on
 
 Name it something short ("Log expense"), then add it to your Home Screen or run it with Siri.
@@ -95,8 +106,8 @@ Notes on the actions:
   actions both output a variable called *Chosen Item*, and two **Ask for Input** actions both
   output *Provided Input* - so without distinct names it is very easy for the Text action to
   pick up the wrong one and file every expense under the wrong category or profile. Naming them
-  makes step 15 unambiguous. (If you'd rather keep it to 11 actions, you can instead tap each
-  magic variable in step 15 and rename it there, but it's fiddlier to get right.)
+  makes step 17 unambiguous. (If you'd rather keep it to 13 actions, you can instead tap each
+  magic variable in step 17 and rename it there, but it's fiddlier to get right.)
 - Steps 2-3 are the dependable way to turn a file into a picker: **Split Text** by new lines
   produces a plain list, which is why the app exports these as line-per-entry text rather than
   JSON. Do not use **Get Dictionary from Input** - it builds a dictionary, and **Choose from
@@ -106,16 +117,26 @@ Notes on the actions:
 - Run the Mac app once before building this, so both `.txt` files exist.
 - Add or rename a category or create a new profile, and the pickers follow on the app's next
   launch with nothing to change on the phone.
-- There is still no date here: the app stamps the entry with today's date. To send one
-  explicitly, see below.
+- The date comes from the phone at capture time, not from the Mac at import time - see step 15.
+  `22 Sep 2026 at 11:16` is the display style your phone will send, and it reads fine; the
+  trailing clock time is dropped, since an expense is dated to a day rather than a moment.
 
 ### Notes on the format
 
 - One JSON object per line. Only `amount` and `category` are required.
-- `date` is optional and defaults to today. If given it must be ISO `YYYY-MM-DD`, and its
-  **year decides which database the expense lands in** - so a New Year's Eve expense imported
-  in January still goes to the right year. To send it, add a **Format Date** action with a
-  custom format of `yyyy-MM-dd` and include `"date":"<Formatted Date>"`.
+- `date` is technically optional - omitted, it defaults to the day of **import**, which is why
+  the Shortcut above sends it. Its **year decides which database the expense lands in**, so a
+  New Year's Eve expense imported in January still goes to the right year.
+
+  Accepted shapes: ISO `2026-09-22`, ISO with a time, `22 Sep 2026`, `22 September 2026`,
+  `Sep 22 2026`, `22.09.2026` and `22/09/2026`, each with an optional trailing clock time.
+  Anything else is rejected rather than guessed at - it never silently falls back to today.
+
+  Slash- and dot-separated dates are read **day first**, so `03/04/2026` is 3 April. Insert a
+  **Format Date** action with a custom format of `yyyy-MM-dd` between steps 15 and 16 if you'd
+  rather remove all doubt.
+- To log an expense from a *past* day rather than the moment you're standing in the shop, change
+  step 15's **Date** action to *Ask Each Time* - you'll get a date picker when the Shortcut runs.
 - `profile` is optional and defaults to `Personal`, though the Shortcut above always sends it.
   A profile that has no data yet won't appear in `profiles.txt` (it lists profiles that already
   have a database), so create it once in the app before logging to it from the phone.

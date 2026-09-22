@@ -25,6 +25,24 @@ ENTRY_TYPE_EXPENSE = "expense"
 # read as an ordinary comma-decimal amount
 _UNQUOTED_AMOUNT = re.compile(r'("amount"\s*:\s*)([0-9][0-9.,]*[0-9]|[0-9])(\s*[,}])')
 
+# a trailing clock time, with or without its locale's connector word, as produced by a Shortcut
+# sending Current Date rather than a Format Date result: "22 Sep 2026 at 11:16"
+_TIME_SUFFIX = re.compile(
+    r"\s*(?:\b(?:at|um|alle|kl)\b)?\s*\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?$",
+    re.IGNORECASE,
+)
+
+# tried in order after ISO. Day-first throughout: this app already reads amounts with the
+# European convention, so "03/04/2026" is 3 April, never 4 March
+_DATE_FORMATS = (
+    "%d %b %Y",
+    "%d %B %Y",
+    "%b %d %Y",
+    "%B %d %Y",
+    "%d.%m.%Y",
+    "%d/%m/%Y",
+)
+
 
 @dataclass(frozen=True, kw_only=True)
 class InboxEntry:
@@ -256,7 +274,7 @@ def _parse_line(line: str) -> InboxEntry | None:
         return InboxEntry(
             # both of these are optional so the Shortcut needs neither a custom date format
             # nor a second picker: the common case is "today, my usual profile"
-            day=date.fromisoformat(payload["date"]) if payload.get("date") else date.today(),
+            day=_parse_day(payload["date"]) if payload.get("date") else date.today(),
             cost=cost,
             # a numeric amount is dot-decimal, which the app's amount fields would read as a
             # thousands separator, so it gets reformatted rather than stringified
@@ -297,6 +315,51 @@ def _load_payload(line: str) -> Any:
 
         logger.debug(f"Quoted an unquoted comma-decimal amount to recover the line: {line}")
         return json.loads(repaired)
+
+
+def _parse_day(value: Any) -> date:
+    """Parses the `date` field of an inbox entry into the day the expense belongs to.
+
+    ISO `YYYY-MM-DD` is the format to send, but a Shortcut's Current Date variable arrives in
+    the phone's display style unless a Format Date action reshapes it, e.g.
+    "22 Sep 2026 at 11:16" - so a few common shapes are accepted too. Any trailing clock time is
+    dropped, since an expense is dated to a day rather than a moment.
+
+    Slash- and dot-separated dates are read **day first**, matching the European convention the
+    app's amount fields already use.
+
+    Args:
+        value (Any): The raw `date` value decoded from JSON.
+
+    Returns:
+        date: The parsed day.
+
+    Raises:
+        ValueError: If none of the accepted formats match.
+    """
+    raw = str(value).strip()
+
+    # ISO first and before any trimming: stripping the time off "2026-09-22T11:16:00" would
+    # leave a dangling "2026-09-22T" that no longer parses
+    try:
+        return datetime.fromisoformat(raw).date()
+    except ValueError:
+        pass
+
+    text = _TIME_SUFFIX.sub("", raw).strip()
+
+    try:
+        return datetime.fromisoformat(text).date()
+    except ValueError:
+        pass
+
+    for date_format in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, date_format).date()
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unrecognised date: {value!r}")
 
 
 def _parse_cost(amount: Any) -> float:

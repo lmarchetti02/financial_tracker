@@ -119,6 +119,67 @@ class TestReadInbox:
 
         assert entries[0].profile == DEFAULT_PROFILE_NAME
 
+    def test_accepts_the_display_format_a_shortcut_sends(self, tmp_path: Path) -> None:
+        """Pinning the exact shape an iPhone Shortcut's Current Date variable produces.
+
+        Without a Format Date action the value arrives in the phone's display style, and the
+        trailing clock time has to be dropped since an expense is dated to a day.
+        """
+        write_lines(tmp_path, make_line(date="22 Sep 2026 at 11:16"))
+
+        entries, malformed = read_inbox(tmp_path)
+
+        assert malformed == []
+        assert entries[0].day == date(2026, 9, 22)
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("2026-09-22", date(2026, 9, 22)),
+            ("2026-09-22T11:16:00", date(2026, 9, 22)),
+            ("22 Sep 2026", date(2026, 9, 22)),
+            ("22 September 2026", date(2026, 9, 22)),
+            ("Sep 22 2026", date(2026, 9, 22)),
+            ("22 Sep 2026 at 11:16", date(2026, 9, 22)),
+            ("22 Sep 2026 um 11:16", date(2026, 9, 22)),
+            ("22 Sep 2026 at 11:16:59", date(2026, 9, 22)),
+            ("22 Sep 2026 at 1:16 PM", date(2026, 9, 22)),
+            ("22.09.2026", date(2026, 9, 22)),
+        ],
+    )
+    def test_accepts_common_date_shapes(self, tmp_path: Path, raw: str, expected: date) -> None:
+        """Each accepted format resolves to the same day."""
+        write_lines(tmp_path, make_line(date=raw))
+
+        entries, _ = read_inbox(tmp_path)
+
+        assert entries[0].day == expected
+
+    def test_slash_dates_are_read_day_first(self, tmp_path: Path) -> None:
+        """European convention, matching how the app already reads amounts: 3 April, not 4 March."""
+        write_lines(tmp_path, make_line(date="03/04/2026"))
+
+        entries, _ = read_inbox(tmp_path)
+
+        assert entries[0].day == date(2026, 4, 3)
+
+    def test_rejects_a_date_it_cannot_recognise(self, tmp_path: Path) -> None:
+        """An unparseable date is a rejection, never a silent fallback to today."""
+        write_lines(tmp_path, make_line(date="last tuesday"))
+
+        entries, malformed = read_inbox(tmp_path)
+
+        assert entries == []
+        assert len(malformed) == 1
+
+    def test_a_dated_entry_keeps_its_own_year(self, tmp_path: Path) -> None:
+        """The year is what picks the target database, so an old entry must not drift to today."""
+        write_lines(tmp_path, make_line(date="31 Dec 2025 at 23:58"))
+
+        entries, _ = read_inbox(tmp_path)
+
+        assert entries[0].day == date(2025, 12, 31)
+
     def test_an_explicit_date_and_profile_still_win(self, tmp_path: Path) -> None:
         """The defaults only apply when the field is absent, never overriding what was sent."""
         write_lines(tmp_path, make_line(date="2024-03-04", profile="Shared"))
@@ -132,15 +193,6 @@ class TestReadInbox:
     def test_rejects_a_non_positive_amount(self, tmp_path: Path, amount: float) -> None:
         """`Expense.cost` must be greater than zero, so such an entry never reaches review."""
         write_lines(tmp_path, make_line(amount=amount))
-
-        entries, malformed = read_inbox(tmp_path)
-
-        assert entries == []
-        assert len(malformed) == 1
-
-    def test_rejects_an_unparseable_date(self, tmp_path: Path) -> None:
-        """Dates must be ISO `YYYY-MM-DD`; anything else is a rejection, not a guess."""
-        write_lines(tmp_path, make_line(date="21/09/2026"))
 
         entries, malformed = read_inbox(tmp_path)
 

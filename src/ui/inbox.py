@@ -8,11 +8,12 @@ import flet as ft
 
 import database as db
 from _helpers.constants import (DEFAULT_PROFILE_NAME, ICLOUD_DIRECTORY,
-                                INBOX_IMPORTED_FILE_NAME, INBOX_REJECTED_FILE_NAME,
-                                MONTHS)
+                                INBOX_IMPORTED_FILE_NAME,
+                                INBOX_REJECTED_FILE_NAME, MONTHS)
 from _helpers.expression_parser import evaluate_expression
-from _helpers.inbox import (InboxEntry, append_archive, ensure_inbox_file, export_lookups,
-                            read_inbox, stamp_imported, write_inbox)
+from _helpers.inbox import (InboxEntry, append_archive, ensure_inbox_file,
+                            export_lookups, read_inbox, stamp_imported,
+                            write_inbox)
 
 from .common import show_alert
 
