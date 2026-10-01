@@ -175,10 +175,17 @@ sqlite3 ~/Library/Application\ Support/Financial\ Tracker/config.db \
 See [Flet](https://flet.dev/docs/publish/macos/) for the prerequisite, then run:
 
 ```
-uv run flet build macos
+./compile.sh
 ```
 
-Builds `Financial Tracker.app` into `build/macos/`. Move it to `/Applications` to install.
+Builds `Financial Tracker.app` into `build/macos/` and packages it into `Financial Tracker.dmg`.
+Move the app to `/Applications` to install.
+
+Use `compile.sh` rather than a bare `uv run flet build macos`: Flet's macOS template targets
+macOS 11.0, which Xcode 27 rejects (it supports 12.0 and up), and Flet regenerates
+`build/flutter` whenever its build inputs change, such as the Flet or project version. The script
+bumps the generated project to 12.0 before building and, if a build fails because the template
+was just regenerated, bumps it again and retries once. That retry takes a few extra minutes.
 
 ## Requirements
 
