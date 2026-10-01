@@ -47,6 +47,7 @@ class CollapsibleFormMixin:
             height=0,
             animate=ft.Animation(250, ft.AnimationCurve.EASE_IN_OUT),
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            on_animation_end=self._on_form_animation_end,
         )
 
     def toggle_form(self, _: ft.Event) -> None:
@@ -59,10 +60,20 @@ class CollapsibleFormMixin:
 
     def _set_form_expanded(self, expanded: bool) -> None:
         """Sets whether the add/edit form is shown, without pushing the change to the page."""
+        # clip only while the height animates: once fully open, the floating labels of the first row's
+        # fields poke out above the container's top edge and would otherwise be cut off
+        if expanded != self._form_expanded:
+            self.form_container.clip_behavior = ft.ClipBehavior.HARD_EDGE
         self._form_expanded = expanded
         self.form_container.height = self._form_height if expanded else 0
         self.toggle_form_button.icon = ft.Icons.EXPAND_LESS if expanded else ft.Icons.ADD_CIRCLE_OUTLINE
         self.toggle_form_button.tooltip = "Hide form" if expanded else f"Add {self._item_label}"
+
+    def _on_form_animation_end(self, _: ft.Event) -> None:
+        """Stops clipping the form once it has finished expanding."""
+        if self._form_expanded:
+            self.form_container.clip_behavior = ft.ClipBehavior.NONE
+            self.form_container.update()
 
 
 def current_db_location(page: ft.Page) -> db.DbLocation:
