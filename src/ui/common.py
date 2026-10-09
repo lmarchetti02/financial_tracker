@@ -9,6 +9,10 @@ import database as db
 
 FILTER_ACTIVE_COLOR = ft.Colors.AMBER_700
 
+# Flet's date pickers have no first-day-of-week option: Flutter takes it from the locale, and the
+# app's default `en_US` starts weeks on Sunday. `en_GB` keeps English labels but starts on Monday.
+DATE_PICKER_LOCALE = ft.Locale("en", "GB")
+
 
 def sync_filter_menu(
     menu: ft.PopupMenuButton, active_label: str | None, inactive_color: str, inactive_tooltip: str

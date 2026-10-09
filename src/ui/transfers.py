@@ -16,7 +16,7 @@ from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
 
 from .base_view import BaseCrudView
-from .common import show_alert
+from .common import DATE_PICKER_LOCALE, show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -33,7 +33,9 @@ class TransfersView(BaseCrudView):
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
         # date
-        self.date_picker = ft.DatePicker(value=self.default_date, on_change=self.update_date_text)
+        self.date_picker = ft.DatePicker(
+            value=self.default_date, locale=DATE_PICKER_LOCALE, on_change=self.update_date_text
+        )
         self.date_button = ft.Button(
             content=self.default_date.strftime("%d/%m"),
             icon=ft.Icons.CALENDAR_MONTH,

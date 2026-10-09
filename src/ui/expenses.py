@@ -14,7 +14,7 @@ from plotting import (show_expenses_pie, show_expenses_summary,
                       show_expenses_trend)
 
 from .base_view import BaseCrudView
-from .common import show_alert
+from .common import DATE_PICKER_LOCALE, show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -37,8 +37,10 @@ class ExpensesView(BaseCrudView):
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
         # date
-        self.date_picker = ft.DatePicker(value=self.default_date, on_change=self.update_date_text)
-        self.range_picker = ft.DateRangePicker(on_change=self.update_date_text)
+        self.date_picker = ft.DatePicker(
+            value=self.default_date, locale=DATE_PICKER_LOCALE, on_change=self.update_date_text
+        )
+        self.range_picker = ft.DateRangePicker(locale=DATE_PICKER_LOCALE, on_change=self.update_date_text)
         self.date_options_dropdown = ft.Dropdown(
             value="day", options=DATE_OPTIONS, width=120, on_text_change=self.update_date_button
         )
