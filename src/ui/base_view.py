@@ -12,8 +12,9 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import MONTHS
 
-from .common import (CollapsibleFormMixin, build_styled_data_table,
-                     current_db_location, sync_filter_menu)
+from .common import (CollapsibleFormMixin, build_row_action_button,
+                     build_styled_data_table, current_db_location,
+                     sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -153,34 +154,24 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         disabled = self._is_readonly(row_id)
         tooltip = "Managed from the Transfers page" if disabled else None
 
-        edit_btn = ft.Button(
-            icon=ft.Icons.EDIT,
-            width=50,
-            height=30,
-            data=row_id,
-            on_click=self.edit_this_item,
+        edit_btn = build_row_action_button(
+            ft.Icons.EDIT,
+            row_id,
+            self.edit_this_item,
             color=None if disabled else ft.Colors.BLUE,
             disabled=disabled,
             tooltip=tooltip,
         )
-        copy_btn = ft.Button(
-            icon=ft.Icons.COPY,
-            width=50,
-            height=30,
-            data=row_id,
-            on_click=self.copy_this_item,
+        copy_btn = build_row_action_button(
+            ft.Icons.COPY,
+            row_id,
+            self.copy_this_item,
             color=None if disabled else ft.Colors.GREEN,
             disabled=disabled,
             tooltip=tooltip,
         )
-        delete_btn = ft.Button(
-            icon=ft.Icons.DELETE,
-            width=50,
-            height=30,
-            data=row_id,
-            on_click=self.delete_item,
-            disabled=disabled,
-            tooltip=tooltip,
+        delete_btn = build_row_action_button(
+            ft.Icons.DELETE, row_id, self.delete_item, disabled=disabled, tooltip=tooltip
         )
         return [edit_btn, copy_btn, delete_btn]
 

@@ -126,6 +126,43 @@ def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], 
     )
 
 
+def build_row_action_button(
+    icon: ft.IconData,
+    row_id: int,
+    on_click: ft.ControlEventHandler,
+    color: str | None = None,
+    disabled: bool = False,
+    tooltip: str | None = None,
+) -> ft.Button:
+    """Builds an icon-only button for a table row's action cell, with the icon centered.
+
+    The icon is passed as the button's `content` rather than its `icon`: an `icon` with no label is still laid out as
+    icon + gap + empty label inside the default horizontal padding, which pushes it off-center in a 50px-wide button.
+
+    Args:
+        icon (ft.IconData): The icon to show.
+        row_id (int): The id of the row the button acts on, stored as the button's `data`.
+        on_click (ft.ControlEventHandler): The click handler.
+        color (str | None): The icon color, or `None` for the theme default.
+        disabled (bool): Whether the button is disabled.
+        tooltip (str | None): The tooltip to show on hover.
+
+    Returns:
+        ft.Button: The action button.
+    """
+    return ft.Button(
+        content=ft.Icon(icon),
+        width=50,
+        height=30,
+        style=ft.ButtonStyle(padding=0),
+        data=row_id,
+        on_click=on_click,
+        color=color,
+        disabled=disabled,
+        tooltip=tooltip,
+    )
+
+
 def show_alert(page: ft.Page, title: str, content: str) -> None:
     """Shows alert for missing data.
 

@@ -17,8 +17,9 @@ from plotting import (build_kind_allocation_pie,
                       show_detailed_region_diversification,
                       show_portfolio_diversification)
 
-from .common import (CollapsibleFormMixin, build_styled_data_table,
-                     current_db_location, show_alert, sync_filter_menu)
+from .common import (CollapsibleFormMixin, build_row_action_button,
+                     build_styled_data_table, current_db_location, show_alert,
+                     sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -1245,46 +1246,23 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             if show_maturity_column:
                 cells.append(ft.DataCell(ft.Text(holding.maturity_date)))
 
-            action_buttons = [
-                ft.Button(
-                    icon=ft.Icons.INFO_OUTLINE,
-                    width=50,
-                    height=30,
-                    data=holding_id,
-                    on_click=self.show_holding_info,
-                ),
-            ]
+            action_buttons = [build_row_action_button(ft.Icons.INFO_OUTLINE, holding_id, self.show_holding_info)]
             if not show_maturity_column:
                 # region allocation only makes sense for a diversified, long-term holding - a
                 # fixed-term one is dropped from the diversification tools entirely (see
                 # `show_portfolio_diversification`/`show_detailed_region_diversification`)
                 action_buttons.append(
-                    ft.Button(
-                        icon=ft.Icons.PUBLIC,
-                        width=50,
-                        height=30,
-                        data=holding_id,
+                    build_row_action_button(
+                        ft.Icons.PUBLIC,
+                        holding_id,
+                        self.edit_region_allocations,
                         color=_HEADING_COLOR,
                         tooltip="Detailed Regions",
-                        on_click=self.edit_region_allocations,
                     )
                 )
             action_buttons += [
-                ft.Button(
-                    icon=ft.Icons.EDIT,
-                    width=50,
-                    height=30,
-                    data=holding_id,
-                    color=ft.Colors.BLUE,
-                    on_click=self.edit_holding,
-                ),
-                ft.Button(
-                    icon=ft.Icons.DELETE,
-                    width=50,
-                    height=30,
-                    data=holding_id,
-                    on_click=self.delete_holding,
-                ),
+                build_row_action_button(ft.Icons.EDIT, holding_id, self.edit_holding, color=ft.Colors.BLUE),
+                build_row_action_button(ft.Icons.DELETE, holding_id, self.delete_holding),
             ]
             cells.append(ft.DataCell(ft.Row(controls=action_buttons, alignment=ft.MainAxisAlignment.CENTER)))
             rows.append(ft.DataRow(cells=cells))
