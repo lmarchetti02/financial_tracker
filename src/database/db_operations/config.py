@@ -7,11 +7,12 @@ from logging import getLogger
 from pathlib import Path
 
 from _helpers.constants import (APP_DIRECTORY, CONFIG_DB_NAME,
+                                EXPENSES_DB_NAME,
                                 HOLDING_REGION_ALLOCATIONS_DB_NAME,
-                                SYSTEM_CATEGORY_TRADING_FEE,
+                                INCOME_DB_NAME, SYSTEM_CATEGORY_TRADING_FEE,
                                 SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT,
                                 SYSTEM_KIND_INVESTMENT,
-                                SYSTEM_SOURCE_INVESTMENTS)
+                                SYSTEM_SOURCE_INVESTMENTS, TRANSFERS_DB_NAME)
 from _helpers.security import (generate_salt, hash_password,
                                validate_password, verify_password)
 
@@ -38,9 +39,9 @@ _LOOKUP_TABLE = {
 
 # (domain table, column) referencing each lookup, used for the in-use check and the rename cascade
 _LOOKUP_REFERENCES = {
-    LookupKind.CATEGORIES: ("expenses", "category"),
-    LookupKind.SOURCES: ("income", "source"),
-    LookupKind.KINDS: ("transfers", "kind"),
+    LookupKind.CATEGORIES: (EXPENSES_DB_NAME, "category"),
+    LookupKind.SOURCES: (INCOME_DB_NAME, "source"),
+    LookupKind.KINDS: (TRANSFERS_DB_NAME, "kind"),
     LookupKind.REGIONS: (HOLDING_REGION_ALLOCATIONS_DB_NAME, "region"),
 }
 

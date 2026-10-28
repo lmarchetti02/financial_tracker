@@ -7,6 +7,8 @@ import flet as ft
 
 import database as db
 
+from .common import build_title_header
+
 logger = getLogger("financial_tracker")
 
 MAX_ATTEMPTS = 3
@@ -65,10 +67,7 @@ def lock_screen(page: ft.Page, on_unlock: Callable[[], None]) -> None:
     layout = ft.Column(
         controls=[
             # title
-            ft.Container(height=page.height * 0.1),
-            ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
-            ft.Text("by Luca Marchetti", size=22),
-            ft.Container(height=page.height * 0.2),
+            *build_title_header(page),
             # password prompt
             password_field,
             ft.Button("Unlock", on_click=unlock),

@@ -8,12 +8,11 @@ from flet_datatable2 import DataColumn2
 
 import database as db
 from _helpers.constants import MONTHS
-from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
 from plotting import show_income_pie, show_income_summary, show_income_trend
 
 from .base_view import BaseCrudView
-from .common import show_alert
+from .common import show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
 
@@ -51,7 +50,7 @@ class IncomeView(BaseCrudView):
         self.description_text = ft.TextField(label="Description", width=570, multiline=True)
 
         # button
-        self.add_income_button = ft.Button("Add Income", on_click=self.add_new_income)
+        self._build_add_button(self.add_new_income)
         self.clear_button = self._build_clear_button()
 
         # collapsible form
@@ -68,7 +67,7 @@ class IncomeView(BaseCrudView):
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 self.description_text,
-                ft.Row([self.add_income_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ],
             tight=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -91,7 +90,7 @@ class IncomeView(BaseCrudView):
             "Show Summary",
             icon=ft.Icons.BAR_CHART,
             color="#006400",
-            on_click=lambda _: show_income_summary(self._page, self.current_enum_filter),
+            on_click=lambda _: show_income_summary(self._page, self.current_lookup_filter),
         )
 
         self.pie_chart_button = ft.Button(
@@ -127,12 +126,10 @@ class IncomeView(BaseCrudView):
 
         if self.month_picker.value is None:
             show_alert(self._page, "Invalid month", "The month cannot be empty.")
-            self._page.update()
             return None
 
         if self.description_text.value == "":
             show_alert(self._page, "Empty description", "You must add a description to the income")
-            self._page.update()
             return None
 
         if self.source_picker.value is None:
@@ -142,18 +139,10 @@ class IncomeView(BaseCrudView):
 
         if self.amount_text.value == "":
             show_alert(self._page, "Empty cost", "You must add a cost to the expense")
-            self._page.update()
             return None
 
-        try:
-            cost = evaluate_expression(self.amount_text.value)
-        except ValueError:
-            show_alert(
-                self._page,
-                "Invalid cost",
-                "The cost must be a real number or arithmetic expression (comma for decimals allowed).",
-            )
-            self._page.update()
+        cost = self._parse_amount_field(self.amount_text.value, "Invalid cost", "cost")
+        if cost is None:
             return None
 
         income = db.Income(
@@ -204,16 +193,7 @@ class IncomeView(BaseCrudView):
             self._page.pop_dialog()
             self.refresh_table()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Delete income"),
-                content=ft.Text("Are you sure you want to delete this income?"),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
-        )
+        show_confirm_dialog(self._page, "Delete income", "Are you sure you want to delete this income?", delete)
 
     def edit_this_item(self, e: ft.Event) -> None:
         """Edits an income."""
@@ -242,9 +222,7 @@ class IncomeView(BaseCrudView):
 
             self.refresh_table()
 
-        self.add_income_button.content = "Edit Income"
-        self.add_income_button.color = ft.Colors.PURPLE
-        self.add_income_button.on_click = modify
+        self._enter_edit_mode(modify)
 
         self._set_form_expanded(True)
         self.fill_inputs_from_income(old_income)
@@ -269,16 +247,10 @@ class IncomeView(BaseCrudView):
         )
         self.description_text.value = income.description
 
-    def reset_add_button(self) -> None:
-        """Resets the add button to its base "Add Income" state."""
-        self.add_income_button.content = "Add Income"
-        self.add_income_button.color = None
-        self.add_income_button.on_click = self.add_new_income
-
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches incomes matching the current sort and filters."""
         self._profit_income_ids = db.fetch_profit_income_ids(self.location)
-        return db.fetch_incomes(self.location, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        return db.fetch_incomes(self.location, self.current_sort, self.current_month_filter, self.current_lookup_filter)
 
     def _is_readonly(self, row_id: int) -> bool:
         """An income generated from a transfer's profit is only editable from the Transfers page."""

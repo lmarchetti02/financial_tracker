@@ -9,7 +9,6 @@ import numpy as np
 from _helpers.constants import (
     ACCOUNT_BALANCES_DB_NAME,
     ACCOUNTS_DB_NAME,
-    DEFAULT_PROFILE_NAME,
     SYSTEM_KIND_CREDIT,
     SYSTEM_KIND_DEBT,
     TRANSFERS_DB_NAME,
@@ -251,12 +250,12 @@ def delete_account(location: DbLocation, account_id: int) -> bool:
     return remove_item(location, WhichDb.ACCOUNTS, account_id)
 
 
-def _existing_years_before(before_year: int, profile: str = DEFAULT_PROFILE_NAME) -> list[int]:
+def _existing_years_before(before_year: int, profile: str) -> list[int]:
     """Lists the years, older than `before_year`, that have an existing database file for `profile`."""
     return [year for year, p in list_year_profile_pairs() if p == profile and year < before_year]
 
 
-def _find_latest_year_with_accounts(before_year: int, profile: str = DEFAULT_PROFILE_NAME) -> int | None:
+def _find_latest_year_with_accounts(before_year: int, profile: str) -> int | None:
     """Finds the most recent year before `before_year` whose database has any accounts."""
     for year in sorted(_existing_years_before(before_year, profile), reverse=True):
         try:

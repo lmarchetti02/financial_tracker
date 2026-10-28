@@ -6,8 +6,9 @@ from types import SimpleNamespace
 import pytest
 
 from _helpers.constants import DEFAULT_PROFILE_NAME, EXPENSES_DB_NAME
-from database.data_structures.account import Account, AccountKind
+from database.data_structures.account import Account, AccountBalance, AccountKind
 from database.data_structures.expense import Expense
+from database.data_structures.holding import Holding, HoldingKind, HoldingKindTarget, HoldingRegionAllocation
 from database.data_structures.income import Income
 from database.data_structures.transfer import Transfer
 from database.db_operations.generic import (
@@ -331,6 +332,27 @@ class TestFetchById:
         add_item(LOCATION, transfer)
 
         assert fetch_by_id(LOCATION, WhichDb.TRANSFERS, 1) == transfer
+
+    @pytest.mark.parametrize("db", list(WhichDb))
+    def test_round_trips_every_db_kind(self, db: WhichDb) -> None:
+        """Every `:enum:WhichDb` member reconstructs the item that was added to it."""
+        items = {
+            WhichDb.EXPENSES: make_expense(),
+            WhichDb.INCOMES: make_income(),
+            WhichDb.TRANSFERS: Transfer(month=3, kind="Loan", description="loan", source="Bank A", amount=50.0),
+            WhichDb.ACCOUNTS: Account(name="Checking", kind=AccountKind.CASH),
+            WhichDb.ACCOUNT_BALANCES: AccountBalance(account_id=1, month=2, balance=100.0),
+            WhichDb.HOLDINGS: Holding(
+                name="World ETF", ticker="VWCE.DE", kind=HoldingKind.STOCKS, issuer="Vanguard", currency="USD"
+            ),
+            WhichDb.HOLDING_REGION_ALLOCATIONS: HoldingRegionAllocation(holding_id=1, region="EU", percentage=40.0),
+            WhichDb.HOLDING_KIND_TARGETS: HoldingKindTarget(kind=HoldingKind.BONDS, percentage=30.0),
+        }
+        initialize_db(LOCATION, db)
+
+        row_id = add_item(LOCATION, items[db])
+
+        assert fetch_by_id(LOCATION, db, row_id) == items[db]
 
     def test_unknown_id_raises_value_error(self) -> None:
         """A missing row raises a clear `ValueError` rather than crashing on an internal `None`."""

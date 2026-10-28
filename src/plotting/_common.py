@@ -1,26 +1,243 @@
 """Private helpers shared across the plotting modules."""
 
+from collections.abc import Callable
+from itertools import cycle
+
 import flet as ft
+import flet_charts as fch
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import TABLEAU_COLORS
+from matplotlib.figure import Figure
 
+from _helpers.constants import MONTHS
+from _helpers.formatting import format_amount
 from database import DbLocation
+from ui.common import current_db_location as current_db_location
+
+type MonthlyTotalsFetcher = Callable[[DbLocation, str], np.ndarray]
 
 
-def current_db_location(page: ft.Page) -> DbLocation:
-    """Reads the currently selected year/profile from `page.session.store`.
+def show_chart_popup(page: ft.Page, fig: Figure) -> None:
+    """Shows `fig` in a popup sized relative to the page, with a "Close" button.
 
     Args:
         page (ft.Page): The page object.
-
-    Returns:
-        `:class:database.DbLocation`: The selected year/profile.
+        fig (Figure): The figure to show.
 
     Raises:
-        RuntimeError: If either hasn't been set yet.
+        RuntimeError: If the page size can't be retrieved.
     """
-    if (year := page.session.store.get("selected_year")) is None:
-        raise RuntimeError("Cannot retrieve the current year.")
+    if page.width is None or page.height is None:
+        raise RuntimeError("Cannot retrieve the page size.")
 
-    if (profile := page.session.store.get("selected_profile")) is None:
-        raise RuntimeError("Cannot retrieve the current profile.")
+    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    popup = ft.AlertDialog(
+        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
+        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
+    )
 
-    return DbLocation(int(year), profile)
+    page.show_dialog(popup)
+    page.update()
+
+
+def show_empty_popup(page: ft.Page, message: str) -> None:
+    """Shows a small popup telling the user there's nothing to plot.
+
+    Args:
+        page (ft.Page): The page object.
+        message (str): The text to show.
+    """
+    page.show_dialog(
+        ft.AlertDialog(
+            ft.Text(message),
+            actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
+        )
+    )
+    page.update()
+
+
+def show_lookup_summary(
+    page: ft.Page,
+    name: str,
+    selected: str | None,
+    fetch_options: Callable[[], list[str]],
+    fetch_one: MonthlyTotalsFetcher,
+) -> None:
+    """Plots one line per lookup entry (e.g. per category) of its monthly totals.
+
+    Args:
+        page (ft.Page): The page object.
+        name (str): The plotted domain, used in the title (e.g. "Expenses").
+        selected (str | None): A single entry to plot, or `None` to plot every entry.
+        fetch_options (Callable[[], list[str]]): Returns every entry of the lookup list.
+        fetch_one (MonthlyTotalsFetcher): Returns the monthly totals of one entry.
+    """
+    location = current_db_location(page)
+
+    # get data
+    options = [selected] if selected is not None else fetch_options()
+    months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
+    totals = np.zeros((len(months), len(options)), dtype=np.float32)
+    for i, option in enumerate(options):
+        totals[:, i] = fetch_one(location, option)
+
+    # plot
+    fig = plt.figure()
+
+    linestyles = cycle(["-", "--", "-.", ":"])
+    markers = cycle(["o", "s", "^", "D", "v", "p", "*"])
+    colors = cycle(TABLEAU_COLORS)
+
+    for i in range(len(options)):
+        plt.plot(
+            months,
+            totals[:, i],
+            label=options[i],
+            linestyle=next(linestyles),
+            marker=next(markers),
+            color=next(colors),
+            linewidth=2,
+            markersize=6,
+            alpha=0.8,
+        )
+
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.xticks(months, MONTHS)
+    plt.xlim(0.75, 12.25)
+
+    title = f"{name} Summary {location.year}"
+    plt.title(title if selected is None else f"{title} — {selected}")
+    plt.ylabel("Total (€)", fontsize=12)
+    plt.legend()
+
+    fig.tight_layout()
+
+    show_chart_popup(page, fig)
+
+
+def show_monthly_trend(
+    page: ft.Page,
+    name: str,
+    fetch_totals: Callable[[DbLocation], np.ndarray],
+    color: str,
+    empty_text: str,
+    lower_is_better: bool,
+) -> None:
+    """Plots the monthly totals, with the yearly average as a dotted reference line.
+
+    Args:
+        page (ft.Page): The page object.
+        name (str): The plotted domain, used in the title (e.g. "Expenses").
+        fetch_totals (Callable[[DbLocation], np.ndarray]): Returns the monthly totals.
+        color (str): The color of the line and its markers.
+        empty_text (str): The text shown instead of the chart when every month is zero.
+        lower_is_better (bool): Whether a month below the average is annotated in green (expenses)
+            rather than in red (income).
+    """
+    location = current_db_location(page)
+
+    # get data
+    months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
+    totals = fetch_totals(location)
+
+    if not totals.any():
+        show_empty_popup(page, empty_text)
+        return
+
+    average = totals.mean()
+
+    # plot
+    fig = plt.figure()
+
+    plt.axhline(average, linestyle=":", color="firebrick", linewidth=1.5, label=f"{location.year} average")
+    plt.plot(months, totals, color=color, linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
+    plt.plot(months, totals, marker="o", linestyle="none", color=color, markersize=6, zorder=2)
+
+    percent_of_average = (totals - average) / average * 100
+    for month, value, pct in zip(months, totals, percent_of_average):
+        is_good = pct <= 0 if lower_is_better else pct >= 0
+        plt.annotate(
+            f"{pct:+.1f}%",
+            (month, value),
+            textcoords="offset points",
+            xytext=(0, 10),
+            ha="center",
+            fontsize=8,
+            color="darkgreen" if is_good else "firebrick",
+        )
+
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.xticks(months, MONTHS)
+    plt.xlim(0.75, 12.25)
+
+    plt.title(f"{name} Trend {location.year}")
+    plt.ylabel("Total (€)", fontsize=12)
+    plt.legend()
+
+    fig.tight_layout()
+
+    show_chart_popup(page, fig)
+
+
+def show_lookup_pie(
+    page: ft.Page,
+    name: str,
+    month: int | None,
+    fetch_options: Callable[[], list[str]],
+    fetch_one: MonthlyTotalsFetcher,
+    empty_text: str,
+) -> None:
+    """Plots a pie chart of the totals per lookup entry, for the whole year or one month.
+
+    Args:
+        page (ft.Page): The page object.
+        name (str): The plotted domain, used in the title and the legend title (e.g. "Expenses").
+        month (int | None): The month to plot, or `None` for the whole year.
+        fetch_options (Callable[[], list[str]]): Returns every entry of the lookup list.
+        fetch_one (MonthlyTotalsFetcher): Returns the monthly totals of one entry.
+        empty_text (str): The text shown instead of the chart when there is nothing to plot.
+    """
+    location = current_db_location(page)
+
+    # get data
+    options = np.array(fetch_options(), dtype=str)
+    totals = np.zeros((12, len(options)), dtype=np.float32)
+    for i, option in enumerate(options):
+        totals[:, i] = fetch_one(location, option)
+
+    if month is None:
+        totals = totals.sum(axis=0)
+    else:
+        totals = totals[month - 1]
+
+    # remove zeros
+    mask = totals > 0
+    totals = totals[mask]
+    names = options[mask]
+    if not totals.size > 0:
+        show_empty_popup(page, empty_text)
+        return
+
+    # plot
+    fig = plt.figure()
+
+    title = location.year if month is None else MONTHS[month - 1]
+    plt.title(f"{name} Pie Chart ({title})")
+    patches, *_ = plt.pie(totals, labels=names, autopct="%1.1f%%")  # type: ignore
+
+    legend_labels = [f"{option}: € {format_amount(val)}" for option, val in zip(names, totals)]
+    plt.legend(
+        patches,
+        legend_labels,
+        title=name,
+        title_fontproperties={"weight": "bold"},
+        loc="center left",
+        bbox_to_anchor=(1.2, 0, 0.5, 1),
+    )
+
+    fig.tight_layout()
+
+    show_chart_popup(page, fig)

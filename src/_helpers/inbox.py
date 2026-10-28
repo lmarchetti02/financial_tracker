@@ -239,14 +239,9 @@ def export_lookups(directory: Path, categories: list[str], profiles: list[str]) 
     logger.info("Called 'export_lookups'")
 
     for filename, values in ((INBOX_CATEGORIES_FILE_NAME, categories), (INBOX_PROFILES_FILE_NAME, profiles)):
-        path = directory / filename
-        try:
-            _ensure_directory(path.parent)
-            # a newline inside an entry would silently split it into two picker options
-            lines = [value.replace("\n", " ").strip() for value in values if value.strip()]
-            path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
-        except Exception:
-            logger.debug(f"Could not export '{path}'.", exc_info=True)
+        # a newline inside an entry would silently split it into two picker options
+        lines = [value.replace("\n", " ").strip() for value in values if value.strip()]
+        _write_lines(directory / filename, lines)
 
     logger.debug(f"Exported {len(categories)} categories and {len(profiles)} profiles to '{directory}'.")
 

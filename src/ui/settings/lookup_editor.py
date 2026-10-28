@@ -6,7 +6,7 @@ import flet as ft
 
 import database as db
 
-from ..common import show_alert
+from ..common import show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
 
@@ -207,13 +207,4 @@ class LookupListEditor(ft.Column):
             self._refresh_rows()
             self._page.update()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text(f"Delete '{name}'"),
-                content=ft.Text(f"Are you sure you want to delete '{name}'?"),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
-        )
+        show_confirm_dialog(self._page, f"Delete '{name}'", f"Are you sure you want to delete '{name}'?", delete)

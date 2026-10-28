@@ -6,10 +6,7 @@ import flet as ft
 
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-from database.db_operations import (DbLocation, WhichDb, get_theme_preference,
-                                    initialize_config_db, initialize_db,
-                                    is_password_set, seed_accounts_for_new_year,
-                                    set_last_selection)
+import database as db
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view
@@ -36,15 +33,15 @@ def initialize_tracker(page: ft.Page, selected_year: int, selected_profile: str)
     APP_DIRECTORY.mkdir(exist_ok=True, parents=True)
 
     # create db if it doesn't exists
-    location = DbLocation(selected_year, selected_profile)
-    for db in WhichDb:
-        initialize_db(location, db)
+    location = db.DbLocation(selected_year, selected_profile)
+    for which in db.WhichDb:
+        db.initialize_db(location, which)
 
     # carry over accounts (not balances) from the most recent prior year, if any
-    seed_accounts_for_new_year(location)
+    db.seed_accounts_for_new_year(location)
 
     # remember this selection for the next time the app starts
-    set_last_selection(selected_year, selected_profile)
+    db.set_last_selection(selected_year, selected_profile)
 
     def refresh_layout() -> None:
         """Re-renders the main layout, so imported rows show up in the home totals."""
@@ -91,8 +88,6 @@ def startup_layout(page: ft.Page) -> None:
             case 6:
                 main_content.content = settings_view(page, go_to_welcome)
                 logger.debug("Settings view selected")
-            case _:
-                main_content.content = ft.Text("Work in progress...")
 
         page.update()
 
@@ -134,13 +129,13 @@ def startup_layout(page: ft.Page) -> None:
 def main(page: ft.Page):
     """Entry point of the application."""
     setup_logger()
-    initialize_config_db()
+    db.initialize_config_db()
 
     page.title = "Financial Tracker"
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.full_screen = True
-    page.theme_mode = ft.ThemeMode.DARK if get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK if db.get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.RED, font_family="JetBrains Mono")
 
     def start(year: int, profile: str) -> None:
@@ -149,7 +144,7 @@ def main(page: ft.Page):
 
     # the welcome page is gated behind the lock screen only at launch: returning to it from
     # settings ("Change Year/Profile") stays inside the already-unlocked session
-    if is_password_set():
+    if db.is_password_set():
         lock_screen(page, lambda: welcome_page(page, start))
     else:
         welcome_page(page, start)

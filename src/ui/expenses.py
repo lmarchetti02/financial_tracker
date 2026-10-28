@@ -8,13 +8,12 @@ import flet as ft
 from flet_datatable2 import DataColumn2
 
 import database as db
-from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
 from plotting import (show_expenses_pie, show_expenses_summary,
                       show_expenses_trend)
 
 from .base_view import BaseCrudView
-from .common import DATE_PICKER_LOCALE, show_alert
+from .common import DATE_PICKER_LOCALE, show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
 
@@ -66,7 +65,7 @@ class ExpensesView(BaseCrudView):
         self.description_text = ft.TextField(label="Description", width=720, multiline=True)
 
         # button
-        self.add_expense_button = ft.Button("Add Expense", on_click=self.add_new_expense)
+        self._build_add_button(self.add_new_expense)
         self.clear_button = self._build_clear_button()
 
         # collapsible form
@@ -84,7 +83,7 @@ class ExpensesView(BaseCrudView):
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
                 self.description_text,
-                ft.Row([self.add_expense_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ],
             tight=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -107,7 +106,7 @@ class ExpensesView(BaseCrudView):
             "Show Summary",
             icon=ft.Icons.BAR_CHART,
             color="#006400",
-            on_click=lambda _: show_expenses_summary(self._page, self.current_enum_filter),
+            on_click=lambda _: show_expenses_summary(self._page, self.current_lookup_filter),
         )
 
         self.pie_chart_button = ft.Button(
@@ -176,29 +175,19 @@ class ExpensesView(BaseCrudView):
 
         if self.description_text.value == "":
             show_alert(self._page, "Empty description", "You must add a description to the expense")
-            self._page.update()
             return None
 
         if self.cost_text.value == "":
             show_alert(self._page, "Empty cost", "You must add a cost to the expense")
-            self._page.update()
             return None
 
-        try:
-            cost = evaluate_expression(self.cost_text.value)
-        except ValueError:
-            show_alert(
-                self._page,
-                "Invalid cost",
-                "The cost must be a real number or arithmetic expression (comma for decimals allowed).",
-            )
-            self._page.update()
+        cost = self._parse_amount_field(self.cost_text.value, "Invalid cost", "cost")
+        if cost is None:
             return None
 
         if self.date_options_dropdown.value == "range":
             if self.range_picker.start_value is None or self.range_picker.end_value is None:
                 show_alert(self._page, "Empty date range", "You must select a range of dates")
-                self._page.update()
                 return None
 
             start_local = self.range_picker.start_value.astimezone()  # type: ignore
@@ -206,7 +195,6 @@ class ExpensesView(BaseCrudView):
 
             if start_local.month != end_local.month:
                 show_alert(self._page, "Invalid range", "The start and end date must be in the same month.")
-                self._page.update()
                 return None
 
             month = start_local.month
@@ -216,7 +204,6 @@ class ExpensesView(BaseCrudView):
         else:
             if self.date_picker.value is None:
                 show_alert(self._page, "Empty date", "You must select a date")
-                self._page.update()
                 return None
 
             date_local = self.date_picker.value.astimezone()  # type: ignore
@@ -284,16 +271,7 @@ class ExpensesView(BaseCrudView):
             self._page.pop_dialog()
             self.refresh_table()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Delete expense"),
-                content=ft.Text("Are you sure you want to delete this expense?"),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
-        )
+        show_confirm_dialog(self._page, "Delete expense", "Are you sure you want to delete this expense?", delete)
 
     def edit_this_item(self, e: ft.Event) -> None:
         """Edits an expense."""
@@ -321,9 +299,7 @@ class ExpensesView(BaseCrudView):
 
             self.refresh_table()
 
-        self.add_expense_button.content = "Edit Expense"
-        self.add_expense_button.color = ft.Colors.PURPLE
-        self.add_expense_button.on_click = modify
+        self._enter_edit_mode(modify)
 
         self._set_form_expanded(True)
         self.fill_inputs_from_expense(old_expense, e)
@@ -339,12 +315,6 @@ class ExpensesView(BaseCrudView):
         self._set_form_expanded(True)
         self.fill_inputs_from_expense(expense, e)
 
-    def reset_add_button(self) -> None:
-        """Resets the add button to its base "Add Expense" state."""
-        self.add_expense_button.content = "Add Expense"
-        self.add_expense_button.color = None
-        self.add_expense_button.on_click = self.add_new_expense
-
     def fill_inputs_from_expense(self, expense: db.Expense, e: ft.Event) -> None:
         """Populates the add-expense controls with an existing expense's values."""
         self.category_picker.value = expense.category
@@ -355,10 +325,11 @@ class ExpensesView(BaseCrudView):
 
         if expense.day_end is not None:
             self.date_options_dropdown.value = "range"
-            self.range_picker.start_value = datetime(year=self.year, month=expense.month, day=expense.day_start)
-            self.range_picker.end_value = datetime(year=self.year, month=expense.month, day=expense.day_end)
+            year = self.location.year
+            self.range_picker.start_value = datetime(year=year, month=expense.month, day=expense.day_start)
+            self.range_picker.end_value = datetime(year=year, month=expense.month, day=expense.day_end)
         else:
-            self.date_picker.value = datetime(year=self.year, month=expense.month, day=expense.day_start)
+            self.date_picker.value = datetime(year=self.location.year, month=expense.month, day=expense.day_start)
             self.date_options_dropdown.value = "day"
 
         self.update_date_text(e)
@@ -366,7 +337,7 @@ class ExpensesView(BaseCrudView):
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches expenses matching the current sort and filters."""
         self._fee_expense_ids = db.fetch_fee_expense_ids(self.location)
-        return db.fetch_expenses(self.location, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        return db.fetch_expenses(self.location, self.current_sort, self.current_month_filter, self.current_lookup_filter)
 
     def _is_readonly(self, row_id: int) -> bool:
         """An expense generated from a transfer's fee is only editable from the Transfers page."""

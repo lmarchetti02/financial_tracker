@@ -2,25 +2,18 @@
 
 from .data_structures import ACCOUNT_KIND_COLORS as ACCOUNT_KIND_COLORS
 from .data_structures import Account as Account
-from .data_structures import AccountBalance as AccountBalance
 from .data_structures import AccountKind as AccountKind
-from .data_structures import DataContainer as DataContainer
 from .data_structures import DistributionPolicy as DistributionPolicy
 from .data_structures import Expense as Expense
 from .data_structures import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
 from .data_structures import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
 from .data_structures import Holding as Holding
 from .data_structures import HoldingKind as HoldingKind
-from .data_structures import HoldingKindTarget as HoldingKindTarget
-from .data_structures import HoldingRegionAllocation as HoldingRegionAllocation
 from .data_structures import Income as Income
 from .data_structures import ReplicationMethod as ReplicationMethod
 from .data_structures import Transfer as Transfer
-from .db_operations import ESC as ESC
-from .db_operations import ISC as ISC
 from .db_operations import DbLocation as DbLocation
 from .db_operations import RowGenerator as RowGenerator
-from .db_operations import TSC as TSC
 from .db_operations import ExpensesSortingConfig as ExpensesSortingConfig
 from .db_operations import IncomesSortingConfig as IncomesSortingConfig
 from .db_operations import LookupKind as LookupKind
@@ -54,8 +47,6 @@ from .db_operations import fetch_kind_targets as fetch_kind_targets
 from .db_operations import fetch_kinds as fetch_kinds
 from .db_operations import fetch_lookup_options as fetch_lookup_options
 from .db_operations import fetch_net_worth_components as fetch_net_worth_components
-from .db_operations import fetch_opening_balances_by_kind as fetch_opening_balances_by_kind
-from .db_operations import fetch_previous_year_account_ids as fetch_previous_year_account_ids
 from .db_operations import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .db_operations import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
 from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
@@ -65,7 +56,6 @@ from .db_operations import fetch_source as fetch_source
 from .db_operations import fetch_sources as fetch_sources
 from .db_operations import fetch_transfers as fetch_transfers
 from .db_operations import get_last_selection as get_last_selection
-from .db_operations import get_or_create_debt_credit_account as get_or_create_debt_credit_account
 from .db_operations import get_theme_preference as get_theme_preference
 from .db_operations import initialize_config_db as initialize_config_db
 from .db_operations import initialize_db as initialize_db
@@ -74,7 +64,6 @@ from .db_operations import is_fixed_term as is_fixed_term
 from .db_operations import is_password_set as is_password_set
 from .db_operations import list_profiles as list_profiles
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
-from .db_operations import recompute_account_balance as recompute_account_balance
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
 from .db_operations import refresh_holding_price as refresh_holding_price
 from .db_operations import remove_item as remove_item

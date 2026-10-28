@@ -19,7 +19,7 @@ from plotting import (build_kind_allocation_pie,
 
 from .common import (CollapsibleFormMixin, build_row_action_button,
                      build_styled_data_table, current_db_location, show_alert,
-                     sync_filter_menu)
+                     show_confirm_dialog, sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -99,8 +99,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         self.region_text = ft.TextField(label="Region", width=230)
         self.currency_text = ft.TextField(label="Currency", width=120)
         self.notes_text = ft.TextField(label="Notes", width=660, multiline=True)
-        self.add_button = ft.Button("Add Holding", on_click=self.add_holding)
-        self.clear_button = ft.Button("Clear Fields", on_click=self._handle_clear_click)
+        self._build_add_button(self.add_holding)
+        self.clear_button = self._build_clear_button()
 
         self.long_term_refresh_prices_button = ft.Button(
             "Refresh Prices",
@@ -226,12 +226,6 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         self.maturity_date_text.disabled = not is_fixed_maturity_bond
         self._page.update()
 
-    def _handle_clear_click(self, _: ft.Event) -> None:
-        """Clears the add-holding inputs, resets the add button, and pushes the change to the page."""
-        self.clear_inputs()
-        self.reset_add_button()
-        self._page.update()
-
     def _holding_fields_from_inputs(self, exclude_id: int | None = None) -> dict | None:
         """Validates the add/edit inputs and returns the fields they represent, or `None` if invalid.
 
@@ -351,16 +345,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             self._page.pop_dialog()
             self.refresh()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Delete holding"),
-                content=ft.Text("Are you sure you want to delete this holding?"),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
-        )
+        show_confirm_dialog(self._page, "Delete holding", "Are you sure you want to delete this holding?", delete)
 
     def edit_holding(self, e: ft.Event) -> None:
         """Prefills the add-holding inputs from an existing holding, to edit it in place."""
@@ -387,18 +372,10 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             self._set_form_expanded(False)
             self.refresh()
 
-        self.add_button.content = "Edit Holding"
-        self.add_button.color = ft.Colors.PURPLE
-        self.add_button.on_click = modify
+        self._enter_edit_mode(modify)
 
         self._set_form_expanded(True)
         self._fill_inputs_from_holding(old_holding)
-
-    def reset_add_button(self) -> None:
-        """Resets the add button to its base "Add Holding" state."""
-        self.add_button.content = "Add Holding"
-        self.add_button.color = None
-        self.add_button.on_click = self.add_holding
 
     def _fill_inputs_from_holding(self, holding: db.Holding) -> None:
         """Populates the add-holding controls with an existing holding's values."""
@@ -436,12 +413,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
         total = totals[holding_id]
         kind_total = kind_totals.get(holding.kind, 0.0)
-        total_pct = (
-            f"{format_amount(total / grand_total * 100, decimals=1)}%" if total is not None and grand_total else "—"
-        )
-        type_pct = (
-            f"{format_amount(total / kind_total * 100, decimals=1)}%" if total is not None and kind_total else "—"
-        )
+        total_pct = self._format_share(total, grand_total)
+        type_pct = self._format_share(total, kind_total)
         region_summary = self._region_allocation_summary(holding_id)
 
         def info_row(label: str, value: str) -> ft.Row:
@@ -486,6 +459,11 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
             )
         )
+
+    @staticmethod
+    def _format_share(part: float | None, whole: float) -> str:
+        """Formats `part` as a percentage of `whole`, or "—" if either is unknown/zero."""
+        return f"{format_amount(part / whole * 100, decimals=1)}%" if part is not None and whole else "—"
 
     def _region_allocation_summary(self, holding_id: int) -> str:
         """Builds a human-readable summary of a holding's region breakdown, e.g. "Europe 60.0%, Unallocated 40.0%"."""
@@ -1203,12 +1181,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             kind_total = kind_totals.get(holding.kind, 0.0)
 
             total_str = f"€ {format_amount(total)}" if total is not None else "—"
-            total_pct = (
-                f"{format_amount(total / grand_total * 100, decimals=1)}%" if total is not None and grand_total else "—"
-            )
-            type_pct = (
-                f"{format_amount(total / kind_total * 100, decimals=1)}%" if total is not None and kind_total else "—"
-            )
+            total_pct = self._format_share(total, grand_total)
+            type_pct = self._format_share(total, kind_total)
 
             expired = db.is_expired(holding)
             name_text = f"{holding.name} (EXPIRED)" if expired else holding.name

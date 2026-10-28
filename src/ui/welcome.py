@@ -10,6 +10,8 @@ import database as db
 from _helpers.constants import DEFAULT_PROFILE_NAME
 from _helpers.formatting import parse_year, validate_profile_name
 
+from .common import build_title_header
+
 logger = getLogger("financial_tracker")
 
 
@@ -91,10 +93,7 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int, str], None]) -
     layout = ft.Column(
         controls=[
             # title
-            ft.Container(height=page.height * 0.1),
-            ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
-            ft.Text("by Luca Marchetti", size=22),
-            ft.Container(height=page.height * 0.2),
+            *build_title_header(page),
             # year/profile selection
             ft.Row(
                 controls=[

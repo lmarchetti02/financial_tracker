@@ -3,7 +3,6 @@
 from logging import getLogger
 
 import flet as ft
-import flet_charts as fch
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -11,7 +10,7 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import fetch_expense_totals, fetch_income_totals
 
-from ._common import current_db_location
+from ._common import current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -44,18 +43,7 @@ def show_savings_summary(page: ft.Page) -> None:
 
     fig.tight_layout()
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)
 
 
 def show_savings_pie(page: ft.Page) -> None:
@@ -77,13 +65,7 @@ def show_savings_pie(page: ft.Page) -> None:
     values = values[mask]
     names = names[mask]
     if not values.size > 0:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("Empty yearly income"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "Empty yearly income")
         return
 
     # plot
@@ -107,19 +89,4 @@ def show_savings_pie(page: ft.Page) -> None:
 
     fig.tight_layout()
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(
-            chart,
-            width=page.width * 0.9,
-            height=page.height * 0.8,
-        ),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)

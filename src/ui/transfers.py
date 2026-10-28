@@ -12,11 +12,10 @@ import database as db
 from _helpers.constants import (SYSTEM_CATEGORY_TRADING_FEE,
                                 SYSTEM_KIND_INVESTMENT,
                                 SYSTEM_SOURCE_INVESTMENTS)
-from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import format_amount
 
 from .base_view import BaseCrudView
-from .common import DATE_PICKER_LOCALE, show_alert
+from .common import DATE_PICKER_LOCALE, show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
 
@@ -68,7 +67,7 @@ class TransfersView(BaseCrudView):
         self.update_investment_fields_state()
 
         # button
-        self.add_transfer_button = ft.Button("Add Transfer", on_click=self.add_new_transfer)
+        self._build_add_button(self.add_new_transfer)
         self.clear_button = self._build_clear_button()
 
         # collapsible form
@@ -102,7 +101,7 @@ class TransfersView(BaseCrudView):
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
-                ft.Row([self.add_transfer_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ],
             tight=True,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -164,12 +163,10 @@ class TransfersView(BaseCrudView):
 
         if self.date_picker.value is None:
             show_alert(self._page, "Empty date", "You must select a date")
-            self._page.update()
             return None
 
         if self.description_text.value == "":
             show_alert(self._page, "Empty description", "You must add a description to the transfer")
-            self._page.update()
             return None
 
         if self.kind_picker.value is None:
@@ -179,18 +176,10 @@ class TransfersView(BaseCrudView):
 
         if self.amount_text.value == "":
             show_alert(self._page, "Empty amount", "You must add an amount to the transfer")
-            self._page.update()
             return None
 
-        try:
-            amount = evaluate_expression(self.amount_text.value)
-        except ValueError:
-            show_alert(
-                self._page,
-                "Invalid amount",
-                "The amount must be a real number or arithmetic expression (comma for decimals allowed).",
-            )
-            self._page.update()
+        amount = self._parse_amount_field(self.amount_text.value, "Invalid amount", "amount")
+        if amount is None:
             return None
 
         source = self.source_text.value or None
@@ -201,50 +190,17 @@ class TransfersView(BaseCrudView):
                 "Missing source/destination",
                 "A transfer must have a source or a destination.",
             )
-            self._page.update()
             return None
 
-        fee = None
-        fee_expression = None
-        if self.fee_text.value:
-            try:
-                fee = evaluate_expression(self.fee_text.value)
-            except ValueError:
-                show_alert(
-                    self._page,
-                    "Invalid fee",
-                    "The fee must be a real number or arithmetic expression (comma for decimals allowed).",
-                )
-                self._page.update()
-                return None
+        parsed_fee = self._parse_optional_positive_amount(self.fee_text.value or "", "Invalid fee", "fee")
+        if parsed_fee is None:
+            return None
+        fee, fee_expression = parsed_fee
 
-            if fee <= 0:
-                show_alert(self._page, "Invalid fee", "The fee must be greater than zero.")
-                self._page.update()
-                return None
-
-            fee_expression = self.fee_text.value
-
-        profit = None
-        profit_expression = None
-        if self.profit_text.value:
-            try:
-                profit = evaluate_expression(self.profit_text.value)
-            except ValueError:
-                show_alert(
-                    self._page,
-                    "Invalid profit",
-                    "The profit must be a real number or arithmetic expression (comma for decimals allowed).",
-                )
-                self._page.update()
-                return None
-
-            if profit <= 0:
-                show_alert(self._page, "Invalid profit", "The profit must be greater than zero.")
-                self._page.update()
-                return None
-
-            profit_expression = self.profit_text.value
+        parsed_profit = self._parse_optional_positive_amount(self.profit_text.value or "", "Invalid profit", "profit")
+        if parsed_profit is None:
+            return None
+        profit, profit_expression = parsed_profit
 
         date_local = self.date_picker.value.astimezone()
 
@@ -311,26 +267,13 @@ class TransfersView(BaseCrudView):
 
         transfer_id = db.add_item(self.location, transfer)
 
+        linked_ids: dict[str, int] = {}
         if transfer.fee is not None:
-            fee_expense = db.Expense(
-                month=transfer.month,
-                day_start=transfer.day,
-                description=transfer.description,
-                category=SYSTEM_CATEGORY_TRADING_FEE,
-                cost=transfer.fee,
-            )
-            expense_id = db.add_item(self.location, fee_expense)
-            db.edit_item(self.location, transfer_id, transfer, replace(transfer, fee_expense_id=expense_id))
-
+            linked_ids["fee_expense_id"] = db.add_item(self.location, self._fee_expense_for(transfer))
         if transfer.profit is not None:
-            profit_income = db.Income(
-                month=transfer.month,
-                source=SYSTEM_SOURCE_INVESTMENTS,
-                description=transfer.description,
-                amount=transfer.profit,
-            )
-            income_id = db.add_item(self.location, profit_income)
-            db.edit_item(self.location, transfer_id, transfer, replace(transfer, profit_income_id=income_id))
+            linked_ids["profit_income_id"] = db.add_item(self.location, self._profit_income_for(transfer))
+        if linked_ids:
+            db.edit_item(self.location, transfer_id, transfer, replace(transfer, **linked_ids))
 
         self._sync_transfer_accounts(transfer)
 
@@ -362,16 +305,7 @@ class TransfersView(BaseCrudView):
             self._page.pop_dialog()
             self.refresh_table()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Delete transfer"),
-                content=ft.Text("Are you sure you want to delete this transfer?"),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
-        )
+        show_confirm_dialog(self._page, "Delete transfer", "Are you sure you want to delete this transfer?", delete)
 
     def edit_this_item(self, e: ft.Event) -> None:
         """Edits a transfer."""
@@ -388,48 +322,24 @@ class TransfersView(BaseCrudView):
 
             fee_expense_id = old_transfer.fee_expense_id
             if old_transfer.fee is None and new_transfer.fee is not None:
-                fee_expense = db.Expense(
-                    month=new_transfer.month,
-                    day_start=new_transfer.day,
-                    description=new_transfer.description,
-                    category=SYSTEM_CATEGORY_TRADING_FEE,
-                    cost=new_transfer.fee,
-                )
-                fee_expense_id = db.add_item(self.location, fee_expense)
+                fee_expense_id = db.add_item(self.location, self._fee_expense_for(new_transfer))
             elif old_transfer.fee is not None and new_transfer.fee is None:
                 db.remove_item(self.location, db.WhichDb.EXPENSES, old_transfer.fee_expense_id)
                 fee_expense_id = None
             elif old_transfer.fee is not None and new_transfer.fee is not None:
                 old_fee_expense = db.fetch_by_id(self.location, db.WhichDb.EXPENSES, old_transfer.fee_expense_id)
-                new_fee_expense = db.Expense(
-                    month=new_transfer.month,
-                    day_start=new_transfer.day,
-                    description=new_transfer.description,
-                    category=SYSTEM_CATEGORY_TRADING_FEE,
-                    cost=new_transfer.fee,
-                )
+                new_fee_expense = self._fee_expense_for(new_transfer)
                 db.edit_item(self.location, old_transfer.fee_expense_id, old_fee_expense, new_fee_expense)
 
             profit_income_id = old_transfer.profit_income_id
             if old_transfer.profit is None and new_transfer.profit is not None:
-                profit_income = db.Income(
-                    month=new_transfer.month,
-                    source=SYSTEM_SOURCE_INVESTMENTS,
-                    description=new_transfer.description,
-                    amount=new_transfer.profit,
-                )
-                profit_income_id = db.add_item(self.location, profit_income)
+                profit_income_id = db.add_item(self.location, self._profit_income_for(new_transfer))
             elif old_transfer.profit is not None and new_transfer.profit is None:
                 db.remove_item(self.location, db.WhichDb.INCOMES, old_transfer.profit_income_id)
                 profit_income_id = None
             elif old_transfer.profit is not None and new_transfer.profit is not None:
                 old_profit_income = db.fetch_by_id(self.location, db.WhichDb.INCOMES, old_transfer.profit_income_id)
-                new_profit_income = db.Income(
-                    month=new_transfer.month,
-                    source=SYSTEM_SOURCE_INVESTMENTS,
-                    description=new_transfer.description,
-                    amount=new_transfer.profit,
-                )
+                new_profit_income = self._profit_income_for(new_transfer)
                 db.edit_item(self.location, old_transfer.profit_income_id, old_profit_income, new_profit_income)
 
             new_transfer = replace(new_transfer, fee_expense_id=fee_expense_id, profit_income_id=profit_income_id)
@@ -452,9 +362,7 @@ class TransfersView(BaseCrudView):
 
             self.refresh_table()
 
-        self.add_transfer_button.content = "Edit Transfer"
-        self.add_transfer_button.color = ft.Colors.PURPLE
-        self.add_transfer_button.on_click = modify
+        self._enter_edit_mode(modify)
 
         self._set_form_expanded(True)
         self.fill_inputs_from_transfer(old_transfer, e)
@@ -470,15 +378,30 @@ class TransfersView(BaseCrudView):
         self._set_form_expanded(True)
         self.fill_inputs_from_transfer(transfer, e)
 
-    def reset_add_button(self) -> None:
-        """Resets the add button to its base "Add Transfer" state."""
-        self.add_transfer_button.content = "Add Transfer"
-        self.add_transfer_button.color = None
-        self.add_transfer_button.on_click = self.add_new_transfer
+    @staticmethod
+    def _fee_expense_for(transfer: db.Transfer) -> db.Expense:
+        """Builds the linked `:class:Expense` logging `transfer`'s fee under the trading-fee category."""
+        return db.Expense(
+            month=transfer.month,
+            day_start=transfer.day,
+            description=transfer.description,
+            category=SYSTEM_CATEGORY_TRADING_FEE,
+            cost=transfer.fee,  # type: ignore
+        )
+
+    @staticmethod
+    def _profit_income_for(transfer: db.Transfer) -> db.Income:
+        """Builds the linked `:class:Income` logging `transfer`'s profit under the investments source."""
+        return db.Income(
+            month=transfer.month,
+            source=SYSTEM_SOURCE_INVESTMENTS,
+            description=transfer.description,
+            amount=transfer.profit,  # type: ignore
+        )
 
     def fill_inputs_from_transfer(self, transfer: db.Transfer, e: ft.Event) -> None:
         """Populates the add-transfer controls with an existing transfer's values."""
-        self.date_picker.value = datetime(year=self.year, month=transfer.month, day=transfer.day)
+        self.date_picker.value = datetime(year=self.location.year, month=transfer.month, day=transfer.day)
         self.kind_picker.value = transfer.kind
         self.update_investment_fields_state()
         self.amount_text.value = (
@@ -503,7 +426,7 @@ class TransfersView(BaseCrudView):
 
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches transfers matching the current sort and filters."""
-        return db.fetch_transfers(self.location, self.current_sort, self.current_month_filter, self.current_enum_filter)
+        return db.fetch_transfers(self.location, self.current_sort, self.current_month_filter, self.current_lookup_filter)
 
 
 def transfers_view(page: ft.Page) -> ft.Control:

@@ -3,7 +3,6 @@
 from logging import getLogger
 
 import flet as ft
-import flet_charts as fch
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -11,7 +10,7 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount
 from database import ACCOUNT_KIND_COLORS, AccountKind, DbLocation, fetch_balances_by_kind
 
-from ._common import current_db_location
+from ._common import current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -33,13 +32,7 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
     # get data
     totals_by_kind = _fetch_allocation_totals(location)
     if not totals_by_kind:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("No balances logged yet"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "No balances logged yet")
         return
 
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
@@ -67,18 +60,7 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
 
     fig.tight_layout()
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)
 
 
 def show_asset_allocation_pie(page: ft.Page) -> None:
@@ -90,13 +72,7 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     # get data
     totals_by_kind = _fetch_allocation_totals(location)
     if not totals_by_kind:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("No balances logged yet"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "No balances logged yet")
         return
 
     kinds = sorted(totals_by_kind, key=lambda k: k.name)
@@ -104,13 +80,7 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     monthly_total = stacked.sum(axis=0)
     nonzero_months = np.nonzero(monthly_total)[0]
     if nonzero_months.size == 0:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("No balances logged yet"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "No balances logged yet")
         return
     month = int(nonzero_months[-1]) + 1
 
@@ -140,15 +110,4 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
 
     fig.tight_layout()
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)

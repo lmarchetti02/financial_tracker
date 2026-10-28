@@ -3,7 +3,6 @@
 from logging import getLogger
 
 import flet as ft
-import flet_charts as fch
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import ConnectionPatch
@@ -11,7 +10,7 @@ from matplotlib.patches import ConnectionPatch
 import database as db
 from _helpers.formatting import enum_label, format_amount
 
-from ._common import current_db_location
+from ._common import current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -135,13 +134,7 @@ def show_portfolio_diversification(page: ft.Page) -> None:
     by_currency = _group_by_value(holdings, "currency")
 
     if not by_issuer:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("No priced holdings yet"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "No priced holdings yet")
         return
 
     # plot
@@ -153,18 +146,7 @@ def show_portfolio_diversification(page: ft.Page) -> None:
     fig.suptitle(f"Portfolio Diversification {location.year}")
     fig.tight_layout()
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)
 
 
 def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
@@ -263,27 +245,10 @@ def show_detailed_region_diversification(page: ft.Page) -> None:
     by_region = _region_totals(holdings, region_allocations)
 
     if not by_region:
-        page.show_dialog(
-            ft.AlertDialog(
-                ft.Text("No detailed region breakdown entered yet"),
-                actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-            )
-        )
-        page.update()
+        show_empty_popup(page, "No detailed region breakdown entered yet")
         return
 
     # plot
     fig = _build_bar_of_pie(by_region, f"Detailed Diversification {location.year}")
 
-    # show popup
-    if page.width is None or page.height is None:
-        raise RuntimeError("Cannot retrieve the page size.")
-
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-    popup = ft.AlertDialog(
-        content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
-        actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],
-    )
-
-    page.show_dialog(popup)
-    page.update()
+    show_chart_popup(page, fig)

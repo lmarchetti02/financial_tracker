@@ -1,16 +1,18 @@
 """Implementation of the accounts layout."""
 
 from logging import getLogger
+from typing import Any
 
 import flet as ft
-from flet_datatable2 import DataColumn2, DataColumnSize, DataTable2
+from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
 from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
-from .common import current_db_location, show_alert
+from .common import (build_styled_data_table, current_db_location, show_alert,
+                     show_confirm_dialog)
 
 logger = getLogger("financial_tracker")
 
@@ -38,8 +40,6 @@ class AccountsView(ft.Column):
         self._page = page
 
         self.location = current_db_location(page)
-        self.year = self.location.year
-        self.profile = self.location.profile
 
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
@@ -128,16 +128,36 @@ class AccountsView(ft.Column):
             self._page.pop_dialog()
             self.refresh()
 
-        self._page.show_dialog(
-            ft.AlertDialog(
-                title=ft.Text("Delete account"),
-                content=ft.Text("Are you sure? Every balance logged for this account will be deleted too."),
-                actions=[
-                    ft.TextButton("Yes", on_click=delete),
-                    ft.TextButton("No", on_click=lambda _: self._page.pop_dialog()),
-                ],
-            )
+        show_confirm_dialog(
+            self._page,
+            "Delete account",
+            "Are you sure? Every balance logged for this account will be deleted too.",
+            delete,
         )
+
+    def _parse_cell_or_revert(self, e: ft.Event, raw_value: str, old_value: float | None) -> float | None:
+        """Parses a balance cell, alerting and restoring the cell's previous value if it's invalid.
+
+        Args:
+            e (ft.Event): The cell's blur/submit event.
+            raw_value (str): The cell's stripped, non-blank text.
+            old_value (float | None): The balance to restore if `raw_value` is invalid.
+
+        Returns:
+            float | None: The parsed balance, or `None` if `raw_value` was invalid (already alerted).
+        """
+        try:
+            return parse_amount(raw_value)
+        except ValueError:
+            show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
+            e.control.value = format_amount(old_value, decimals=0) if old_value is not None else ""
+            self._page.update()
+            return None
+
+    def _show_saved_balance(self, e: ft.Event, balance: float) -> None:
+        """Re-renders a just-saved balance cell in the app's display format."""
+        e.control.value = format_amount(balance, decimals=0)
+        self._page.update()
 
     def commit_cell(self, e: ft.Event) -> None:
         """Persists (or clears) the balance for the cell that was just edited."""
@@ -150,21 +170,15 @@ class AccountsView(ft.Column):
             self.balances.pop((account_id, month), None)
             return
 
-        try:
-            balance = parse_amount(raw_value)
-        except ValueError:
-            show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
-            old_value = self.balances.get((account_id, month))
-            e.control.value = format_amount(old_value, decimals=0) if old_value is not None else ""
-            self._page.update()
+        balance = self._parse_cell_or_revert(e, raw_value, self.balances.get((account_id, month)))
+        if balance is None:
             return
 
         db.save_balance(self.location, account_id, month, balance)
         logger.debug(f"Saved balance for account {account_id}, month {month}: {balance}")
 
         self.balances[(account_id, month)] = balance
-        e.control.value = format_amount(balance, decimals=0)
-        self._page.update()
+        self._show_saved_balance(e, balance)
 
     def commit_previous_year_cell(self, e: ft.Event) -> None:
         """Persists (or clears) the previous year's December balance, syncing it to that year's db."""
@@ -177,21 +191,15 @@ class AccountsView(ft.Column):
             self.previous_year_balances.pop(account_name, None)
             return
 
-        try:
-            balance = parse_amount(raw_value)
-        except ValueError:
-            show_alert(self._page, "Invalid balance", "The balance must be a real number (comma for decimals allowed).")
-            old_value = self.previous_year_balances.get(account_name)
-            e.control.value = format_amount(old_value, decimals=0) if old_value is not None else ""
-            self._page.update()
+        balance = self._parse_cell_or_revert(e, raw_value, self.previous_year_balances.get(account_name))
+        if balance is None:
             return
 
         db.save_previous_year_end_balance(self.location, account_name, account_kind, balance)
-        logger.debug(f"Saved {self.year - 1} December balance for '{account_name}': {balance}")
+        logger.debug(f"Saved {self.location.year - 1} December balance for '{account_name}': {balance}")
 
         self.previous_year_balances[account_name] = balance
-        e.control.value = format_amount(balance, decimals=0)
-        self._page.update()
+        self._show_saved_balance(e, balance)
 
     def commit_opening_balance_cell(self, e: ft.Event) -> None:
         """Persists a Debt/Credit account's opening balance and recomputes its monthly balances.
@@ -284,7 +292,7 @@ class AccountsView(ft.Column):
                 ),
                 fixed_width=_ACCOUNT_COLUMN_WIDTH,
             ),
-            DataColumn2(label=ft.Text(str(self.year - 1)), numeric=True, size=DataColumnSize.S),
+            DataColumn2(label=ft.Text(str(self.location.year - 1)), numeric=True, size=DataColumnSize.S),
         ]
         columns += [DataColumn2(label=ft.Text(month), numeric=True, size=DataColumnSize.S) for month in MONTHS]
 
@@ -304,76 +312,71 @@ class AccountsView(ft.Column):
             is_computed = account.kind in (db.AccountKind.DEBT, db.AccountKind.CREDIT)
 
             if is_computed:
-                previous_year_cell = ft.DataCell(
-                    ft.TextField(
-                        value=format_amount(account.opening_balance, decimals=0),
-                        text_align=ft.TextAlign.RIGHT,
-                        border=ft.InputBorder.NONE,
-                        border_width=0,
-                        content_padding=6,
-                        dense=True,
-                        data=account_id,
-                        tooltip="Opening balance: this account's true balance before its earliest tracked transfer",
-                        on_blur=self.commit_opening_balance_cell,
-                        on_submit=self.commit_opening_balance_cell,
-                    )
+                previous_year_cell = self._balance_cell(
+                    account.opening_balance,
+                    account_id,
+                    tooltip="Opening balance: this account's true balance before its earliest tracked transfer",
+                    on_blur=self.commit_opening_balance_cell,
+                    on_submit=self.commit_opening_balance_cell,
                 )
             else:
-                previous_year_value = self.previous_year_balances.get(account.name)
-                previous_year_cell = ft.DataCell(
-                    ft.TextField(
-                        value=format_amount(previous_year_value, decimals=0) if previous_year_value is not None else "",
-                        text_align=ft.TextAlign.RIGHT,
-                        border=ft.InputBorder.NONE,
-                        border_width=0,
-                        content_padding=6,
-                        dense=True,
-                        data=(account.name, account.kind),
-                        on_blur=self.commit_previous_year_cell,
-                        on_submit=self.commit_previous_year_cell,
-                    )
+                previous_year_cell = self._balance_cell(
+                    self.previous_year_balances.get(account.name),
+                    (account.name, account.kind),
+                    on_blur=self.commit_previous_year_cell,
+                    on_submit=self.commit_previous_year_cell,
                 )
 
             cells = [account_cell, previous_year_cell]
             for month in range(1, 13):
-                value = self.balances.get((account_id, month))
                 cells.append(
-                    ft.DataCell(
-                        ft.TextField(
-                            value=format_amount(value, decimals=0) if value is not None else "",
-                            text_align=ft.TextAlign.RIGHT,
-                            border=ft.InputBorder.NONE,
-                            border_width=0,
-                            content_padding=6,
-                            dense=True,
-                            data=(account_id, month),
-                            read_only=is_computed,
-                            color=ft.Colors.GREY if is_computed else None,
-                            tooltip="Computed from Debt/Credit transfers" if is_computed else None,
-                            on_blur=None if is_computed else self.commit_cell,
-                            on_submit=None if is_computed else self.commit_cell,
-                        )
+                    self._balance_cell(
+                        self.balances.get((account_id, month)),
+                        (account_id, month),
+                        read_only=is_computed,
+                        color=ft.Colors.GREY if is_computed else None,
+                        tooltip="Computed from Debt/Credit transfers" if is_computed else None,
+                        on_blur=None if is_computed else self.commit_cell,
+                        on_submit=None if is_computed else self.commit_cell,
                     )
                 )
             rows.append(ft.DataRow(cells=cells))
 
-        borders = ft.BorderSide(width=2)
-        v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
-
-        return DataTable2(
-            columns=columns,  # type: ignore
-            rows=rows,
+        return build_styled_data_table(
+            columns,
+            rows,
+            _HEADING_COLOR,
             fixed_left_columns=1,
             fixed_top_rows=1,
-            border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
-            vertical_lines=v_lines,
-            horizontal_lines=v_lines,
             heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-            heading_row_color=_HEADING_COLOR,
             heading_row_height=_HEADING_ROW_HEIGHT,
             data_row_height=_BALANCE_ROW_HEIGHT,
-            horizontal_margin=10,
             column_spacing=5,
+        )
+
+    @staticmethod
+    def _balance_cell(value: float | None, data: object, **overrides: Any) -> ft.DataCell:
+        """Builds one borderless, right-aligned balance cell of the grid.
+
+        Args:
+            value (float | None): The balance to show, or `None` for an empty cell.
+            data (object): The `data` the cell's handlers read back (an id, or an id/month pair).
+            **overrides (Any): Extra `ft.TextField` arguments (handlers, `read_only`, `tooltip`, ...).
+
+        Returns:
+            ft.DataCell: The cell.
+        """
+        return ft.DataCell(
+            ft.TextField(
+                value=format_amount(value, decimals=0) if value is not None else "",
+                text_align=ft.TextAlign.RIGHT,
+                border=ft.InputBorder.NONE,
+                border_width=0,
+                content_padding=6,
+                dense=True,
+                data=data,
+                **overrides,
+            )
         )
 
 

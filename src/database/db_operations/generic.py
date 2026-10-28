@@ -271,6 +271,8 @@ def fetch_by_id(location: DbLocation, db: Literal[WhichDb.HOLDINGS], row_id: int
 def fetch_by_id(
     location: DbLocation, db: Literal[WhichDb.HOLDING_REGION_ALLOCATIONS], row_id: int
 ) -> HoldingRegionAllocation: ...
+@overload
+def fetch_by_id(location: DbLocation, db: Literal[WhichDb.HOLDING_KIND_TARGETS], row_id: int) -> HoldingKindTarget: ...
 def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer:
     """Fetches the item with the desired ID from the given db.
 
@@ -296,20 +298,7 @@ def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer
         if fields is None:
             raise ValueError(f"No item with id {row_id} found in '{_DB_TO_CLASS[db].db_name}'.")
 
-        if db == WhichDb.EXPENSES:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.INCOMES:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.TRANSFERS:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.ACCOUNTS:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.ACCOUNT_BALANCES:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.HOLDINGS:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
-        elif db == WhichDb.HOLDING_REGION_ALLOCATIONS:
-            data = _DB_TO_CLASS.get(db).init_from_tuple(fields[1:])  # type: ignore
+        data = _DB_TO_CLASS[db].init_from_tuple(fields[1:])
         logger.debug(f"Object retrieved by ID:\n{data}")
 
         return data

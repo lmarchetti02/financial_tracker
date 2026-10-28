@@ -11,10 +11,11 @@ from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
 from _helpers.constants import MONTHS
+from _helpers.expression_parser import evaluate_expression
 
 from .common import (CollapsibleFormMixin, build_row_action_button,
                      build_styled_data_table, current_db_location,
-                     sync_filter_menu)
+                     show_alert, sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -34,12 +35,10 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self._page = page
 
         self.location = current_db_location(page)
-        self.year = self.location.year
-        self.profile = self.location.profile
 
         self.default_date = datetime.today()
         self.current_month_filter: int | None = self.default_date.month if self._default_to_current_month else None
-        self.current_enum_filter: str | None = None
+        self.current_lookup_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None
 
         self.expand = True
@@ -84,19 +83,51 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     def clear_inputs(self) -> None:
         """Clears the add-item input controls."""
 
-    @abstractmethod
-    def reset_add_button(self) -> None:
-        """Resets the add button to its base "Add ..." label, color, and click handler."""
+    def _parse_amount_field(self, raw: str, title: str, noun: str) -> float | None:
+        """Evaluates an amount field's expression, alerting the user if it isn't valid.
 
-    def _handle_clear_click(self, _: ft.Event) -> None:
-        """Clears the add-item inputs, resets the add button, and pushes the change to the page."""
-        self.clear_inputs()
-        self.reset_add_button()
-        self._page.update()
+        Args:
+            raw (str): The text typed into the field.
+            title (str): The title of the alert shown when `raw` is invalid.
+            noun (str): The name of the field in the alert's message, e.g. "cost".
 
-    def _build_clear_button(self) -> ft.Button:
-        """Builds the "Clear Fields" button shared by every subclass."""
-        return ft.Button("Clear Fields", on_click=self._handle_clear_click)
+        Returns:
+            float | None: The evaluated amount, or `None` if `raw` is invalid (already alerted).
+        """
+        try:
+            return evaluate_expression(raw)
+        except ValueError:
+            show_alert(
+                self._page,
+                title,
+                f"The {noun} must be a real number or arithmetic expression (comma for decimals allowed).",
+            )
+            return None
+
+    def _parse_optional_positive_amount(self, raw: str, title: str, noun: str) -> tuple[float | None, str | None] | None:
+        """Evaluates an optional amount field that must be greater than zero when filled in.
+
+        Args:
+            raw (str): The text typed into the field; blank means "not set".
+            title (str): The title of the alert shown when `raw` is invalid.
+            noun (str): The name of the field in the alert's message, e.g. "fee".
+
+        Returns:
+            tuple[float | None, str | None] | None: The `(amount, expression)` pair, `(None, None)` for a
+                blank field, or `None` if `raw` is invalid (already alerted).
+        """
+        if not raw:
+            return None, None
+
+        amount = self._parse_amount_field(raw, title, noun)
+        if amount is None:
+            return None
+
+        if amount <= 0:
+            show_alert(self._page, title, f"The {noun} must be greater than zero.")
+            return None
+
+        return amount, raw
 
     def _build_data_table(self, columns: list[DataColumn2]) -> DataTable2:
         """Builds the `:class:DataTable2` shared by every subclass, styled with `_heading_color`."""
@@ -132,9 +163,9 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
             icon_size=20,
             padding=0,
             menu_padding=0,
-            items=[ft.PopupMenuItem(option, data=option, on_click=self.filter_enum) for option in sorted(options)]
+            items=[ft.PopupMenuItem(option, data=option, on_click=self.filter_lookup) for option in sorted(options)]
             + [ft.PopupMenuItem()]
-            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_enum)],
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_lookup)],
         )
         self._sync_lookup_filter_menu()
         return self.lookup_filter_menu
@@ -142,7 +173,7 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     def _sync_lookup_filter_menu(self) -> None:
         """Re-styles the lookup-list filter menu to reflect the active filter."""
         sync_filter_menu(
-            self.lookup_filter_menu, self.current_enum_filter, ft.Colors.WHITE, self._lookup_filter_tooltip
+            self.lookup_filter_menu, self.current_lookup_filter, ft.Colors.WHITE, self._lookup_filter_tooltip
         )
 
     def _is_readonly(self, row_id: int) -> bool:
@@ -201,8 +232,8 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self._sync_month_filter_menu()
         self.refresh_table()
 
-    def filter_enum(self, e: ft.Event) -> None:
-        """Filters the domain-specific enum column."""
-        self.current_enum_filter = e.control.data
+    def filter_lookup(self, e: ft.Event) -> None:
+        """Filters the domain-specific lookup-list column (category, source, or kind)."""
+        self.current_lookup_filter = e.control.data
         self._sync_lookup_filter_menu()
         self.refresh_table()

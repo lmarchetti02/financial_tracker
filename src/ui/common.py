@@ -1,6 +1,7 @@
 """Shared UI helpers used across views."""
 
-from typing import ClassVar
+from collections.abc import Callable
+from typing import Any, ClassVar
 
 import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
@@ -32,13 +33,42 @@ def sync_filter_menu(
 class CollapsibleFormMixin:
     """Shared expand/collapse behavior for a view's add/edit form, hidden until toggled open.
 
-    A host class must build `self.form_content` (the `ft.Column` of input fields) and call
-    `_init_collapsible_form()` right after, and must implement `clear_inputs()`/`reset_add_button()`
-    (both `:class:BaseCrudView` and `:class:PortfolioView` already do, independently).
+    A host class must build its add button with `_build_add_button()`, build `self.form_content`
+    (the `ft.Column` of input fields) and call `_init_collapsible_form()` right after, and must
+    implement `clear_inputs()` (both `:class:BaseCrudView` and `:class:PortfolioView` do). The
+    add button's "Add ..."/"Edit ..." modes and the "Clear Fields" button are shared here.
     """
 
     _item_label: ClassVar[str]
     _form_height: ClassVar[int] = 240
+
+    def _build_add_button(self, on_add: Callable[[ft.Event], None]) -> ft.Button:
+        """Builds the form's "Add ..." button, remembering `on_add` for `reset_add_button()`."""
+        self._on_add = on_add
+        self.add_button = ft.Button(f"Add {self._item_label}", on_click=on_add)
+        return self.add_button
+
+    def _enter_edit_mode(self, on_modify: Callable[[ft.Event], None]) -> None:
+        """Turns the add button into an "Edit ..." button that calls `on_modify`."""
+        self.add_button.content = f"Edit {self._item_label}"
+        self.add_button.color = ft.Colors.PURPLE
+        self.add_button.on_click = on_modify
+
+    def reset_add_button(self) -> None:
+        """Resets the add button to its base "Add ..." label, color, and click handler."""
+        self.add_button.content = f"Add {self._item_label}"
+        self.add_button.color = None
+        self.add_button.on_click = self._on_add
+
+    def _build_clear_button(self) -> ft.Button:
+        """Builds the "Clear Fields" button shared by every host."""
+        return ft.Button("Clear Fields", on_click=self._handle_clear_click)
+
+    def _handle_clear_click(self, _: ft.Event) -> None:
+        """Clears the add-item inputs, resets the add button, and pushes the change to the page."""
+        self.clear_inputs()
+        self.reset_add_button()
+        self._page.update()
 
     def _init_collapsible_form(self) -> None:
         """Wraps `self.form_content` in a `form_container` and builds the `toggle_form_button`."""
@@ -101,13 +131,16 @@ def current_db_location(page: ft.Page) -> db.DbLocation:
     return db.DbLocation(int(year), profile)
 
 
-def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], heading_color: str) -> DataTable2:
+def build_styled_data_table(
+    columns: list[DataColumn2], rows: list[ft.DataRow], heading_color: str, **overrides: Any
+) -> DataTable2:
     """Builds a `:class:DataTable2` styled consistently with every other table in the app.
 
     Args:
         columns (list[DataColumn2]): The columns of the table.
         rows (list[ft.DataRow]): The rows of the table.
         heading_color (str): The background color of the heading row.
+        **overrides (Any): `DataTable2` keyword arguments replacing (or adding to) the shared styling.
 
     Returns:
         DataTable2: The styled table.
@@ -115,18 +148,59 @@ def build_styled_data_table(columns: list[DataColumn2], rows: list[ft.DataRow], 
     borders = ft.BorderSide(width=2)
     v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
 
-    return DataTable2(
-        border=ft.Border(top=borders, bottom=borders, right=borders, left=borders),
-        vertical_lines=v_lines,
-        horizontal_lines=v_lines,
-        heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
-        heading_row_color=heading_color,
-        sort_arrow_icon_color=ft.Colors.WHITE,
-        heading_row_height=35,
-        horizontal_margin=10,
-        column_spacing=15,
-        columns=columns,  # type: ignore
-        rows=rows,
+    styling: dict[str, Any] = {
+        "border": ft.Border(top=borders, bottom=borders, right=borders, left=borders),
+        "vertical_lines": v_lines,
+        "horizontal_lines": v_lines,
+        "heading_text_style": ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
+        "heading_row_color": heading_color,
+        "sort_arrow_icon_color": ft.Colors.WHITE,
+        "heading_row_height": 35,
+        "horizontal_margin": 10,
+        "column_spacing": 15,
+    }
+    styling.update(overrides)
+
+    return DataTable2(columns=columns, rows=rows, **styling)  # type: ignore
+
+
+def build_title_header(page: ft.Page) -> list[ft.Control]:
+    """Builds the app-title block shared by the lock screen and the welcome page.
+
+    Args:
+        page (ft.Page): The page object. Its height must already be known.
+
+    Returns:
+        list[ft.Control]: The spacers and title texts, to be splatted into a column.
+    """
+    return [
+        ft.Container(height=page.height * 0.1),  # type: ignore
+        ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
+        ft.Text("by Luca Marchetti", size=22),
+        ft.Container(height=page.height * 0.2),  # type: ignore
+    ]
+
+
+def show_confirm_dialog(
+    page: ft.Page, title: str, message: str, on_confirm: Callable[[ft.Event], None]
+) -> None:
+    """Shows a Yes/No confirmation dialog, where "No" just closes it.
+
+    Args:
+        page (ft.Page): The page object.
+        title (str): The title of the dialog.
+        message (str): The question to ask.
+        on_confirm (Callable[[ft.Event], None]): The handler of the "Yes" button.
+    """
+    page.show_dialog(
+        ft.AlertDialog(
+            title=ft.Text(title),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton("Yes", on_click=on_confirm),
+                ft.TextButton("No", on_click=lambda _: page.pop_dialog()),
+            ],
+        )
     )
 
 
