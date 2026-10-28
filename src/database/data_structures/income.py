@@ -21,11 +21,11 @@ class Income(DataContainer):
     """Income blueprint.
 
     Attributes:
-        month (int): The month of the expense (between 1 and 12).
+        month (int): The month of the income (between 1 and 12).
         description (str): The description of the income.
         source (str): The source of income, one of the entries managed from the settings page
             (see `database.db_operations.config`).
-        amount (float): The cost of the expense (greater than zero).
+        amount (float): The amount of the income (greater than zero).
         amount_expression (str | None): The raw text (a number or an arithmetic expression) the
             user typed into the amount field, redisplayed when editing the income. `None` for
             rows created before this field existed. Defaults to `None`.

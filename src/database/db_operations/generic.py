@@ -272,7 +272,7 @@ def fetch_by_id(
     location: DbLocation, db: Literal[WhichDb.HOLDING_REGION_ALLOCATIONS], row_id: int
 ) -> HoldingRegionAllocation: ...
 def fetch_by_id(location: DbLocation, db: WhichDb, row_id: int) -> DataContainer:
-    """Fetches the expense with the desired ID.
+    """Fetches the item with the desired ID from the given db.
 
     Args:
         location (`:class:DbLocation`): The year/profile of the database to query.

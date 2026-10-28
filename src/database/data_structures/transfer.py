@@ -28,7 +28,7 @@ class Transfer(DataContainer):
         description (str): The description of the transfer.
         source (str | None): Where/from whom the transfer comes from. Defaults to `None`.
         destination (str | None): To where/whom the transfer goes to. Defaults to `None`.
-        amount (float): The cost of the transfer (greater than zero).
+        amount (float): The amount of the transfer (greater than zero).
         day (int): The day of the transfer (between 1 and 31). Defaults to 1.
         fee (float | None): The trading fee associated with the transfer, if any. Logged as an
             `:class:Expense` with category `_helpers.constants.SYSTEM_CATEGORY_TRADING_FEE`.

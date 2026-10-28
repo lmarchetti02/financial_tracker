@@ -1,4 +1,4 @@
-"""Module woth useful constants across the application."""
+"""Module with useful constants across the application."""
 
 from pathlib import Path
 

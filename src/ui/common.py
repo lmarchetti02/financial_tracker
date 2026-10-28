@@ -168,7 +168,7 @@ def build_row_action_button(
 
 
 def show_alert(page: ft.Page, title: str, content: str) -> None:
-    """Shows alert for missing data.
+    """Shows an error/info alert dialog with a "Dismiss" button.
 
     Args:
         page (ft.Page): The page object.

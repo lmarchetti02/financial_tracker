@@ -16,7 +16,7 @@ logger = getLogger("financial_tracker")
 
 @dataclass
 class IncomesSortingConfig(SortingConfig):
-    """Defines how the expenses are to be sorted."""
+    """Defines how the incomes are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
         self._resolve({0: "month", 3: "amount"})
@@ -34,7 +34,7 @@ def fetch_incomes(
     """Fetches all the incomes.
 
     Args:
-        location (`:class:DbLocation`): The year/profile of the expenses in the database.
+        location (`:class:DbLocation`): The year/profile of the incomes in the database.
         sort (IncomesSortingConfig | None): If given, the rows gets sorted (see `IncomesSortingConfig`).
             Defaults to `None`.
         month (int | None): The month to filter the table by.

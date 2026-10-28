@@ -33,7 +33,7 @@ iCloud Drive/Financial Tracker/
   profiles.txt      written by the app - one profile per line
 ```
 
-Run the app once first. It creates that folder, writes `categories.json` / `profiles.json` for
+Run the app once first. It creates that folder, writes `categories.txt` / `profiles.txt` for
 the Shortcut's pickers, and seeds an empty `inbox.jsonl` - the Shortcut appends by reading that
 file and saving it back, so it has to exist before the first run.
 
@@ -156,8 +156,8 @@ Notes on the actions:
 
 ## App password
 
-Optionally, the app can ask for a password at startup. Set one from **Settings → Require password
-at startup** (minimum 10 characters, with at least one uppercase letter and one special character).
+Optionally, the app can ask for a password at startup. Set one from **Settings → Security → Require
+password at startup** (minimum 10 characters, with at least one uppercase letter and one special character).
 Three wrong attempts close the window.
 
 This is a convenience lock, not encryption: the database files stay readable on disk to anyone with

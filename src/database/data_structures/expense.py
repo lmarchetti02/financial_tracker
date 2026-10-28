@@ -25,7 +25,7 @@ class Expense(DataContainer):
         month (int): The month of the expense (between 1 and 12).
         day_start (int): The day of the expense (between 1 and 31). If the expense refers
             to a period of time longer than 1 day, this is the initial day.
-        day_start (int): The final day of the expense if said expense refers to a period
+        day_end (int | None): The final day of the expense if said expense refers to a period
             of time longer than 1 day (between `day_start` and 31).
             Otherwise, defaults to `None`.
         description (str): The description of the expense.

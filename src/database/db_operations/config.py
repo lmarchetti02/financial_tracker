@@ -1,4 +1,4 @@
-"""Global (non-yearly) configuration store: category/source/kind lookup lists and app preferences."""
+"""Global (non-yearly) configuration store: category/source/kind/region lookup lists and app preferences."""
 
 import sqlite3 as sq
 from dataclasses import dataclass
@@ -100,7 +100,7 @@ _SEED_DATA = {
 
 @dataclass(frozen=True)
 class LookupOption:
-    """A single entry in a category/source/kind lookup list."""
+    """A single entry in a category/source/kind/region lookup list."""
 
     name: str
     is_system: bool

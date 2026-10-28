@@ -444,7 +444,7 @@ class TestAppendArchive:
 class TestStampImported:
     """Tests for `stamp_imported`."""
 
-    def test_adds_an_imported_at_timestamp(self, tmp_path: Path) -> None:
+    def test_adds_an_imported_at_timestamp(self) -> None:
         """The stamped line keeps its original fields and gains `imported_at`."""
         stamped = json.loads(stamp_imported(make_line()))
 

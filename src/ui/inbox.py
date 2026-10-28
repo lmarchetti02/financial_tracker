@@ -197,7 +197,7 @@ class InboxReviewDialog:
                 ft.IconButton(
                     icon=ft.Icons.DELETE_OUTLINE,
                     tooltip="Discard this entry",
-                    on_click=lambda e, row=row: self._discard(row),
+                    on_click=lambda _, row=row: self._discard(row),
                 ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,

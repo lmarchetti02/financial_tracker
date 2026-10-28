@@ -1,4 +1,4 @@
-"""Implementation of the `:class:Holding` class."""
+"""Implementation of the `:class:Holding`, `:class:HoldingRegionAllocation` and `:class:HoldingKindTarget` classes."""
 
 from enum import Enum, auto
 from logging import getLogger

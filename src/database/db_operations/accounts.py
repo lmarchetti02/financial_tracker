@@ -620,9 +620,9 @@ def recompute_all_debt_credit_balances() -> list[tuple[int, str, str]]:
     """Rebuilds every Debt/Credit account's balances, across every year and profile, from scratch.
 
     Backfills accounts/balances for Debt/Credit transfers logged before this syncing existed, and
-    doubles as a general "fix drift" tool. Years are processed oldest first (within each profile)
-    so each year's December balance is seeded forward via `seed_accounts_for_new_year`'s
-    `opening_balance` copy, not by reading another year's data during recompute itself.
+    doubles as a general "fix drift" tool. Years are processed oldest first (within each profile),
+    and each recompute cascades its December balance into next year's matching account's
+    `opening_balance` via `_cascade_opening_balance_forward`.
 
     Returns:
         list[tuple[int, str, str]]: `(year, profile, account_name)` triples for accounts newly
