@@ -51,9 +51,10 @@ class ExpensesView(BaseCrudView):
         )
 
         # category
+        categories = db.fetch_categories()
         self.category_picker = ft.Dropdown(
             label="Category",
-            options=[ft.DropdownOption(key=cat, text=cat) for cat in db.fetch_categories()],
+            options=[ft.DropdownOption(key=cat, text=cat) for cat in categories],
             on_text_change=lambda _: setattr(self.category_picker, "error_text", None),
             width=220,
         )
@@ -96,7 +97,7 @@ class ExpensesView(BaseCrudView):
         columns[4].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_categories(), "Filter category"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(categories, "Filter category"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table], expand=True, scroll=ft.ScrollMode.AUTO)

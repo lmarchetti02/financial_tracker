@@ -36,6 +36,7 @@ from .config import set_theme_preference as set_theme_preference
 from .config import verify_app_password as verify_app_password
 from .expenses import ExpensesSortingConfig as ExpensesSortingConfig
 from .expenses import fetch_category as fetch_category
+from .expenses import fetch_category_totals as fetch_category_totals
 from .expenses import fetch_expense_totals as fetch_expense_totals
 from .expenses import fetch_expenses as fetch_expenses
 from .generic import DbLocation as DbLocation
@@ -61,6 +62,7 @@ from .incomes import IncomesSortingConfig as IncomesSortingConfig
 from .incomes import fetch_income_totals as fetch_income_totals
 from .incomes import fetch_incomes as fetch_incomes
 from .incomes import fetch_source as fetch_source
+from .incomes import fetch_source_totals as fetch_source_totals
 from .transfers import TransfersSortingConfig as TransfersSortingConfig
 from .transfers import fetch_fee_expense_ids as fetch_fee_expense_ids
 from .transfers import fetch_profit_income_ids as fetch_profit_income_ids

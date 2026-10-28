@@ -8,7 +8,8 @@ import numpy as np
 from _helpers.constants import EXPENSES_DB_NAME
 
 from ..data_structures import Expense
-from .generic import DbLocation, fetch_monthly_totals, fetch_rows
+from .generic import (DbLocation, fetch_monthly_totals,
+                      fetch_monthly_totals_by, fetch_rows)
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -63,6 +64,21 @@ def fetch_category(location: DbLocation, category: str) -> np.ndarray:
     logger.info("Called 'fetch_category'")
 
     return fetch_monthly_totals(location, EXPENSES_DB_NAME, "cost", "category", category)
+
+
+def fetch_category_totals(location: DbLocation) -> dict[str, np.ndarray]:
+    """Fetch the total expense per month for every category at once.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the expenses.
+
+    Returns:
+        dict[str, np.ndarray]: Maps each category with any expense to an array of shape (12,) with
+            its totals per month.
+    """
+    logger.info("Called 'fetch_category_totals'")
+
+    return fetch_monthly_totals_by(location, EXPENSES_DB_NAME, "cost", "category")
 
 
 def fetch_expense_totals(location: DbLocation) -> np.ndarray:

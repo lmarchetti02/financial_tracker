@@ -15,7 +15,17 @@ from _helpers.formatting import format_amount
 from database import DbLocation
 from ui.common import current_db_location as current_db_location
 
-type MonthlyTotalsFetcher = Callable[[DbLocation, str], np.ndarray]
+type GroupedTotalsFetcher = Callable[[DbLocation], dict[str, np.ndarray]]
+
+
+def _totals_matrix(location: DbLocation, options: list[str], fetch_all: GroupedTotalsFetcher) -> np.ndarray:
+    """Builds a (12, len(options)) matrix of monthly totals, with a zero column for an entry with no data."""
+    by_option = fetch_all(location)
+    totals = np.zeros((12, len(options)), dtype=np.float32)
+    for i, option in enumerate(options):
+        if option in by_option:
+            totals[:, i] = by_option[option]
+    return totals
 
 
 def show_chart_popup(page: ft.Page, fig: Figure) -> None:
@@ -62,7 +72,7 @@ def show_lookup_summary(
     name: str,
     selected: str | None,
     fetch_options: Callable[[], list[str]],
-    fetch_one: MonthlyTotalsFetcher,
+    fetch_all: GroupedTotalsFetcher,
 ) -> None:
     """Plots one line per lookup entry (e.g. per category) of its monthly totals.
 
@@ -71,16 +81,14 @@ def show_lookup_summary(
         name (str): The plotted domain, used in the title (e.g. "Expenses").
         selected (str | None): A single entry to plot, or `None` to plot every entry.
         fetch_options (Callable[[], list[str]]): Returns every entry of the lookup list.
-        fetch_one (MonthlyTotalsFetcher): Returns the monthly totals of one entry.
+        fetch_all (GroupedTotalsFetcher): Returns the monthly totals of every entry with data.
     """
     location = current_db_location(page)
 
     # get data
     options = [selected] if selected is not None else fetch_options()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
-    totals = np.zeros((len(months), len(options)), dtype=np.float32)
-    for i, option in enumerate(options):
-        totals[:, i] = fetch_one(location, option)
+    totals = _totals_matrix(location, options, fetch_all)
 
     # plot
     fig = plt.figure()
@@ -187,7 +195,7 @@ def show_lookup_pie(
     name: str,
     month: int | None,
     fetch_options: Callable[[], list[str]],
-    fetch_one: MonthlyTotalsFetcher,
+    fetch_all: GroupedTotalsFetcher,
     empty_text: str,
 ) -> None:
     """Plots a pie chart of the totals per lookup entry, for the whole year or one month.
@@ -197,16 +205,15 @@ def show_lookup_pie(
         name (str): The plotted domain, used in the title and the legend title (e.g. "Expenses").
         month (int | None): The month to plot, or `None` for the whole year.
         fetch_options (Callable[[], list[str]]): Returns every entry of the lookup list.
-        fetch_one (MonthlyTotalsFetcher): Returns the monthly totals of one entry.
+        fetch_all (GroupedTotalsFetcher): Returns the monthly totals of every entry with data.
         empty_text (str): The text shown instead of the chart when there is nothing to plot.
     """
     location = current_db_location(page)
 
     # get data
-    options = np.array(fetch_options(), dtype=str)
-    totals = np.zeros((12, len(options)), dtype=np.float32)
-    for i, option in enumerate(options):
-        totals[:, i] = fetch_one(location, option)
+    option_names = fetch_options()
+    options = np.array(option_names, dtype=str)
+    totals = _totals_matrix(location, option_names, fetch_all)
 
     if month is None:
         totals = totals.sum(axis=0)

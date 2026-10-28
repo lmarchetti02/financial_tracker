@@ -209,6 +209,41 @@ def fetch_monthly_totals(
         return monthly_total
 
 
+def fetch_monthly_totals_by(
+    location: DbLocation, table_name: str, sum_column: str, group_column: str
+) -> dict[str, np.ndarray]:
+    """Fetches the per-month total of a numeric column for every value of a grouping column at once.
+
+    Equivalent to calling `:func:fetch_monthly_totals` once per distinct `group_column` value, but
+    with a single query.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the database to query.
+        table_name (str): The name of the table to query.
+        sum_column (str): The numeric column to sum.
+        group_column (str): The column to group the totals by (e.g. "category").
+
+    Returns:
+        dict[str, np.ndarray]: Maps each value present in `group_column` to an array of shape (12,)
+            with its totals per month. Values with no rows at all are absent.
+    """
+    logger.info("Called 'fetch_monthly_totals_by'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        rows = connection.execute(
+            f"""
+            SELECT {group_column}, month, SUM({sum_column}) FROM {table_name}
+            GROUP BY {group_column}, month
+            """
+        ).fetchall()
+
+    totals: dict[str, np.ndarray] = {}
+    for group, month, total in rows:
+        totals.setdefault(group, np.zeros(12, dtype=np.float32))[month - 1] = total
+
+    return totals
+
+
 def initialize_db(location: DbLocation, db: WhichDb) -> None:
     """Initializes the database if it doesn't already exist.
 

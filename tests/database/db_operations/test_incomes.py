@@ -4,7 +4,13 @@ import pytest
 
 from database.data_structures.income import Income
 from database.db_operations.generic import DbLocation, WhichDb, add_item, initialize_db
-from database.db_operations.incomes import IncomesSortingConfig, fetch_income_totals, fetch_incomes, fetch_source
+from database.db_operations.incomes import (
+    IncomesSortingConfig,
+    fetch_income_totals,
+    fetch_incomes,
+    fetch_source,
+    fetch_source_totals,
+)
 
 YEAR = 2024
 LOCATION = DbLocation(YEAR)
@@ -119,6 +125,29 @@ class TestFetchSource:
 
         assert totals.shape == (12,)
         assert (totals == 0).all()
+
+
+class TestFetchSourceTotals:
+    """Tests for `fetch_source_totals`."""
+
+    def test_sums_amount_per_month_for_every_source(self) -> None:
+        """Each source's totals match what `fetch_source` returns for it."""
+        initialize_db(LOCATION, WhichDb.INCOMES)
+        add_item(LOCATION, make_income(month=1, source="Salary", amount=1000.0))
+        add_item(LOCATION, make_income(month=2, source="Salary", amount=1000.0))
+        add_item(LOCATION, make_income(month=2, source="Presents", amount=50.0))
+
+        totals = fetch_source_totals(LOCATION)
+
+        assert set(totals) == {"Salary", "Presents"}
+        for source, monthly in totals.items():
+            assert monthly == pytest.approx(fetch_source(LOCATION, source))
+
+    def test_is_empty_when_no_incomes_exist(self) -> None:
+        """A source with no incomes is simply absent."""
+        initialize_db(LOCATION, WhichDb.INCOMES)
+
+        assert fetch_source_totals(LOCATION) == {}
 
 
 class TestFetchIncomeTotals:

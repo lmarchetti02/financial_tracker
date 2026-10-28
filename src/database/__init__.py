@@ -37,6 +37,7 @@ from .db_operations import fetch_balances_by_kind as fetch_balances_by_kind
 from .db_operations import fetch_by_id as fetch_by_id
 from .db_operations import fetch_categories as fetch_categories
 from .db_operations import fetch_category as fetch_category
+from .db_operations import fetch_category_totals as fetch_category_totals
 from .db_operations import fetch_expense_totals as fetch_expense_totals
 from .db_operations import fetch_expenses as fetch_expenses
 from .db_operations import fetch_fee_expense_ids as fetch_fee_expense_ids
@@ -53,6 +54,7 @@ from .db_operations import fetch_profit_income_ids as fetch_profit_income_ids
 from .db_operations import fetch_region_allocations as fetch_region_allocations
 from .db_operations import fetch_regions as fetch_regions
 from .db_operations import fetch_source as fetch_source
+from .db_operations import fetch_source_totals as fetch_source_totals
 from .db_operations import fetch_sources as fetch_sources
 from .db_operations import fetch_transfers as fetch_transfers
 from .db_operations import get_last_selection as get_last_selection

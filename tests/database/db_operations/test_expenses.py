@@ -3,7 +3,13 @@
 import pytest
 
 from database.data_structures.expense import Expense
-from database.db_operations.expenses import ExpensesSortingConfig, fetch_category, fetch_expense_totals, fetch_expenses
+from database.db_operations.expenses import (
+    ExpensesSortingConfig,
+    fetch_category,
+    fetch_category_totals,
+    fetch_expense_totals,
+    fetch_expenses,
+)
 from database.db_operations.generic import DbLocation, WhichDb, add_item, initialize_db
 
 YEAR = 2024
@@ -137,6 +143,29 @@ class TestFetchCategory:
 
         assert totals.shape == (12,)
         assert (totals == 0).all()
+
+
+class TestFetchCategoryTotals:
+    """Tests for `fetch_category_totals`."""
+
+    def test_sums_cost_per_month_for_every_category(self) -> None:
+        """Each category's totals match what `fetch_category` returns for it."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(LOCATION, make_expense(month=3, category="Food and drinks", cost=7.0))
+        add_item(LOCATION, make_expense(month=1, category="Travel", cost=100.0))
+
+        totals = fetch_category_totals(LOCATION)
+
+        assert set(totals) == {"Food and drinks", "Travel"}
+        for category, monthly in totals.items():
+            assert monthly == pytest.approx(fetch_category(LOCATION, category))
+
+    def test_is_empty_when_no_expenses_exist(self) -> None:
+        """A category with no expenses is simply absent."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+
+        assert fetch_category_totals(LOCATION) == {}
 
 
 class TestFetchExpenseTotals:

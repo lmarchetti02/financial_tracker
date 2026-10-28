@@ -603,7 +603,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         if self._page.width is None or self._page.height is None:
             raise RuntimeError("Cannot retrieve the page size.")
 
-        all_holdings = [(hid, h) for hid, h in db.fetch_holdings(self.location) if not db.is_fixed_term(h)]
+        # `refresh()` runs after every change on this page, so this is the unfiltered, current list
+        all_holdings = [(hid, h) for hid, h in self._holdings_by_id.items() if not db.is_fixed_term(h)]
         _, grand_total, kind_totals, _ = self._compute_totals(all_holdings)  # type: ignore
 
         if not grand_total:

@@ -1,5 +1,7 @@
 """Unit tests for `database.db_operations.accounts`."""
 
+import sqlite3 as sq
+
 import pytest
 
 from _helpers.constants import DEFAULT_PROFILE_NAME, SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
@@ -26,7 +28,7 @@ from database.db_operations.accounts import (
     seed_accounts_for_new_year,
     sync_transfer_accounts,
 )
-from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, initialize_db
+from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, get_db_path, initialize_db
 
 YEAR = 2024
 PRIOR_YEAR = 2023
@@ -667,6 +669,67 @@ class TestRecomputeAccountBalance:
         recompute_account_balance(LOCATION, account_id)
 
         assert fetch_account_balances(LOCATION)[(account_id, 1)] == pytest.approx(75.0)
+
+    def test_updates_existing_balance_rows_in_place(self) -> None:
+        """A recompute rewrites existing months under their original row ids and adds only the missing ones."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        initialize_db(LOCATION, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(LOCATION, WhichDb.TRANSFERS)
+        account_id = add_item(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT))
+        # stale hand-typed rows for two months, which the recompute must overwrite rather than duplicate
+        save_balance(LOCATION, account_id, 2, 999.0)
+        save_balance(LOCATION, account_id, 7, 999.0)
+        add_item(LOCATION, make_transfer(kind=SYSTEM_KIND_DEBT, source="Mom", amount=200.0, month=3))
+
+        recompute_account_balance(LOCATION, account_id)
+
+        with sq.connect(get_db_path(LOCATION)) as connection:
+            rows = connection.execute("SELECT id, month, balance FROM account_balances ORDER BY month").fetchall()
+        assert [month for _, month, _ in rows] == list(range(1, 13))
+        ids_by_month = {month: row_id for row_id, month, _ in rows}
+        assert (ids_by_month[2], ids_by_month[7]) == (1, 2)
+        assert {month: balance for _, month, balance in rows} == pytest.approx(
+            {month: (200.0 if month >= 3 else 0.0) for month in range(1, 13)}
+        )
+
+    def test_writes_every_month_through_a_single_connection(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The 12 monthly balances are saved in one transaction, not one connection per month."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        initialize_db(LOCATION, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(LOCATION, WhichDb.TRANSFERS)
+        account_id = add_item(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT))
+        recompute_account_balance(LOCATION, account_id)  # first run creates the 12 rows
+
+        real_connect = sq.connect
+        opened: list[object] = []
+
+        def counting_connect(*args: object, **kwargs: object) -> sq.Connection:
+            opened.append(args)
+            return real_connect(*args, **kwargs)  # type: ignore
+
+        # `accounts` and `generic` both use the same `sqlite3` module object, so one patch covers both
+        monkeypatch.setattr(sq, "connect", counting_connect)
+
+        recompute_account_balance(LOCATION, account_id)
+
+        # fetch the account, fetch its transfers, save the balances, look for next year's file
+        # (which doesn't exist, so it isn't opened)
+        assert len(opened) == 3
+
+    def test_leaves_other_accounts_balances_alone(self) -> None:
+        """Only the recomputed account's rows are written."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        initialize_db(LOCATION, WhichDb.ACCOUNT_BALANCES)
+        initialize_db(LOCATION, WhichDb.TRANSFERS)
+        other_id = add_item(LOCATION, make_account(name="Checking", kind=AccountKind.CASH))
+        save_balance(LOCATION, other_id, 1, 42.0)
+        account_id = add_item(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT))
+
+        recompute_account_balance(LOCATION, account_id)
+
+        balances = fetch_account_balances(LOCATION)
+        assert balances[(other_id, 1)] == pytest.approx(42.0)
+        assert [key for key in balances if key[0] == other_id] == [(other_id, 1)]
 
     def test_starts_from_the_account_s_own_opening_balance(self) -> None:
         """The running total is anchored on the account's own field, not another year's database."""

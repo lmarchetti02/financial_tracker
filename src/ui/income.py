@@ -36,9 +36,10 @@ class IncomeView(BaseCrudView):
         )
 
         # source
+        sources = db.fetch_sources()
         self.source_picker = ft.Dropdown(
             label="Source",
-            options=[ft.DropdownOption(key=src, text=src) for src in db.fetch_sources()],
+            options=[ft.DropdownOption(key=src, text=src) for src in sources],
             on_text_change=lambda _: setattr(self.source_picker, "error_text", None),
             width=220,
         )
@@ -80,7 +81,7 @@ class IncomeView(BaseCrudView):
         columns[3].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_sources(), "Filter source"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(sources, "Filter source"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table], expand=True, scroll=ft.ScrollMode.AUTO)

@@ -18,6 +18,7 @@ from database.db_operations.generic import (
     edit_item,
     fetch_by_id,
     fetch_monthly_totals,
+    fetch_monthly_totals_by,
     fetch_rows,
     get_db_path,
     initialize_db,
@@ -200,6 +201,43 @@ class TestFetchMonthlyTotals:
         assert totals[0] == pytest.approx(15.0)
         assert totals[1] == pytest.approx(0.0)
         assert totals[2] == pytest.approx(7.0)
+
+
+class TestFetchMonthlyTotalsBy:
+    """Tests for `fetch_monthly_totals_by`."""
+
+    def test_sums_the_column_per_month_for_every_group(self) -> None:
+        """Each group value gets its own per-month totals."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=10.0))
+        add_item(LOCATION, make_expense(month=1, category="Food and drinks", cost=5.0))
+        add_item(LOCATION, make_expense(month=3, category="Food and drinks", cost=7.0))
+        add_item(LOCATION, make_expense(month=1, category="Travel", cost=100.0))
+
+        totals = fetch_monthly_totals_by(LOCATION, EXPENSES_DB_NAME, "cost", "category")
+
+        assert set(totals) == {"Food and drinks", "Travel"}
+        assert totals["Food and drinks"][[0, 1, 2]] == pytest.approx([15.0, 0.0, 7.0])
+        assert totals["Travel"][0] == pytest.approx(100.0)
+        assert totals["Travel"].shape == (12,)
+
+    def test_matches_one_filtered_query_per_group(self) -> None:
+        """The grouped result equals `fetch_monthly_totals` run once per group value."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        for month, category, cost in [(1, "Travel", 3.5), (2, "Travel", 4.25), (2, "Taxes", 9.0), (12, "Taxes", 1.0)]:
+            add_item(LOCATION, make_expense(month=month, category=category, cost=cost))
+
+        totals = fetch_monthly_totals_by(LOCATION, EXPENSES_DB_NAME, "cost", "category")
+
+        for category in ("Travel", "Taxes"):
+            expected = fetch_monthly_totals(LOCATION, EXPENSES_DB_NAME, "cost", "category", category)
+            assert totals[category] == pytest.approx(expected)
+
+    def test_is_empty_when_the_table_has_no_rows(self) -> None:
+        """An empty table yields an empty mapping rather than an error."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+
+        assert fetch_monthly_totals_by(LOCATION, EXPENSES_DB_NAME, "cost", "category") == {}
 
 
 class TestInitializeDb:

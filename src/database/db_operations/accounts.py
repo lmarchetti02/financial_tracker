@@ -216,6 +216,40 @@ def save_balance(location: DbLocation, account_id: int, month: int, balance: flo
     logger.debug(f"Saved balance:\n{new_balance}")
 
 
+def _save_balances(location: DbLocation, account_id: int, balances: dict[int, float]) -> None:
+    """Creates or updates several monthly balance snapshots of one account in a single transaction.
+
+    Equivalent to calling `:func:save_balance` once per month: an existing row keeps its id (the
+    first one, if a month somehow has several) and is only rewritten if its balance changed, and a
+    missing month gets a new row.
+
+    Args:
+        location (`:class:DbLocation`): The desired year/profile.
+        account_id (int): The id of the `:class:Account` these balances belong to.
+        balances (dict[int, float]): Maps each month (between 1 and 12) to its balance in €.
+    """
+    with sq.connect(get_db_path(location)) as connection:
+        existing: dict[int, tuple[int, float]] = {}
+        for row_id, month, balance in connection.execute(
+            f"SELECT id, month, balance FROM {ACCOUNT_BALANCES_DB_NAME} WHERE account_id = ? ORDER BY id",
+            (account_id,),
+        ):
+            existing.setdefault(month, (row_id, balance))
+
+        for month, balance in balances.items():
+            if month not in existing:
+                connection.execute(
+                    f"INSERT INTO {ACCOUNT_BALANCES_DB_NAME} (account_id, month, balance) VALUES (?, ?, ?)",
+                    (account_id, month, balance),
+                )
+            elif existing[month][1] != balance:
+                connection.execute(
+                    f"UPDATE {ACCOUNT_BALANCES_DB_NAME} SET balance = ? WHERE id = ?", (balance, existing[month][0])
+                )
+
+    logger.debug(f"Saved balances for account {account_id}:\n{balances}")
+
+
 def delete_balance(location: DbLocation, account_id: int, month: int) -> None:
     """Deletes the balance snapshot for one account/month, if any.
 
@@ -536,9 +570,11 @@ def recompute_account_balance(location: DbLocation, account_id: int) -> None:
         )
 
     running = account.opening_balance
+    balances: dict[int, float] = {}
     for month in range(1, 13):
         running += deltas_by_month.get(month, 0.0)
-        save_balance(location, account_id, month, running)
+        balances[month] = running
+    _save_balances(location, account_id, balances)
 
     logger.debug(f"Recomputed {location.year} balances for account {account_id} ('{account.name}').")
 

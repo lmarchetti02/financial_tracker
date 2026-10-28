@@ -329,9 +329,11 @@ class InboxReviewDialog:
 
         # everything validated, so the writes can't stop half way and leave the inbox
         # disagreeing with what actually landed in the databases
-        for location, expense in prepared:
+        for location in dict.fromkeys(location for location, _ in prepared):
             for which in db.WhichDb:
                 db.initialize_db(location, which)
+
+        for location, expense in prepared:
             db.add_item(location, expense)
             logger.debug(f"Imported a phone expense into {location}:\n{expense}")
 

@@ -8,7 +8,8 @@ import numpy as np
 from _helpers.constants import INCOME_DB_NAME
 
 from ..data_structures import Income
-from .generic import DbLocation, fetch_monthly_totals, fetch_rows
+from .generic import (DbLocation, fetch_monthly_totals,
+                      fetch_monthly_totals_by, fetch_rows)
 from .utils import RowGenerator, SortingConfig
 
 logger = getLogger("financial_tracker")
@@ -64,6 +65,21 @@ def fetch_source(location: DbLocation, source: str) -> np.ndarray:
     logger.info("Called 'fetch_source'")
 
     return fetch_monthly_totals(location, INCOME_DB_NAME, "amount", "source", source)
+
+
+def fetch_source_totals(location: DbLocation) -> dict[str, np.ndarray]:
+    """Fetch the total income per month for every source at once.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the incomes.
+
+    Returns:
+        dict[str, np.ndarray]: Maps each source with any income to an array of shape (12,) with its
+            totals per month.
+    """
+    logger.info("Called 'fetch_source_totals'")
+
+    return fetch_monthly_totals_by(location, INCOME_DB_NAME, "amount", "source")
 
 
 def fetch_income_totals(location: DbLocation) -> np.ndarray:

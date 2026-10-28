@@ -43,9 +43,10 @@ class TransfersView(BaseCrudView):
         )
 
         # kind
+        kinds = db.fetch_kinds()
         self.kind_picker = ft.Dropdown(
             label="Kind",
-            options=[ft.DropdownOption(key=kind, text=kind) for kind in db.fetch_kinds()],
+            options=[ft.DropdownOption(key=kind, text=kind) for kind in kinds],
             on_text_change=lambda _: setattr(self.kind_picker, "error_text", None),
             on_select=self.handle_kind_change,
             width=200,
@@ -114,7 +115,7 @@ class TransfersView(BaseCrudView):
         columns[6].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
-        columns[2].label.controls.append(self._build_lookup_filter_menu(db.fetch_kinds(), "Filter kind"))  # type: ignore
+        columns[2].label.controls.append(self._build_lookup_filter_menu(kinds, "Filter kind"))  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table], expand=True, scroll=ft.ScrollMode.AUTO)
