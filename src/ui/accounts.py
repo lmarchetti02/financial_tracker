@@ -370,8 +370,7 @@ class AccountsView(ft.Column):
             ft.TextField(
                 value=format_amount(value, decimals=0) if value is not None else "",
                 text_align=ft.TextAlign.RIGHT,
-                border=ft.InputBorder.NONE,
-                border_width=0,
+                border=ft.NoInputBorder(),
                 content_padding=6,
                 dense=True,
                 data=data,
