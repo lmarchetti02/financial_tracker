@@ -1,5 +1,6 @@
 """Sub-package that handles all the matplotlib plotting."""
 
+from ._common import FigureClosingChart as FigureClosingChart
 from .asset_allocation import show_asset_allocation_pie as show_asset_allocation_pie
 from .asset_allocation import show_asset_allocation_summary as show_asset_allocation_summary
 from .expenses_summary import show_expenses_pie as show_expenses_pie

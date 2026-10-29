@@ -28,6 +28,34 @@ def _totals_matrix(location: DbLocation, options: list[str], fetch_all: GroupedT
     return totals
 
 
+class FigureClosingChart(fch.MatplotlibChart):
+    """A `MatplotlibChart` that releases its figure from pyplot once the chart leaves the page."""
+
+    def will_unmount(self) -> None:
+        """Runs the chart's own cleanup, then closes the figure.
+
+        The order matters: `plt.close` swaps in a canvas whose `manager` is `None`, and the parent's
+        `will_unmount` still needs that manager to unregister the chart.
+        """
+        super().will_unmount()
+        plt.close(self.figure)
+
+
+class FigureClosingChartWithToolbar(fch.MatplotlibChartWithToolbar):
+    """A `MatplotlibChartWithToolbar` whose inner chart is a `:class:FigureClosingChart`."""
+
+    def build(self) -> None:  # noqa: D102
+        super().build()
+        # the toolbar's buttons look `self.mpl` up when clicked, so swapping it here rewires them too
+        self.mpl = FigureClosingChart(
+            figure=self.figure,
+            expand=True,
+            on_message=self.on_message,
+            on_toolbar_buttons_update=self.on_toolbar_update,
+        )
+        self.controls[-1] = self.mpl
+
+
 def show_chart_popup(page: ft.Page, fig: Figure) -> None:
     """Shows `fig` in a popup sized relative to the page, with a "Close" button.
 
@@ -41,7 +69,7 @@ def show_chart_popup(page: ft.Page, fig: Figure) -> None:
     if page.width is None or page.height is None:
         raise RuntimeError("Cannot retrieve the page size.")
 
-    chart = fch.MatplotlibChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    chart = FigureClosingChartWithToolbar(figure=fig, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     popup = ft.AlertDialog(
         content=ft.Container(chart, width=page.width * 0.9, height=page.height * 0.8),
         actions=[ft.Button("Close", on_click=lambda _: page.pop_dialog())],

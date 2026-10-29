@@ -7,13 +7,12 @@ from logging import getLogger
 from typing import ClassVar
 
 import flet as ft
-import flet_charts as fch
 from flet_datatable2 import DataColumn2, DataColumnSize
 
 import database as db
 from _helpers.expression_parser import evaluate_expression
 from _helpers.formatting import enum_label, format_amount, parse_amount
-from plotting import (build_kind_allocation_pie,
+from plotting import (FigureClosingChart, build_kind_allocation_pie,
                       show_detailed_region_diversification,
                       show_portfolio_diversification)
 
@@ -620,7 +619,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         rows_height = dialog_height - 50
         chart_width = rows_height * _CHART_ASPECT_RATIO
 
-        chart = fch.MatplotlibChart(
+        chart = FigureClosingChart(
             figure=build_kind_allocation_pie(kind_totals),
             expand=True,
             align=ft.Alignment.CENTER,
