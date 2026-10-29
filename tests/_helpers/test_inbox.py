@@ -10,7 +10,7 @@ from _helpers.constants import (DEFAULT_PROFILE_NAME, INBOX_ARCHIVE_MAX_LINES,
                                 INBOX_CATEGORIES_FILE_NAME, INBOX_FILE_NAME,
                                 INBOX_PROFILES_FILE_NAME)
 from _helpers.inbox import (append_archive, ensure_inbox_file, export_lookups, read_inbox,
-                            remove_from_inbox, stamp_imported, write_inbox)
+                            remove_from_inbox, stamp_imported)
 
 
 def make_line(**overrides: object) -> str:
@@ -331,58 +331,6 @@ class TestEnsureInboxFile:
         ensure_inbox_file(absent_container / "Financial Tracker")
 
         assert not absent_container.exists()
-
-
-class TestWriteInbox:
-    """Tests for `write_inbox`."""
-
-    def test_keeps_only_the_given_lines(self, tmp_path: Path) -> None:
-        """The inbox is rewritten wholesale, dropping anything not passed in."""
-        kept = make_line(category="Transport")
-        write_lines(tmp_path, make_line(), kept)
-
-        write_inbox(tmp_path, [kept])
-
-        entries, _ = read_inbox(tmp_path)
-        assert [entry.category for entry in entries] == ["Transport"]
-
-    def test_an_empty_list_empties_the_inbox(self, tmp_path: Path) -> None:
-        """Importing everything leaves nothing pending."""
-        write_lines(tmp_path, make_line())
-
-        write_inbox(tmp_path, [])
-
-        assert read_inbox(tmp_path) == ([], [])
-
-    def test_creates_the_directory_when_it_is_missing(self, tmp_path: Path) -> None:
-        """Writing into a folder iCloud hasn't synced yet creates it rather than failing."""
-        directory = tmp_path / "new"
-
-        write_inbox(directory, [make_line()])
-
-        assert (directory / INBOX_FILE_NAME).is_file()
-
-    def test_does_not_create_the_folder_when_its_parent_is_missing(self, tmp_path: Path) -> None:
-        """Same guard as the lookup export: no iCloud container means no folder is invented."""
-        absent_container = tmp_path / "no-icloud-here"
-
-        write_inbox(absent_container / "Financial Tracker", [make_line()])
-
-        assert not absent_container.exists()
-
-    def test_round_trip_preserves_un_imported_lines(self, tmp_path: Path) -> None:
-        """A read/import/rewrite cycle loses nothing that wasn't imported."""
-        imported = make_line(description="imported")
-        skipped = make_line(description="skipped")
-        write_lines(tmp_path, imported, skipped)
-
-        entries, _ = read_inbox(tmp_path)
-        write_inbox(tmp_path, [entry.raw for entry in entries if entry.description == "skipped"])
-
-        remaining, malformed = read_inbox(tmp_path)
-        assert malformed == []
-        assert [entry.description for entry in remaining] == ["skipped"]
-        assert remaining[0].raw == skipped
 
 
 class TestRemoveFromInbox:

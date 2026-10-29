@@ -152,22 +152,6 @@ def ensure_inbox_file(directory: Path) -> None:
         logger.debug(f"Could not seed an inbox at '{path}'.", exc_info=True)
 
 
-def write_inbox(directory: Path, lines: list[str]) -> None:
-    """Rewrites the inbox file so it holds exactly `lines`.
-
-    Only ever called with the lines that were neither imported nor discarded: an entry the user
-    keeps skipping stays in the inbox indefinitely, since silently expiring un-imported expenses
-    is the failure mode this whole design exists to avoid.
-
-    Args:
-        directory (Path): The folder shared with the phone.
-        lines (list[str]): The raw lines to keep.
-    """
-    logger.info("Called 'write_inbox'")
-
-    _write_lines(directory / INBOX_FILE_NAME, lines)
-
-
 def remove_from_inbox(directory: Path, handled: list[str]) -> None:
     """Removes exactly the `handled` lines from the inbox file, keeping every other line.
 
