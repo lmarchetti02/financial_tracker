@@ -47,6 +47,7 @@ def fetch_expenses(
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
+    logger.info("Called 'fetch_expenses'")
     extra_filter = ("category", category) if category is not None else None
     return fetch_rows(location, EXPENSES_DB_NAME, Expense, sort=sort, month=month, extra_filter=extra_filter)
 

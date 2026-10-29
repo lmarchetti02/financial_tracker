@@ -10,7 +10,7 @@ from _helpers.constants import (DEFAULT_PROFILE_NAME, INBOX_ARCHIVE_MAX_LINES,
                                 INBOX_CATEGORIES_FILE_NAME, INBOX_FILE_NAME,
                                 INBOX_PROFILES_FILE_NAME)
 from _helpers.inbox import (append_archive, ensure_inbox_file, export_lookups, read_inbox,
-                            stamp_imported, write_inbox)
+                            remove_from_inbox, stamp_imported, write_inbox)
 
 
 def make_line(**overrides: object) -> str:
@@ -383,6 +383,74 @@ class TestWriteInbox:
         assert malformed == []
         assert [entry.description for entry in remaining] == ["skipped"]
         assert remaining[0].raw == skipped
+
+
+class TestRemoveFromInbox:
+    """Tests for `remove_from_inbox`."""
+
+    def test_removes_the_handled_lines(self, tmp_path: Path) -> None:
+        """Imported/discarded lines leave the inbox; lines that weren't handled stay."""
+        handled = make_line(category="Groceries")
+        skipped = make_line(category="Transport")
+        write_lines(tmp_path, handled, skipped)
+
+        remove_from_inbox(tmp_path, [handled])
+
+        assert (tmp_path / INBOX_FILE_NAME).read_text(encoding="utf-8").splitlines() == [skipped]
+
+    def test_keeps_a_line_appended_after_the_inbox_was_read(self, tmp_path: Path) -> None:
+        """A line the phone added while the review dialog was open survives the commit."""
+        reviewed = make_line(category="Groceries")
+        write_lines(tmp_path, reviewed)
+        entries, _ = read_inbox(tmp_path)
+        # the Shortcut appends a new line while the user is still reviewing
+        late = make_line(category="Transport", date="2026-09-22")
+        write_lines(tmp_path, reviewed, late)
+
+        remove_from_inbox(tmp_path, [entry.raw for entry in entries])
+
+        remaining, _ = read_inbox(tmp_path)
+        assert [entry.category for entry in remaining] == ["Transport"]
+
+    def test_removes_a_duplicated_line_only_once(self, tmp_path: Path) -> None:
+        """A line sent twice but handled once stays in the inbox once."""
+        line = make_line()
+        write_lines(tmp_path, line, line)
+
+        remove_from_inbox(tmp_path, [line])
+
+        assert (tmp_path / INBOX_FILE_NAME).read_text(encoding="utf-8").splitlines() == [line]
+
+    def test_drops_blank_lines(self, tmp_path: Path) -> None:
+        """Blank lines carry nothing, so they're not written back."""
+        handled = make_line(category="Groceries")
+        kept = make_line(category="Transport")
+        write_lines(tmp_path, handled, "", kept, "   ")
+
+        remove_from_inbox(tmp_path, [handled])
+
+        assert (tmp_path / INBOX_FILE_NAME).read_text(encoding="utf-8").splitlines() == [kept]
+
+    def test_leaves_a_missing_inbox_alone(self, tmp_path: Path) -> None:
+        """No inbox file means nothing to remove, and none is created."""
+        remove_from_inbox(tmp_path, [make_line()])
+
+        assert not (tmp_path / INBOX_FILE_NAME).exists()
+
+    def test_leaves_an_unreadable_inbox_untouched(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If the inbox can't be re-read, it is not overwritten with an empty file."""
+        line = make_line()
+        write_lines(tmp_path, line)
+        original = (tmp_path / INBOX_FILE_NAME).read_bytes()
+
+        def raise_os_error(*_: object, **__: object) -> str:
+            raise OSError("still a dataless iCloud placeholder")
+
+        monkeypatch.setattr(Path, "read_text", raise_os_error)
+        remove_from_inbox(tmp_path, [line])
+        monkeypatch.undo()
+
+        assert (tmp_path / INBOX_FILE_NAME).read_bytes() == original
 
 
 class TestAppendArchive:

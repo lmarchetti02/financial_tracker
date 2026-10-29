@@ -12,8 +12,8 @@ from _helpers.constants import (DEFAULT_PROFILE_NAME, ICLOUD_DIRECTORY,
                                 INBOX_REJECTED_FILE_NAME, MONTHS)
 from _helpers.expression_parser import evaluate_expression
 from _helpers.inbox import (InboxEntry, append_archive, ensure_inbox_file,
-                            export_lookups, read_inbox, stamp_imported,
-                            write_inbox)
+                            export_lookups, read_inbox, remove_from_inbox,
+                            stamp_imported)
 
 from .common import show_alert
 
@@ -73,7 +73,7 @@ def review_inbox(page: ft.Page, on_imported: Callable[[], None] | None = None) -
     if malformed:
         logger.debug(f"Moving {len(malformed)} malformed lines out of the inbox.")
         append_archive(ICLOUD_DIRECTORY, INBOX_REJECTED_FILE_NAME, malformed)
-        write_inbox(ICLOUD_DIRECTORY, [entry.raw for entry in entries])
+        remove_from_inbox(ICLOUD_DIRECTORY, malformed)
 
     if not entries:
         logger.debug("Nothing pending in the phone inbox.")
@@ -337,7 +337,7 @@ class InboxReviewDialog:
             db.add_item(location, expense)
             logger.debug(f"Imported a phone expense into {location}:\n{expense}")
 
-        self._commit([stamp_imported(row.entry.raw) for row in rows], self._discarded_lines())
+        self._commit([row.entry.raw for row in rows], self._discarded_lines())
 
     def _prepare(self, row: _PendingRow) -> tuple[db.DbLocation, db.Expense] | None:
         """Turns one reviewed row into the expense to write and the database to write it to.
@@ -380,7 +380,9 @@ class InboxReviewDialog:
         return [row.entry.raw for row in self._rows if row.discarded]
 
     def _commit(self, imported: list[str], discarded: list[str]) -> None:
-        """Archives what was handled, empties the inbox, and closes the dialog.
+        """Archives what was handled, removes exactly those lines from the inbox, and closes the dialog.
+
+        Anything the phone appended while the dialog was open stays in the inbox for the next review.
 
         Args:
             imported (list[str]): The raw lines that were written to a database.
@@ -388,9 +390,9 @@ class InboxReviewDialog:
         """
         logger.info("Called '_commit'")
 
-        append_archive(ICLOUD_DIRECTORY, INBOX_IMPORTED_FILE_NAME, imported)
+        append_archive(ICLOUD_DIRECTORY, INBOX_IMPORTED_FILE_NAME, [stamp_imported(line) for line in imported])
         append_archive(ICLOUD_DIRECTORY, INBOX_REJECTED_FILE_NAME, discarded)
-        write_inbox(ICLOUD_DIRECTORY, [])
+        remove_from_inbox(ICLOUD_DIRECTORY, imported + discarded)
 
         self._page.pop_dialog()
         self._page.update()

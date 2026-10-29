@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections import Counter
 from datetime import date, datetime
 from logging import getLogger
 from pathlib import Path
@@ -165,6 +166,52 @@ def write_inbox(directory: Path, lines: list[str]) -> None:
     logger.info("Called 'write_inbox'")
 
     _write_lines(directory / INBOX_FILE_NAME, lines)
+
+
+def remove_from_inbox(directory: Path, handled: list[str]) -> None:
+    """Removes exactly the `handled` lines from the inbox file, keeping every other line.
+
+    The inbox is re-read right before it's rewritten, rather than overwritten from what was read
+    when the review started: the phone may have appended a line (or iCloud synced one down) in
+    the meantime, and overwriting would silently lose it - the failure mode this whole design
+    exists to avoid. Each handled line removes one matching occurrence only, so a line the phone
+    sent twice but that was handled once stays in the inbox once. Blank lines are dropped.
+
+    An inbox that is missing or can't be read is left untouched rather than replaced by an empty
+    one, since its real content is unknown.
+
+    Args:
+        directory (Path): The folder shared with the phone.
+        handled (list[str]): The raw lines that were imported, discarded, or rejected as malformed.
+    """
+    logger.info("Called 'remove_from_inbox'")
+
+    if not handled:
+        return
+
+    path = directory / INBOX_FILE_NAME
+    if not path.is_file():
+        logger.debug(f"No inbox file at '{path}' to remove handled lines from.")
+        return
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        logger.debug(f"Could not re-read the inbox at '{path}', leaving it untouched.", exc_info=True)
+        return
+
+    to_remove = Counter(handled)
+    kept: list[str] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        if to_remove[line] > 0:
+            to_remove[line] -= 1
+            continue
+        kept.append(line)
+
+    logger.debug(f"Removed {len(lines) - len(kept)} lines from the inbox, kept {len(kept)}.")
+    _write_lines(path, kept)
 
 
 def append_archive(directory: Path, filename: str, lines: list[str]) -> None:

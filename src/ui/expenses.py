@@ -265,11 +265,13 @@ class ExpensesView(BaseCrudView):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the expense."""
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
+            self._page.pop_dialog()
+
             success = db.remove_item(self.location, db.WhichDb.EXPENSES, expense_id)
             if not success:
                 show_alert(self._page, "Error deleting expense", f"It was not possible to delete expense {expense_id}")
 
-            self._page.pop_dialog()
             self.refresh_table()
 
         show_confirm_dialog(self._page, "Delete expense", "Are you sure you want to delete this expense?", delete)

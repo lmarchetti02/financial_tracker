@@ -392,7 +392,7 @@ def remove_item(location: DbLocation, db: WhichDb, row_id: int) -> bool:
     Returns:
         `True` if the operation was successful, `False` otherwise.
     """
-    logger.info("Called 'remove_expense'")
+    logger.info("Called 'remove_item'")
 
     with sq.connect(get_db_path(location)) as connection:
         cursor = connection.cursor()
@@ -417,7 +417,7 @@ def edit_item(location: DbLocation, row_id: int, old: DataContainer, new: DataCo
         bool: `True` if the operation succeeded (including a no-op edit where nothing
             differed between `old` and `new`), `False` if it didn't.
     """
-    logger.info("Called 'edit_expense'")
+    logger.info("Called 'edit_item'")
 
     if type(old) is not type(new):
         raise ValueError("New and old item must be of the same type.")

@@ -169,12 +169,14 @@ class LookupListEditor(ft.Column):
 
         def save(_: ft.Event) -> None:
             """Applies the rename, if valid."""
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
+            self._page.pop_dialog()
+
             try:
                 db.rename_lookup_option(self._kind, old_name, name_field.value or "")
             except ValueError as error:
                 show_alert(self._page, "Cannot rename", str(error))
 
-            self._page.pop_dialog()
             self._refresh_rows()
             self._page.update()
 
@@ -195,6 +197,9 @@ class LookupListEditor(ft.Column):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the entry."""
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
+            self._page.pop_dialog()
+
             success = db.delete_lookup_option(self._kind, name)
             if not success:
                 show_alert(
@@ -203,7 +208,6 @@ class LookupListEditor(ft.Column):
                     f"'{name}' is required by the app or still used by existing data, so it cannot be deleted.",
                 )
 
-            self._page.pop_dialog()
             self._refresh_rows()
             self._page.update()
 

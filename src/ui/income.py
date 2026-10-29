@@ -139,10 +139,10 @@ class IncomeView(BaseCrudView):
             return None
 
         if self.amount_text.value == "":
-            show_alert(self._page, "Empty cost", "You must add a cost to the expense")
+            show_alert(self._page, "Empty amount", "You must add an amount to the income")
             return None
 
-        cost = self._parse_amount_field(self.amount_text.value, "Invalid cost", "cost")
+        cost = self._parse_amount_field(self.amount_text.value, "Invalid amount", "amount")
         if cost is None:
             return None
 
@@ -165,7 +165,7 @@ class IncomeView(BaseCrudView):
         self.description_text.value = ""
         self.source_picker.value = None
         self.amount_text.value = ""
-        logger.debug("Cleared expense data")
+        logger.debug("Cleared income data")
 
     def add_new_income(self, _: ft.Event) -> None:
         """Adds a new income based on the user's inputs."""
@@ -187,11 +187,13 @@ class IncomeView(BaseCrudView):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the income."""
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
+            self._page.pop_dialog()
+
             success = db.remove_item(self.location, db.WhichDb.INCOMES, income_id)
             if not success:
                 show_alert(self._page, "Error deleting income", f"It was not possible to delete income {income_id}")
 
-            self._page.pop_dialog()
             self.refresh_table()
 
         show_confirm_dialog(self._page, "Delete income", "Are you sure you want to delete this income?", delete)

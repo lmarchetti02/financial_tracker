@@ -290,6 +290,9 @@ class TransfersView(BaseCrudView):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the transfer."""
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
+            self._page.pop_dialog()
+
             success = db.remove_item(self.location, db.WhichDb.TRANSFERS, transfer_id)
             if not success:
                 show_alert(
@@ -303,7 +306,6 @@ class TransfersView(BaseCrudView):
 
                 self._sync_transfer_accounts(transfer)
 
-            self._page.pop_dialog()
             self.refresh_table()
 
         show_confirm_dialog(self._page, "Delete transfer", "Are you sure you want to delete this transfer?", delete)
