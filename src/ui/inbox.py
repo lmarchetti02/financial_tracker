@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from logging import getLogger
+from sqlite3 import OperationalError
 
 import flet as ft
 
@@ -15,7 +16,7 @@ from _helpers.inbox import (InboxEntry, append_archive, ensure_inbox_file,
                             export_lookups, read_inbox, remove_from_inbox,
                             stamp_imported)
 
-from .common import show_alert
+from .common import NO_CARD_KEY, NO_CARD_LABEL, show_alert
 
 logger = getLogger("financial_tracker")
 
@@ -37,18 +38,19 @@ class _PendingRow:
     category_picker: ft.Dropdown
     description_field: ft.TextField
     profile_picker: ft.Dropdown
+    card_picker: ft.Dropdown
     discarded: bool = False
 
 
 def sync_lookups_for_phone() -> None:
     """Prepares the folder shared with the phone: the lookup exports and an empty inbox.
 
-    Running this once is all the Shortcut needs to work - it reads the two exports for its
+    Running this once is all the Shortcut needs to work - it reads the three exports for its
     pickers, and appends to the inbox this seeds.
     """
     logger.info("Called 'sync_lookups_for_phone'")
 
-    export_lookups(ICLOUD_DIRECTORY, db.fetch_categories(), db.list_profiles())
+    export_lookups(ICLOUD_DIRECTORY, db.fetch_categories(), db.list_profiles(), db.list_card_names_for_phone())
     ensure_inbox_file(ICLOUD_DIRECTORY)
 
 
@@ -88,7 +90,9 @@ class InboxReviewDialog:
 
     Nothing reaches a yearly database without passing through here: the phone can't see the
     category lookup list, so an entry carrying an unknown category is flagged and blocks the
-    import until it's remapped (or the category is created on the spot).
+    import until it's remapped (or the category is created on the spot). Likewise, an entry paid
+    with a card that isn't a card account of its target year and profile blocks the import until
+    it's remapped to one, or to "No card".
     """
 
     def __init__(self, page: ft.Page, entries: list[InboxEntry], on_imported: Callable[[], None] | None) -> None:
@@ -97,6 +101,8 @@ class InboxReviewDialog:
         self._on_imported = on_imported
         self._categories = db.fetch_categories()
         self._profiles = db.list_profiles() or [DEFAULT_PROFILE_NAME]
+        self._existing_locations = set(db.list_year_profile_pairs())
+        self._cards_by_location: dict[tuple[int, str], list[str]] = {}
 
         self._import_button = ft.Button("Import", icon=ft.Icons.DOWNLOAD, on_click=self._import_all)
         self._warning = ft.Text("", size=12, color=ft.Colors.ERROR, visible=False)
@@ -106,7 +112,7 @@ class InboxReviewDialog:
             spacing=6,
             scroll=ft.ScrollMode.AUTO,
             height=min(90 + 62 * len(self._rows), 420),
-            width=780,
+            width=950,
         )
 
         self._dialog = ft.AlertDialog(
@@ -174,10 +180,14 @@ class InboxReviewDialog:
                 label="Profile",
                 width=140,
             ),
+            card_picker=ft.Dropdown(label="Paid with", width=150),
         )
+        self._resync_card_picker(row, entry.paid_with)
 
-        # bound after construction, since the handler needs the row the picker belongs to
+        # bound after construction, since the handlers need the row the pickers belong to
         category_picker.on_text_change = lambda _, row=row: self._handle_category_change(row)
+        row.profile_picker.on_text_change = lambda _, row=row: self._handle_profile_change(row)
+        row.card_picker.on_text_change = lambda _, row=row: self._handle_card_change(row)
 
         return row
 
@@ -194,6 +204,7 @@ class InboxReviewDialog:
                 row.category_picker,
                 row.description_field,
                 row.profile_picker,
+                row.card_picker,
                 ft.IconButton(
                     icon=ft.Icons.DELETE_OUTLINE,
                     tooltip="Discard this entry",
@@ -237,6 +248,81 @@ class InboxReviewDialog:
     def _unresolved_rows(self) -> list[_PendingRow]:
         """Returns the rows still carrying a category that isn't in the lookup list."""
         return [row for row in self._active_rows() if row.category_picker.value not in self._categories]
+
+    def _cards_for(self, row: _PendingRow) -> list[str]:
+        """Returns the card accounts of the row's target year and profile (none if it has no data yet)."""
+        location = (row.entry.day.year, row.profile_picker.value or "")
+        if location not in self._cards_by_location:
+            cards: list[str] = []
+            if location in self._existing_locations:
+                try:
+                    cards = [account.name for _, account in db.fetch_card_accounts(db.DbLocation(*location))]
+                except OperationalError:
+                    # that year's database predates the `accounts` table
+                    pass
+            self._cards_by_location[location] = cards
+
+        return self._cards_by_location[location]
+
+    def _resync_card_picker(self, row: _PendingRow, wanted: str | None) -> None:
+        """Rebuilds a row's "Paid with" options for its target year/profile, selecting `wanted`.
+
+        `wanted` is matched case-insensitively against that year's cards. If it isn't one of them,
+        it stays selected as an extra option flagged with an error, so it blocks the import instead
+        of silently turning into "No card".
+
+        Args:
+            row (`:class:_PendingRow`): The row whose card picker to rebuild.
+            wanted (str | None): The card to select, or `None` for "No card".
+        """
+        cards = self._cards_for(row)
+        options = [ft.DropdownOption(key=NO_CARD_KEY, text=NO_CARD_LABEL)]
+        options += [ft.DropdownOption(key=name, text=name) for name in cards]
+        picker = row.card_picker
+        picker.error_text = None
+
+        if wanted is None:
+            picker.value = NO_CARD_KEY
+        else:
+            match = next((name for name in cards if name.lower() == wanted.lower()), None)
+            if match is not None:
+                picker.value = match
+            else:
+                options.append(ft.DropdownOption(key=wanted, text=wanted))
+                picker.value = wanted
+                year = row.entry.day.year
+                if (year, row.profile_picker.value) in self._existing_locations:
+                    picker.error_text = f"'{wanted}' is not a card"
+                else:
+                    picker.error_text = f"Open {year} once first"
+
+        picker.options = options
+
+    def _unresolved_card_rows(self) -> list[_PendingRow]:
+        """Returns the rows paid with a card that isn't a card account of their target year/profile."""
+        return [
+            row
+            for row in self._active_rows()
+            if row.card_picker.value != NO_CARD_KEY and row.card_picker.value not in self._cards_for(row)
+        ]
+
+    def _handle_profile_change(self, row: _PendingRow) -> None:
+        """Re-checks the row's card against its new target profile's cards."""
+        logger.info("Called '_handle_profile_change'")
+
+        selected = row.card_picker.value
+        self._resync_card_picker(row, None if selected == NO_CARD_KEY else selected)
+        self._refresh_import_button()
+        self._page.update()
+
+    def _handle_card_change(self, row: _PendingRow) -> None:
+        """Clears the row's card error once a valid card (or "No card") is picked."""
+        logger.info("Called '_handle_card_change'")
+
+        if row not in self._unresolved_card_rows():
+            row.card_picker.error_text = None
+        self._refresh_import_button()
+        self._page.update()
 
     def _handle_category_change(self, row: _PendingRow) -> None:
         """Creates the category if the 'add' option was picked, then re-checks the import button.
@@ -305,15 +391,27 @@ class InboxReviewDialog:
         self._page.update()
 
     def _refresh_import_button(self) -> None:
-        """Disables the import button while any row's category is still unresolved."""
+        """Disables the import button while any row's category or card is still unresolved."""
         unresolved = self._unresolved_rows()
-        self._import_button.disabled = bool(unresolved)
-        self._warning.value = (
-            f"{len(unresolved)} entry's category isn't in your list yet - pick one to continue."
-            if len(unresolved) == 1
-            else f"{len(unresolved)} entries have categories that aren't in your list yet - pick one for each."
-        )
-        self._warning.visible = bool(unresolved)
+        unresolved_cards = self._unresolved_card_rows()
+
+        messages = []
+        if unresolved:
+            messages.append(
+                f"{len(unresolved)} entry's category isn't in your list yet - pick one to continue."
+                if len(unresolved) == 1
+                else f"{len(unresolved)} entries have categories that aren't in your list yet - pick one for each."
+            )
+        if unresolved_cards:
+            messages.append(
+                f"{len(unresolved_cards)} entry is paid with an unknown card - pick a card or 'No card'."
+                if len(unresolved_cards) == 1
+                else f"{len(unresolved_cards)} entries are paid with unknown cards - pick a card or 'No card' for each."
+            )
+
+        self._import_button.disabled = bool(messages)
+        self._warning.value = "\n".join(messages)
+        self._warning.visible = bool(messages)
 
     def _import_all(self, _: ft.Event) -> None:
         """Validates every row, then writes them all into their target year and profile."""
@@ -335,6 +433,7 @@ class InboxReviewDialog:
 
         for location, expense in prepared:
             db.add_item(location, expense)
+            db.sync_expense_accounts(location, expense)
             logger.debug(f"Imported a phone expense into {location}:\n{expense}")
 
         self._commit([row.entry.raw for row in rows], self._discarded_lines())
@@ -365,6 +464,7 @@ class InboxReviewDialog:
                 category=row.category_picker.value,
                 cost=cost,
                 cost_expression=raw_cost,
+                paid_with=None if row.card_picker.value == NO_CARD_KEY else row.card_picker.value,
             )
         except Exception as error:
             logger.debug(f"Rejected a reviewed inbox row: {error}", exc_info=True)

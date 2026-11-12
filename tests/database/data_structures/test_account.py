@@ -29,6 +29,20 @@ class TestAccount:
         assert account.name == "Savings"
         assert account.kind == AccountKind.EMERGENCY
 
+    def test_is_not_a_card_by_default(self) -> None:
+        """`is_card` defaults to `False`."""
+        assert make_account().is_card is False
+
+    def test_a_debt_account_can_be_a_card(self) -> None:
+        """A Debt account accepts `is_card`."""
+        assert make_account(kind=AccountKind.DEBT, is_card=True).is_card is True
+
+    @pytest.mark.parametrize("kind", [kind for kind in AccountKind if kind is not AccountKind.DEBT])
+    def test_construction_fails_for_a_card_that_isn_t_a_debt_account(self, kind: AccountKind) -> None:
+        """Only a Debt account can be a credit card."""
+        with pytest.raises(ValueError, match="Only a Debt account can be a credit card"):
+            make_account(kind=kind, is_card=True)
+
 
 class TestAccountGetTableColumns:
     """Tests for `Account.get_table_columns`."""

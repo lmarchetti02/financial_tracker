@@ -42,6 +42,10 @@ class TestCreateTable:
         assert "description TEXT NOT NULL" in cmd
         assert "category TEXT NOT NULL" in cmd
 
+    def test_maps_bool_fields_to_integer(self) -> None:
+        """A `bool` field is stored as SQLite's 0/1 `INTEGER`, not as text."""
+        assert "is_card INTEGER NOT NULL" in Account.create_table()
+
     def test_marks_optional_fields_as_nullable(self) -> None:
         """A `X | None` field is emitted without a `NOT NULL` constraint."""
         cmd = Expense.create_table()
@@ -108,6 +112,25 @@ class TestAddMissingColumns:
         assert transfer.fee_expense_id is None
 
 
+    def test_backfills_a_bool_column_with_its_default_as_an_integer(self) -> None:
+        """A `bool` field added via migration defaults to 0, which reconstructs as `False`."""
+        with sq.connect(":memory:") as connection:
+            cursor = connection.cursor()
+            # the `accounts` schema as it was before `is_card` existed
+            cursor.execute(
+                "CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "name TEXT NOT NULL, kind TEXT NOT NULL, opening_balance REAL NOT NULL DEFAULT 0.0)"
+            )
+            cursor.execute("INSERT INTO accounts (name, kind, opening_balance) VALUES ('Visa', 'DEBT', 0.0)")
+
+            Account.add_missing_columns(cursor)
+
+            row = cursor.execute("SELECT * FROM accounts WHERE id = 1").fetchone()
+
+        assert row[-1] == 0
+        assert Account.init_from_tuple(row[1:]).is_card is False
+
+
 class TestInitFromTuple:
     """Tests for `DataContainer.init_from_tuple`."""
 
@@ -133,6 +156,12 @@ class TestInitFromTuple:
         reconstructed = Account.init_from_tuple(row)
 
         assert reconstructed.kind is AccountKind.EMERGENCY
+
+    def test_restores_a_bool_field_stored_as_an_integer(self) -> None:
+        """A `bool` field stored as SQLite's 1 is reconstructed as `True`."""
+        row = ("Visa", AccountKind.DEBT.name, 0.0, 1)
+
+        assert Account.init_from_tuple(row).is_card is True
 
     def test_restores_a_none_optional_enum_field_as_none(self) -> None:
         """An `Enum | None` field stored as `None` is reconstructed as `None`, not looked up."""

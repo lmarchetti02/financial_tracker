@@ -12,7 +12,8 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from .constants import (DEFAULT_PROFILE_NAME, INBOX_ARCHIVE_MAX_LINES,
-                        INBOX_CATEGORIES_FILE_NAME, INBOX_FILE_NAME,
+                        INBOX_CARDS_FILE_NAME, INBOX_CATEGORIES_FILE_NAME,
+                        INBOX_FILE_NAME, INBOX_NO_CARD_CHOICE,
                         INBOX_PROFILES_FILE_NAME)
 from .expression_parser import evaluate_expression
 from .formatting import format_amount
@@ -67,6 +68,10 @@ class InboxEntry:
             `:const:DEFAULT_PROFILE_NAME` when the line omits it.
         raw (str): The original line this entry was parsed from, kept verbatim so it can be
             archived exactly as it arrived.
+        paid_with (str | None): The credit card the phone says the expense was paid with. Like
+            `category`, not validated here - the review dialog checks it against the target
+            year's card accounts. `None` when the line omits it or leaves it blank. Defaults to
+            `None`.
     """
 
     day: date
@@ -76,6 +81,7 @@ class InboxEntry:
     description: str
     profile: str
     raw: str
+    paid_with: str | None = None
 
 
 def read_inbox(directory: Path) -> tuple[list[InboxEntry], list[str]]:
@@ -254,8 +260,8 @@ def stamp_imported(line: str) -> str:
         return line
 
 
-def export_lookups(directory: Path, categories: list[str], profiles: list[str]) -> None:
-    """Writes the category and profile lists out for the phone's Shortcut to read.
+def export_lookups(directory: Path, categories: list[str], profiles: list[str], cards: list[str]) -> None:
+    """Writes the category, profile and credit-card lists out for the phone's Shortcut to read.
 
     Written as one entry per line, which the Shortcut turns into a picker with "Split Text" by
     new lines. Called on every launch so the pickers track the real lookup lists instead of a
@@ -266,15 +272,24 @@ def export_lookups(directory: Path, categories: list[str], profiles: list[str]) 
         directory (Path): The folder shared with the phone.
         categories (list[str]): The current expense categories.
         profiles (list[str]): The profiles that currently have data.
+        cards (list[str]): The credit cards expenses can be paid with. Written after a leading
+            `:const:INBOX_NO_CARD_CHOICE` line, which gives the picker its "not paid by card" choice.
     """
     logger.info("Called 'export_lookups'")
 
-    for filename, values in ((INBOX_CATEGORIES_FILE_NAME, categories), (INBOX_PROFILES_FILE_NAME, profiles)):
+    exports = (
+        (INBOX_CATEGORIES_FILE_NAME, categories),
+        (INBOX_PROFILES_FILE_NAME, profiles),
+        (INBOX_CARDS_FILE_NAME, [INBOX_NO_CARD_CHOICE, *cards]),
+    )
+    for filename, values in exports:
         # a newline inside an entry would silently split it into two picker options
         lines = [value.replace("\n", " ").strip() for value in values if value.strip()]
         _write_lines(directory / filename, lines)
 
-    logger.debug(f"Exported {len(categories)} categories and {len(profiles)} profiles to '{directory}'.")
+    logger.debug(
+        f"Exported {len(categories)} categories, {len(profiles)} profiles and {len(cards)} cards to '{directory}'."
+    )
 
 
 def _parse_line(line: str) -> InboxEntry | None:
@@ -309,10 +324,27 @@ def _parse_line(line: str) -> InboxEntry | None:
             description=str(payload.get("description", "")),
             profile=str(payload.get("profile") or DEFAULT_PROFILE_NAME),
             raw=line,
+            paid_with=_parse_paid_with(payload.get("paid_with")),
         )
     except Exception:
         logger.debug(f"Discarding malformed inbox line: {line}", exc_info=True)
         return None
+
+
+def _parse_paid_with(value: Any) -> str | None:
+    """Reads the optional card an entry was paid with, treating a missing or blank one as no card.
+
+    `:const:INBOX_NO_CARD_CHOICE` (the picker's first option, see `export_lookups`) means no card
+    too, matched case-insensitively, so it never turns into a card nobody has.
+    """
+    if value is None:
+        return None
+
+    card = str(value).strip()
+    if not card or card.casefold() == INBOX_NO_CARD_CHOICE.casefold():
+        return None
+
+    return card
 
 
 def _load_payload(line: str) -> Any:

@@ -4,9 +4,9 @@ from logging import getLogger
 
 import flet as ft
 
+import database as db
 from _helpers import setup_logger
 from _helpers.constants import APP_DIRECTORY
-import database as db
 from ui.accounts import accounts_view
 from ui.expenses import expenses_view
 from ui.home import home_view

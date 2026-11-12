@@ -13,7 +13,8 @@ from plotting import (show_expenses_pie, show_expenses_summary,
                       show_expenses_trend)
 
 from .base_view import BaseCrudView
-from .common import DATE_PICKER_LOCALE, show_alert, show_confirm_dialog
+from .common import (DATE_PICKER_LOCALE, NO_CARD_KEY, NO_CARD_LABEL,
+                     show_alert, show_confirm_dialog, sync_filter_menu)
 
 logger = getLogger("financial_tracker")
 
@@ -62,8 +63,12 @@ class ExpensesView(BaseCrudView):
         # cost
         self.cost_text = ft.TextField(label="Cost (€)", width=120)
 
+        # credit card
+        self.card_names = [account.name for _, account in db.fetch_card_accounts(self.location)]
+        self.card_picker = ft.Dropdown(label="Paid with", options=self._card_options(), value=NO_CARD_KEY, width=180)
+
         # description
-        self.description_text = ft.TextField(label="Description", width=720, multiline=True)
+        self.description_text = ft.TextField(label="Description", width=500, multiline=True)
 
         # button
         self._build_add_button(self.add_new_expense)
@@ -83,7 +88,11 @@ class ExpensesView(BaseCrudView):
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
-                self.description_text,
+                ft.Row(
+                    controls=[self.description_text, ft.Container(width=20), self.card_picker],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                ),
                 ft.Row([self.add_button, self.clear_button], alignment=ft.MainAxisAlignment.CENTER),
             ],
             tight=True,
@@ -94,10 +103,11 @@ class ExpensesView(BaseCrudView):
         columns = db.Expense.get_table_columns()
         columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
         columns[0].on_sort = self.sort_columns
-        columns[4].on_sort = self.sort_columns
+        columns[5].on_sort = self.sort_columns
 
         columns[0].label.controls.append(self._build_month_filter_menu())  # type: ignore
         columns[2].label.controls.append(self._build_lookup_filter_menu(categories, "Filter category"))  # type: ignore
+        columns[4].label.controls.append(self._build_card_filter_menu())  # type: ignore
 
         self.data_table = self._build_data_table(columns)
         self.table_column = ft.Column(controls=[self.data_table], expand=True, scroll=ft.ScrollMode.AUTO)
@@ -221,6 +231,7 @@ class ExpensesView(BaseCrudView):
             category=self.category_picker.value,
             cost=cost,
             cost_expression=self.cost_text.value,
+            paid_with=None if self.card_picker.value == NO_CARD_KEY else self.card_picker.value,
         )
         logger.debug(f"Reconstructed expense:\n{expense}")
 
@@ -239,6 +250,7 @@ class ExpensesView(BaseCrudView):
         self.category_picker.value = None
         self.description_text.value = ""
         self.cost_text.value = ""
+        self.card_picker.value = NO_CARD_KEY
         logger.debug("Cleared expense data")
 
         self.date_options_dropdown.value = "day"
@@ -254,6 +266,7 @@ class ExpensesView(BaseCrudView):
             return
 
         db.add_item(self.location, expense)
+        db.sync_expense_accounts(self.location, expense)
         self.clear_inputs()
         self._set_form_expanded(False)
         self.refresh_table()
@@ -268,8 +281,11 @@ class ExpensesView(BaseCrudView):
             # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
             self._page.pop_dialog()
 
+            expense = db.fetch_by_id(self.location, db.WhichDb.EXPENSES, expense_id)
             success = db.remove_item(self.location, db.WhichDb.EXPENSES, expense_id)
-            if not success:
+            if success:
+                db.sync_expense_accounts(self.location, expense)
+            else:
                 show_alert(self._page, "Error deleting expense", f"It was not possible to delete expense {expense_id}")
 
             self.refresh_table()
@@ -293,7 +309,9 @@ class ExpensesView(BaseCrudView):
                 return
 
             success = db.edit_item(self.location, expense_id, old_expense, new_expense)
-            if not success:
+            if success:
+                db.sync_expense_accounts(self.location, old_expense, new_expense)
+            else:
                 show_alert(self._page, "Error modifying expense", f"It was not possible to modify expense {expense_id}")
 
             self.clear_inputs()
@@ -325,6 +343,7 @@ class ExpensesView(BaseCrudView):
             expense.cost_expression if expense.cost_expression is not None else format_amount(expense.cost)
         )
         self.description_text.value = expense.description
+        self.card_picker.value = self._card_key(expense.paid_with)
 
         if expense.day_end is not None:
             self.date_options_dropdown.value = "range"
@@ -337,10 +356,69 @@ class ExpensesView(BaseCrudView):
 
         self.update_date_text(e)
 
+    def _card_options(self) -> list[ft.DropdownOption]:
+        """Builds the "Paid with" options: "No card" first, then every card account of the year."""
+        return [ft.DropdownOption(key=NO_CARD_KEY, text=NO_CARD_LABEL)] + [
+            ft.DropdownOption(key=name, text=name) for name in self.card_names
+        ]
+
+    def _card_key(self, paid_with: str | None) -> str:
+        """Returns the "Paid with" picker key showing `paid_with`.
+
+        Card names match case-insensitively (as when computing a card's balance), so an expense
+        stored as "visa" still selects the "Visa" card instead of silently dropping it.
+        """
+        if paid_with is None:
+            return NO_CARD_KEY
+
+        for name in self.card_names:
+            if name.lower() == paid_with.lower():
+                return name
+
+        # not a card anymore - keep it selectable rather than losing it on save
+        self.card_names.append(paid_with)
+        self.card_picker.options = self._card_options()
+        return paid_with
+
+    def _build_card_filter_menu(self) -> ft.PopupMenuButton:
+        """Builds the "Paid with" column's filter popup menu: one entry per card, plus "No card"."""
+        self.current_card_filter: str | None = None
+        self.card_filter_menu = ft.PopupMenuButton(
+            icon=ft.Icons.FILTER_ALT,
+            icon_size=20,
+            padding=0,
+            menu_padding=0,
+            items=[ft.PopupMenuItem(name, data=name, on_click=self.filter_card) for name in self.card_names]
+            + [ft.PopupMenuItem(NO_CARD_LABEL, data=NO_CARD_KEY, on_click=self.filter_card)]
+            + [ft.PopupMenuItem()]
+            + [ft.PopupMenuItem("Clear Filter", data=None, on_click=self.filter_card)],
+        )
+        self._sync_card_filter_menu()
+        return self.card_filter_menu
+
+    def _sync_card_filter_menu(self) -> None:
+        """Re-styles the "Paid with" filter menu to reflect the active filter."""
+        label = NO_CARD_LABEL if self.current_card_filter == NO_CARD_KEY else self.current_card_filter
+        sync_filter_menu(self.card_filter_menu, label, ft.Colors.WHITE, "Filter card")
+
+    def filter_card(self, e: ft.Event) -> None:
+        """Filters the "Paid with" column."""
+        self.current_card_filter = e.control.data
+        self._sync_card_filter_menu()
+        self.refresh_table()
+
     def _fetch_rows(self) -> db.RowGenerator:
         """Fetches expenses matching the current sort and filters."""
         self._fee_expense_ids = db.fetch_fee_expense_ids(self.location)
-        return db.fetch_expenses(self.location, self.current_sort, self.current_month_filter, self.current_lookup_filter)
+        without_card = self.current_card_filter == NO_CARD_KEY
+        return db.fetch_expenses(
+            self.location,
+            self.current_sort,
+            self.current_month_filter,
+            self.current_lookup_filter,
+            paid_with=None if without_card else self.current_card_filter,
+            without_card=without_card,
+        )
 
     def _is_readonly(self, row_id: int) -> bool:
         """An expense generated from a transfer's fee is only editable from the Transfers page."""

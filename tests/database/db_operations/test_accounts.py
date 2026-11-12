@@ -6,29 +6,36 @@ import pytest
 
 from _helpers.constants import DEFAULT_PROFILE_NAME, SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
 from database.data_structures.account import Account, AccountKind
+from database.data_structures.expense import Expense
 from database.data_structures.transfer import Transfer
 from database.db_operations.accounts import (
+    count_card_expenses,
     delete_account,
     delete_balance,
     delete_previous_year_end_balance,
     fetch_account_balances,
     fetch_account_definitions,
     fetch_balances_by_kind,
+    fetch_card_accounts,
     fetch_net_worth_components,
     fetch_opening_balances_by_kind,
     fetch_previous_year_account_ids,
     fetch_previous_year_end_balances,
     fetch_previous_year_end_net_worth_components,
     get_or_create_debt_credit_account,
+    list_card_names_for_phone,
     recompute_account_balance,
     recompute_all_debt_credit_balances,
     save_account_opening_balance,
     save_balance,
     save_previous_year_end_balance,
     seed_accounts_for_new_year,
+    set_account_is_card,
+    sync_expense_accounts,
     sync_transfer_accounts,
 )
-from database.db_operations.generic import DbLocation, WhichDb, add_item, fetch_by_id, get_db_path, initialize_db
+from database.db_operations.generic import (DbLocation, WhichDb, add_item, edit_item, fetch_by_id, get_db_path,
+                                            initialize_db)
 
 YEAR = 2024
 PRIOR_YEAR = 2023
@@ -55,6 +62,31 @@ def make_transfer(**overrides: object) -> Transfer:
     }
     defaults.update(overrides)
     return Transfer(**defaults)
+
+
+def make_card_expense(**overrides: object) -> Expense:
+    """Builds an `:class:Expense` paid with the "Visa" card, overridden by `overrides`."""
+    defaults = {
+        "month": 1,
+        "day_start": 1,
+        "description": "test expense",
+        "category": "Food and drinks",
+        "cost": 30.0,
+        "paid_with": "Visa",
+    }
+    defaults.update(overrides)
+    return Expense(**defaults)
+
+
+def initialize_card_tables(location: DbLocation) -> None:
+    """Creates every table a card's balance is computed from (or written to) for `location`."""
+    for which in (WhichDb.ACCOUNTS, WhichDb.ACCOUNT_BALANCES, WhichDb.TRANSFERS, WhichDb.EXPENSES):
+        initialize_db(location, which)
+
+
+def add_card(location: DbLocation, name: str = "Visa", **overrides: object) -> int:
+    """Adds a credit-card account named `name` to `location`, returning its id."""
+    return add_item(location, make_account(name=name, kind=AccountKind.DEBT, is_card=True, **overrides))
 
 
 class TestFetchAccountDefinitions:
@@ -353,6 +385,25 @@ class TestDeleteAccount:
 
         assert delete_account(LOCATION, 999) is False
 
+    def test_refuses_to_delete_a_card_that_expenses_are_paid_with(self) -> None:
+        """A card still referenced by an expense's `paid_with` is kept, and the reason is raised."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense())
+
+        with pytest.raises(ValueError, match="1 expense is still paid with it"):
+            delete_account(LOCATION, card_id)
+
+        assert fetch_card_accounts(LOCATION) != []
+
+    def test_deletes_a_card_no_expense_is_paid_with(self) -> None:
+        """A card nothing references anymore can be deleted like any other account."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense(paid_with=None))
+
+        assert delete_account(LOCATION, card_id) is True
+
 
 class TestSeedAccountsForNewYear:
     """Tests for `seed_accounts_for_new_year`."""
@@ -431,6 +482,16 @@ class TestSeedAccountsForNewYear:
 
         copied = dict(fetch_account_definitions(LOCATION))
         assert next(iter(copied.values())).opening_balance == 0.0
+
+    def test_carries_over_the_card_flag(self) -> None:
+        """A credit card is still a credit card in the new year."""
+        initialize_card_tables(PRIOR_LOCATION)
+        add_card(PRIOR_LOCATION)
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+
+        seed_accounts_for_new_year(LOCATION)
+
+        assert [account.name for _, account in fetch_card_accounts(LOCATION)] == ["Visa"]
 
 
 class TestFetchPreviousYearAccountIds:
@@ -712,9 +773,10 @@ class TestRecomputeAccountBalance:
 
         recompute_account_balance(LOCATION, account_id)
 
-        # fetch the account, fetch its transfers, save the balances, look for next year's file
-        # (which doesn't exist, so it isn't opened)
-        assert len(opened) == 3
+        # fetch the account, fetch its transfers, fetch the expenses paid with it (a Debt account
+        # may be a card), save the balances, look for next year's file (which doesn't exist, so
+        # it isn't opened)
+        assert len(opened) == 4
 
     def test_leaves_other_accounts_balances_alone(self) -> None:
         """Only the recomputed account's rows are written."""
@@ -805,6 +867,71 @@ class TestRecomputeAccountBalance:
         next_account = fetch_by_id(next_location, WhichDb.ACCOUNTS, next_account_id)
         assert next_account.opening_balance == pytest.approx(100.0)
         assert fetch_account_balances(next_location)[(next_account_id, 1)] == pytest.approx(80.0)
+
+    def test_card_expenses_increase_the_balance(self) -> None:
+        """Every expense paid with a card adds its cost to what's owed, from its month on."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense(month=3, cost=30.0))
+        add_item(LOCATION, make_card_expense(month=3, cost=20.0))
+        add_item(LOCATION, make_card_expense(month=5, cost=10.0))
+
+        recompute_account_balance(LOCATION, card_id)
+
+        balances = fetch_account_balances(LOCATION)
+        assert balances[(card_id, 2)] == pytest.approx(0.0)
+        assert balances[(card_id, 3)] == pytest.approx(50.0)
+        assert balances[(card_id, 5)] == pytest.approx(60.0)
+
+    def test_a_repayment_transfer_offsets_card_expenses(self) -> None:
+        """A Debt transfer to the card (its monthly bill) brings the balance back down."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION, opening_balance=15.0)
+        add_item(LOCATION, make_card_expense(month=3, cost=50.0))
+        add_item(LOCATION, make_transfer(kind=SYSTEM_KIND_DEBT, source=None, destination="Visa", amount=65.0, month=4))
+
+        recompute_account_balance(LOCATION, card_id)
+
+        balances = fetch_account_balances(LOCATION)
+        assert balances[(card_id, 3)] == pytest.approx(65.0)
+        assert balances[(card_id, 4)] == pytest.approx(0.0)
+
+    def test_matches_card_expenses_case_insensitively(self) -> None:
+        """`paid_with` matches the card's name regardless of case, like transfer names do."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense(paid_with="VISA", cost=30.0))
+
+        recompute_account_balance(LOCATION, card_id)
+
+        assert fetch_account_balances(LOCATION)[(card_id, 1)] == pytest.approx(30.0)
+
+    def test_ignores_expenses_paid_with_another_card_or_not_by_card(self) -> None:
+        """Only the expenses naming this card count towards its balance."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_card(LOCATION, name="Amex")
+        add_item(LOCATION, make_card_expense(cost=30.0))
+        add_item(LOCATION, make_card_expense(paid_with="Amex", cost=500.0))
+        add_item(LOCATION, make_card_expense(paid_with=None, cost=700.0))
+
+        recompute_account_balance(LOCATION, card_id)
+
+        assert fetch_account_balances(LOCATION)[(card_id, 12)] == pytest.approx(30.0)
+
+    def test_cascades_a_december_card_expense_into_the_next_year(self) -> None:
+        """An unpaid December charge becomes next year's opening balance on the same card."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense(month=12, cost=40.0))
+        next_location = DbLocation(YEAR + 1)
+        initialize_card_tables(next_location)
+        next_card_id = add_card(next_location)
+
+        recompute_account_balance(LOCATION, card_id)
+
+        assert fetch_by_id(next_location, WhichDb.ACCOUNTS, next_card_id).opening_balance == pytest.approx(40.0)
+        assert fetch_account_balances(next_location)[(next_card_id, 1)] == pytest.approx(40.0)
 
     def test_does_not_cascade_when_the_next_year_has_no_matching_account(self) -> None:
         """A next year with no account of that name is left untouched."""
@@ -938,3 +1065,169 @@ class TestRecomputeAllDebtCreditBalances:
         created = recompute_all_debt_credit_balances()
 
         assert created == []
+
+    def test_recomputes_a_card_no_transfer_names_yet(self) -> None:
+        """A card with charges but no repayment yet is still rebuilt, not just transfer-named accounts."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense(month=2, cost=25.0))
+
+        recompute_all_debt_credit_balances()
+
+        assert fetch_account_balances(LOCATION)[(card_id, 2)] == pytest.approx(25.0)
+
+
+class TestFetchCardAccounts:
+    """Tests for `fetch_card_accounts`."""
+
+    def test_returns_only_the_accounts_flagged_as_cards(self) -> None:
+        """Other Debt accounts and other kinds are left out."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT))
+        add_item(LOCATION, make_account(name="Checking", kind=AccountKind.CASH))
+
+        cards = fetch_card_accounts(LOCATION)
+
+        assert [(account_id, account.name) for account_id, account in cards] == [(card_id, "Visa")]
+
+
+class TestCountCardExpenses:
+    """Tests for `count_card_expenses`."""
+
+    def test_counts_the_expenses_paid_with_the_card_case_insensitively(self) -> None:
+        """Every expense naming the card counts, whatever the case of its `paid_with`."""
+        initialize_card_tables(LOCATION)
+        add_item(LOCATION, make_card_expense(paid_with="Visa"))
+        add_item(LOCATION, make_card_expense(paid_with="visa"))
+        add_item(LOCATION, make_card_expense(paid_with="Amex"))
+        add_item(LOCATION, make_card_expense(paid_with=None))
+
+        assert count_card_expenses(LOCATION, "Visa") == 2
+
+    def test_returns_zero_when_the_year_has_no_expenses_table(self) -> None:
+        """A database without an `expenses` table simply has no card expenses."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+
+        assert count_card_expenses(LOCATION, "Visa") == 0
+
+
+class TestSetAccountIsCard:
+    """Tests for `set_account_is_card`."""
+
+    def test_marks_a_debt_account_as_a_card(self) -> None:
+        """A Debt account can be turned into a card after it was created."""
+        initialize_card_tables(LOCATION)
+        account_id = add_item(LOCATION, make_account(name="Visa", kind=AccountKind.DEBT))
+
+        set_account_is_card(LOCATION, account_id, True)
+
+        assert fetch_by_id(LOCATION, WhichDb.ACCOUNTS, account_id).is_card is True
+
+    def test_unmarks_a_card_no_expense_is_paid_with(self) -> None:
+        """An unused card can go back to being a plain Debt account."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+
+        set_account_is_card(LOCATION, card_id, False)
+
+        assert fetch_by_id(LOCATION, WhichDb.ACCOUNTS, card_id).is_card is False
+
+    def test_refuses_to_unmark_a_card_that_expenses_are_paid_with(self) -> None:
+        """A card still referenced by expenses keeps its flag, and the reason is raised."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        add_item(LOCATION, make_card_expense())
+        add_item(LOCATION, make_card_expense())
+
+        with pytest.raises(ValueError, match="2 expenses are still paid with it"):
+            set_account_is_card(LOCATION, card_id, False)
+
+        assert fetch_by_id(LOCATION, WhichDb.ACCOUNTS, card_id).is_card is True
+
+    def test_refuses_to_mark_a_non_debt_account_as_a_card(self) -> None:
+        """Only a Debt account can be a card."""
+        initialize_card_tables(LOCATION)
+        account_id = add_item(LOCATION, make_account(name="Checking", kind=AccountKind.CASH))
+
+        with pytest.raises(ValueError, match="Only a Debt account can be a credit card"):
+            set_account_is_card(LOCATION, account_id, True)
+
+
+class TestSyncExpenseAccounts:
+    """Tests for `sync_expense_accounts`."""
+
+    def test_recomputes_the_card_an_expense_was_paid_with(self) -> None:
+        """Syncing a newly added card expense brings the card's balance up to date."""
+        initialize_card_tables(LOCATION)
+        card_id = add_card(LOCATION)
+        expense = make_card_expense(month=4, cost=30.0)
+        add_item(LOCATION, expense)
+
+        sync_expense_accounts(LOCATION, expense)
+
+        assert fetch_account_balances(LOCATION)[(card_id, 4)] == pytest.approx(30.0)
+
+    def test_an_edit_moving_a_charge_between_cards_recomputes_both(self) -> None:
+        """Passing the old and new version clears the charge off the old card too."""
+        initialize_card_tables(LOCATION)
+        visa_id = add_card(LOCATION)
+        amex_id = add_card(LOCATION, name="Amex")
+        old_expense = make_card_expense(cost=30.0)
+        expense_id = add_item(LOCATION, old_expense)
+        sync_expense_accounts(LOCATION, old_expense)
+        new_expense = make_card_expense(cost=30.0, paid_with="Amex")
+        edit_item(LOCATION, expense_id, old_expense, new_expense)
+
+        sync_expense_accounts(LOCATION, old_expense, new_expense)
+
+        balances = fetch_account_balances(LOCATION)
+        assert balances[(visa_id, 1)] == pytest.approx(0.0)
+        assert balances[(amex_id, 1)] == pytest.approx(30.0)
+
+    def test_never_creates_an_account_for_an_unknown_card(self) -> None:
+        """Unlike a transfer, an expense naming no existing account doesn't create one."""
+        initialize_card_tables(LOCATION)
+
+        sync_expense_accounts(LOCATION, make_card_expense(paid_with="Ghost"), make_card_expense(paid_with=None))
+
+        assert fetch_account_definitions(LOCATION) == []
+
+
+class TestListCardNamesForPhone:
+    """Tests for `list_card_names_for_phone`."""
+
+    def test_uses_each_profile_s_most_recent_year(self) -> None:
+        """A card only defined in an older year doesn't show up."""
+        initialize_db(PRIOR_LOCATION, WhichDb.ACCOUNTS)
+        add_card(PRIOR_LOCATION, name="Old card")
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        add_card(LOCATION)
+
+        assert list_card_names_for_phone() == ["Visa"]
+
+    def test_falls_back_to_the_latest_year_that_has_accounts(self) -> None:
+        """A newest year with no accounts yet (e.g. created by a phone import) is skipped."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        add_card(LOCATION)
+        initialize_db(DbLocation(YEAR + 1), WhichDb.ACCOUNTS)
+
+        assert list_card_names_for_phone() == ["Visa"]
+
+    def test_merges_and_sorts_the_cards_of_every_profile(self) -> None:
+        """The phone's single picker offers every profile's cards, once each, sorted."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        add_card(LOCATION, name="Visa")
+        shared = DbLocation(YEAR, "Shared")
+        initialize_db(shared, WhichDb.ACCOUNTS)
+        add_card(shared, name="Amex")
+        add_card(shared, name="Visa")
+
+        assert list_card_names_for_phone() == ["Amex", "Visa"]
+
+    def test_returns_an_empty_list_when_there_are_no_cards(self) -> None:
+        """No card accounts anywhere means an empty picker, not an error."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+        add_item(LOCATION, make_account())
+
+        assert list_card_names_for_phone() == []

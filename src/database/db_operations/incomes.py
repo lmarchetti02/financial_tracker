@@ -48,8 +48,8 @@ def fetch_incomes(
             and the id of the incomes in the database.
     """
     logger.info("Called 'fetch_incomes'")
-    extra_filter = ("source", source) if source is not None else None
-    return fetch_rows(location, INCOME_DB_NAME, Income, sort=sort, month=month, extra_filter=extra_filter)
+    extra_filters = [("source", source)] if source is not None else None
+    return fetch_rows(location, INCOME_DB_NAME, Income, sort=sort, month=month, extra_filters=extra_filters)
 
 
 def fetch_source(location: DbLocation, source: str) -> np.ndarray:

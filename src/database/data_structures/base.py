@@ -32,7 +32,7 @@ def _convert_types(t: type) -> str:
 
     # build sqlite string
     sqlite_str = []
-    if t is int:
+    if t is int or t is bool:
         sqlite_str.append("INTEGER")
     elif t is float:
         sqlite_str.append("REAL")
@@ -109,7 +109,8 @@ class DataContainer(ABC):
             default = f.default.default if isinstance(f.default, FieldInfo) else f.default
             has_default = default is not MISSING and default is not PydanticUndefined
             if "NOT NULL" in column_def and has_default:
-                column_def += f" DEFAULT {default}"
+                # SQLite stores booleans as 0/1, so render them as such rather than as `True`/`False`
+                column_def += f" DEFAULT {int(default) if isinstance(default, bool) else default}"
 
             cursor.execute(f"ALTER TABLE {cls.db_name} ADD COLUMN {column_def}")
             logger.debug(f"Added missing column '{f.name}' to '{cls.db_name}'.")

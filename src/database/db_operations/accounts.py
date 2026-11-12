@@ -9,12 +9,13 @@ import numpy as np
 from _helpers.constants import (
     ACCOUNT_BALANCES_DB_NAME,
     ACCOUNTS_DB_NAME,
+    EXPENSES_DB_NAME,
     SYSTEM_KIND_CREDIT,
     SYSTEM_KIND_DEBT,
     TRANSFERS_DB_NAME,
 )
 
-from ..data_structures import Account, AccountBalance, AccountKind, Transfer
+from ..data_structures import Account, AccountBalance, AccountKind, Expense, Transfer
 from .generic import (
     DbLocation,
     WhichDb,
@@ -45,6 +46,78 @@ def fetch_account_definitions(location: DbLocation) -> list[tuple[int, Account]]
         rows = connection.execute(f"SELECT * FROM {ACCOUNTS_DB_NAME} ORDER BY kind, name").fetchall()
 
     return [(row[0], Account.init_from_tuple(row[1:])) for row in rows]
+
+
+def fetch_card_accounts(location: DbLocation) -> list[tuple[int, Account]]:
+    """Fetches every credit-card account defined for the year (Debt accounts with `is_card` set).
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the accounts in the database.
+
+    Returns:
+        list[tuple[int, Account]]: The id and the `:class:Account` of each card, ordered by name.
+    """
+    logger.info("Called 'fetch_card_accounts'")
+
+    return [(account_id, account) for account_id, account in fetch_account_definitions(location) if account.is_card]
+
+
+def count_card_expenses(location: DbLocation, account_name: str) -> int:
+    """Counts the expenses of the year paid with the card named `account_name` (case-insensitively).
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the expenses in the database.
+        account_name (str): The name of the card account.
+
+    Returns:
+        int: How many expenses reference the card through `:attr:Expense.paid_with`.
+    """
+    logger.info("Called 'count_card_expenses'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        try:
+            (count,) = connection.execute(
+                f"SELECT COUNT(*) FROM {EXPENSES_DB_NAME} WHERE LOWER(paid_with) = LOWER(?)", (account_name,)
+            ).fetchone()
+        except sq.OperationalError:
+            # this year's database has no `expenses` table (or one predating `paid_with`) yet
+            return 0
+
+    return count
+
+
+def _refuse_if_card_in_use(location: DbLocation, account: Account, action: str) -> None:
+    """Raises a `ValueError` if any expense of the year is still paid with `account`."""
+    count = count_card_expenses(location, account.name)
+    if count:
+        noun = "expense is" if count == 1 else "expenses are"
+        raise ValueError(
+            f"Cannot {action} '{account.name}': {count} {noun} still paid with it. "
+            "Change or clear their 'Paid with' first."
+        )
+
+
+def set_account_is_card(location: DbLocation, account_id: int, is_card: bool) -> None:
+    """Marks a Debt account as a credit card, or unmarks it.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the account in the database.
+        account_id (int): The id of the `:class:Account` to update.
+        is_card (bool): The new value of `:attr:Account.is_card`.
+
+    Raises:
+        ValueError: If the account isn't a Debt account, or if `is_card` is being turned off while
+            expenses of the year are still paid with the account.
+    """
+    logger.info("Called 'set_account_is_card'")
+
+    account = fetch_by_id(location, WhichDb.ACCOUNTS, account_id)
+    if account.is_card and not is_card:
+        _refuse_if_card_in_use(location, account, "unmark")
+
+    # `replace` re-runs the validator, which rejects `is_card` on a non-Debt account
+    edit_item(location, account_id, account, replace(account, is_card=is_card))
+    logger.debug(f"Set is_card={is_card} on account {account_id} ('{account.name}').")
 
 
 def fetch_account_balances(location: DbLocation) -> dict[tuple[int, int], float]:
@@ -275,8 +348,16 @@ def delete_account(location: DbLocation, account_id: int) -> bool:
 
     Returns:
         bool: `True` if the account was found and deleted, `False` otherwise.
+
+    Raises:
+        ValueError: If the account is a credit card that expenses of the year are still paid with.
     """
     logger.info("Called 'delete_account'")
+
+    # looked up by hand rather than via `fetch_by_id`, which raises for a missing id
+    account = dict(fetch_account_definitions(location)).get(account_id)
+    if account is not None and account.is_card:
+        _refuse_if_card_in_use(location, account, "delete")
 
     with sq.connect(get_db_path(location)) as connection:
         connection.execute(f"DELETE FROM {ACCOUNT_BALANCES_DB_NAME} WHERE account_id = ?", (account_id,))
@@ -327,7 +408,7 @@ def seed_accounts_for_new_year(location: DbLocation) -> None:
         opening_balance = 0.0
         if account.kind in (AccountKind.DEBT, AccountKind.CREDIT):
             opening_balance = prior_balances.get((prior_id, 12), 0.0)
-        add_item(location, Account(name=account.name, kind=account.kind, opening_balance=opening_balance))
+        add_item(location, replace(account, opening_balance=opening_balance))
 
     logger.debug(f"Seeded accounts for {location.year} from {latest_year}.")
 
@@ -518,6 +599,20 @@ def _fetch_debt_credit_transfers(location: DbLocation, kind_label: str, account_
     return [Transfer.init_from_tuple(row[1:]) for row in rows]
 
 
+def _fetch_card_expenses(location: DbLocation, account_name: str) -> list[Expense]:
+    """Fetches every expense paid with the card named `account_name` (case-insensitively)."""
+    with sq.connect(get_db_path(location)) as connection:
+        try:
+            rows = connection.execute(
+                f"SELECT * FROM {EXPENSES_DB_NAME} WHERE LOWER(paid_with) = LOWER(?)", (account_name,)
+            ).fetchall()
+        except sq.OperationalError:
+            # this year's database has no `expenses` table (or one predating `paid_with`) yet
+            return []
+
+    return [Expense.init_from_tuple(row[1:]) for row in rows]
+
+
 def _signed_delta(transfer: Transfer, account_name: str, kind: AccountKind) -> float:
     """Returns the signed effect of `transfer` on `account_name`'s balance.
 
@@ -539,9 +634,10 @@ def _signed_delta(transfer: Transfer, account_name: str, kind: AccountKind) -> f
 def recompute_account_balance(location: DbLocation, account_id: int) -> None:
     """Rebuilds every monthly balance of a Debt/Credit account from its linked transfers.
 
-    Replays every Debt/Credit transfer naming this account, starting from its own
-    `:attr:Account.opening_balance`, and overwrites the account's balance for every month of
-    `location.year`. A no-op for any account whose kind isn't `:enum:AccountKind.DEBT`/`.CREDIT`.
+    Replays every Debt/Credit transfer naming this account - plus, for a Debt account, every
+    expense paid with it (see `:attr:Expense.paid_with`), each one raising the amount owed - starting
+    from its own `:attr:Account.opening_balance`, and overwrites the account's balance for every
+    month of `location.year`. A no-op for any account whose kind isn't `:enum:AccountKind.DEBT`/`.CREDIT`.
     Never reads another year's data to compute `location.year`'s own balances - the opening balance
     is always `location.year`'s own field, immune to another year's recompute. It does, however,
     propagate its resulting December balance forward into next year's matching account's
@@ -568,6 +664,9 @@ def recompute_account_balance(location: DbLocation, account_id: int) -> None:
         deltas_by_month[transfer.month] = deltas_by_month.get(transfer.month, 0.0) + _signed_delta(
             transfer, account.name, account.kind
         )
+    if account.kind is AccountKind.DEBT:
+        for expense in _fetch_card_expenses(location, account.name):
+            deltas_by_month[expense.month] = deltas_by_month.get(expense.month, 0.0) + expense.cost
 
     running = account.opening_balance
     balances: dict[int, float] = {}
@@ -651,6 +750,28 @@ def sync_transfer_accounts(location: DbLocation, transfer: Transfer) -> list[str
     return created_names
 
 
+def sync_expense_accounts(location: DbLocation, *expenses: Expense) -> None:
+    """Recomputes the balance of every credit card the given expenses were paid with.
+
+    Unlike `sync_transfer_accounts`, this never creates an account: a card has to exist before an
+    expense can be paid with it, so a `paid_with` naming no account of the year is skipped.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile the expenses belong to.
+        *expenses (Expense): The expenses to sync. Pass both the old and the new version of an
+            edited expense, so a card it no longer uses gets recomputed too.
+    """
+    logger.info("Called 'sync_expense_accounts'")
+
+    names = {expense.paid_with.lower() for expense in expenses if expense.paid_with is not None}
+    if not names:
+        return
+
+    for account_id, account in fetch_account_definitions(location):
+        if account.name.lower() in names:
+            recompute_account_balance(location, account_id)
+
+
 def recompute_all_debt_credit_balances() -> list[tuple[int, str, str]]:
     """Rebuilds every Debt/Credit account's balances, across every year and profile, from scratch.
 
@@ -690,6 +811,35 @@ def recompute_all_debt_credit_balances() -> list[tuple[int, str, str]]:
                     created.append((year, profile, name))
                 recompute_account_balance(location, account_id)
 
+        # a card nobody has repaid yet is named by no transfer, so the loop above misses it
+        for account_id, _ in fetch_card_accounts(location):
+            recompute_account_balance(location, account_id)
+
     logger.debug("Recomputed every Debt/Credit account's balances across all years and profiles.")
 
     return created
+
+
+def list_card_names_for_phone() -> list[str]:
+    """Lists the credit cards the phone's Shortcut should offer, across every profile.
+
+    Uses each profile's most recent year that has any accounts, since that's where expenses are being
+    captured now - a card closed years ago shouldn't keep showing up in the picker.
+
+    Returns:
+        list[str]: The distinct card names, sorted.
+    """
+    logger.info("Called 'list_card_names_for_phone'")
+
+    newest_year_by_profile: dict[str, int] = {}
+    for year, profile in list_year_profile_pairs():
+        newest_year_by_profile[profile] = max(year, newest_year_by_profile.get(profile, year))
+
+    names: set[str] = set()
+    for profile, newest_year in newest_year_by_profile.items():
+        # `+ 1` so the newest year itself is a candidate too
+        year = _find_latest_year_with_accounts(newest_year + 1, profile)
+        if year is not None:
+            names.update(account.name for _, account in fetch_card_accounts(DbLocation(year, profile)))
+
+    return sorted(names)

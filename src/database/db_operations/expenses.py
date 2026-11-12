@@ -20,7 +20,7 @@ class ExpensesSortingConfig(SortingConfig):
     """Defines how the expenses are to be sorted."""
 
     def __post_init__(self) -> None:  # noqa: D105
-        self._resolve({0: "month, day_start", 4: "cost"})
+        self._resolve({0: "month, day_start", 5: "cost"})
 
 
 type ESC = ExpensesSortingConfig
@@ -31,6 +31,8 @@ def fetch_expenses(
     sort: ESC | None = None,
     month: int | None = None,
     category: str | None = None,
+    paid_with: str | None = None,
+    without_card: bool = False,
 ) -> RowGenerator:
     """Fetches all the expenses.
 
@@ -42,14 +44,23 @@ def fetch_expenses(
             Defaults to `None`.
         category (str | None): The category to filter the table by.
             Defaults to `None`.
+        paid_with (str | None): The credit card to filter the table by. Defaults to `None`.
+        without_card (bool): If `True`, only keeps the expenses not paid by card. Takes precedence
+            over `paid_with`. Defaults to `False`.
 
     Returns:
         Generator[tuple[int, list[DataCell]], None, None]: The generator that yields the rows
             and the id of the expense in the database.
     """
     logger.info("Called 'fetch_expenses'")
-    extra_filter = ("category", category) if category is not None else None
-    return fetch_rows(location, EXPENSES_DB_NAME, Expense, sort=sort, month=month, extra_filter=extra_filter)
+    extra_filters: list[tuple[str, str | None]] = []
+    if category is not None:
+        extra_filters.append(("category", category))
+    if without_card:
+        extra_filters.append(("paid_with", None))
+    elif paid_with is not None:
+        extra_filters.append(("paid_with", paid_with))
+    return fetch_rows(location, EXPENSES_DB_NAME, Expense, sort=sort, month=month, extra_filters=extra_filters)
 
 
 def fetch_category(location: DbLocation, category: str) -> np.ndarray:

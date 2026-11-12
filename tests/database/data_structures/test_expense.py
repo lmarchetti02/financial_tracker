@@ -68,13 +68,17 @@ class TestExpense:
 
         assert expense.cost_expression == "10+3-2"
 
+    def test_paid_with_defaults_to_none(self) -> None:
+        """An expense isn't paid by card unless `paid_with` is given."""
+        assert make_expense().paid_with is None
+
 
 class TestGetTableColumns:
     """Tests for `Expense.get_table_columns`."""
 
     def test_returns_one_column_per_displayed_field(self) -> None:
-        """The table has one column each for month, day, description, category and cost."""
-        assert len(Expense.get_table_columns()) == 5
+        """The table has one column each for month, day, category, description, card and cost."""
+        assert len(Expense.get_table_columns()) == 6
 
 
 class TestGetTableRow:
@@ -89,6 +93,7 @@ class TestGetTableRow:
             "description": "groceries",
             "category": "Food and drinks",
             "cost": 25.5,
+            "paid_with": None,
         }
 
         cells = Expense.get_table_row(row)
@@ -97,7 +102,8 @@ class TestGetTableRow:
         assert cells[1].content.content.value == "10"
         assert cells[2].content.value == "Food and drinks"
         assert cells[3].content.value == "groceries"
-        assert cells[4].content.value == "25,50"
+        assert cells[4].content.value == "—"
+        assert cells[5].content.value == "25,50"
 
     def test_formats_a_multi_day_expense_as_a_range(self) -> None:
         """A multi-day row shows the days as a `start-end` range."""
@@ -108,8 +114,25 @@ class TestGetTableRow:
             "description": "trip",
             "category": "Travel",
             "cost": 100.0,
+            "paid_with": None,
         }
 
         cells = Expense.get_table_row(row)
 
         assert cells[1].content.content.value == "10-12"
+
+    def test_shows_the_card_an_expense_was_paid_with(self) -> None:
+        """A card expense shows the card's name in the "Paid with" column."""
+        row = {
+            "month": 6,
+            "day_start": 10,
+            "day_end": None,
+            "description": "groceries",
+            "category": "Food and drinks",
+            "cost": 25.5,
+            "paid_with": "Visa",
+        }
+
+        cells = Expense.get_table_row(row)
+
+        assert cells[4].content.value == "Visa"

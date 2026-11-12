@@ -3,10 +3,11 @@
 from enum import Enum, auto
 from logging import getLogger
 from sqlite3 import Row
+from typing import Self
 
 import flet as ft
 from flet_datatable2 import DataColumn2, DataColumnSize
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import ACCOUNT_BALANCES_DB_NAME, ACCOUNTS_DB_NAME
@@ -51,13 +52,29 @@ class Account(DataContainer):
             whose monthly balances are computed from linked transfers rather than typed in by
             hand — this is the one manually-set starting point that computation builds on top of.
             Defaults to 0.0.
+        is_card (bool): Whether this account is a credit card, i.e. an `:enum:AccountKind.DEBT`
+            account that expenses can be paid with (see `:attr:Expense.paid_with`), each one
+            raising its computed balance. Only allowed on Debt accounts. Defaults to `False`.
     """
 
     db_name = ACCOUNTS_DB_NAME
 
     name: str
     kind: AccountKind
+    # These must stay in declaration order, with new fields appended last: `add_missing_columns`
+    # always appends new columns to the physical end of an already-existing table, so a field
+    # declared anywhere else here would desync `init_from_tuple`'s positional zip for any accounts
+    # table that predates it.
     opening_balance: float = 0.0
+    is_card: bool = False
+
+    @model_validator(mode="after")
+    def card_is_debt(self) -> Self:
+        """Validates that only a Debt account can be a credit card."""
+        if self.is_card and self.kind is not AccountKind.DEBT:
+            raise ValueError("Only a Debt account can be a credit card.")
+
+        return self
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102

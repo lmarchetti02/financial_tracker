@@ -46,8 +46,8 @@ def fetch_transfers(
             and the id of the transfers in the database.
     """
     logger.info("Called 'fetch_transfers'")
-    extra_filter = ("kind", kind) if kind is not None else None
-    return fetch_rows(location, TRANSFERS_DB_NAME, Transfer, sort=sort, month=month, extra_filter=extra_filter)
+    extra_filters = [("kind", kind)] if kind is not None else None
+    return fetch_rows(location, TRANSFERS_DB_NAME, Transfer, sort=sort, month=month, extra_filters=extra_filters)
 
 
 def fetch_fee_expense_ids(location: DbLocation) -> set[int]:

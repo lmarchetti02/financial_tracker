@@ -24,6 +24,7 @@ from .db_operations import WhichDb as WhichDb
 from .db_operations import add_item as add_item
 from .db_operations import add_lookup_option as add_lookup_option
 from .db_operations import clear_app_password as clear_app_password
+from .db_operations import count_card_expenses as count_card_expenses
 from .db_operations import compute_holding_value as compute_holding_value
 from .db_operations import delete_account as delete_account
 from .db_operations import delete_balance as delete_balance
@@ -35,6 +36,7 @@ from .db_operations import fetch_account_balances as fetch_account_balances
 from .db_operations import fetch_account_definitions as fetch_account_definitions
 from .db_operations import fetch_balances_by_kind as fetch_balances_by_kind
 from .db_operations import fetch_by_id as fetch_by_id
+from .db_operations import fetch_card_accounts as fetch_card_accounts
 from .db_operations import fetch_categories as fetch_categories
 from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_category_totals as fetch_category_totals
@@ -64,6 +66,7 @@ from .db_operations import initialize_db as initialize_db
 from .db_operations import is_expired as is_expired
 from .db_operations import is_fixed_term as is_fixed_term
 from .db_operations import is_password_set as is_password_set
+from .db_operations import list_card_names_for_phone as list_card_names_for_phone
 from .db_operations import list_profiles as list_profiles
 from .db_operations import list_year_profile_pairs as list_year_profile_pairs
 from .db_operations import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
@@ -76,8 +79,10 @@ from .db_operations import save_kind_targets as save_kind_targets
 from .db_operations import save_previous_year_end_balance as save_previous_year_end_balance
 from .db_operations import save_region_allocations as save_region_allocations
 from .db_operations import seed_accounts_for_new_year as seed_accounts_for_new_year
+from .db_operations import set_account_is_card as set_account_is_card
 from .db_operations import set_app_password as set_app_password
 from .db_operations import set_last_selection as set_last_selection
 from .db_operations import set_theme_preference as set_theme_preference
+from .db_operations import sync_expense_accounts as sync_expense_accounts
 from .db_operations import sync_transfer_accounts as sync_transfer_accounts
 from .db_operations import verify_app_password as verify_app_password

@@ -150,13 +150,35 @@ class TestFetchRows:
 
         assert [row_id for row_id, _ in results] == [2]
 
-    def test_filters_by_extra_filter(self) -> None:
-        """`extra_filter` restricts rows to those matching the given column/value pair."""
+    def test_filters_by_extra_filters(self) -> None:
+        """`extra_filters` restricts rows to those matching the given column/value pair."""
         initialize_db(LOCATION, WhichDb.EXPENSES)
         add_item(LOCATION, make_expense(category="Food and drinks"))
         add_item(LOCATION, make_expense(category="Travel"))
 
-        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, extra_filter=("category", "Travel")))
+        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, extra_filters=[("category", "Travel")]))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_combines_several_extra_filters(self) -> None:
+        """Every pair in `extra_filters` must match for a row to be yielded."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Travel", paid_with="Visa"))
+        add_item(LOCATION, make_expense(category="Travel", paid_with="Amex"))
+        add_item(LOCATION, make_expense(category="Food and drinks", paid_with="Visa"))
+
+        filters = [("category", "Travel"), ("paid_with", "Visa")]
+        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, extra_filters=filters))
+
+        assert [row_id for row_id, _ in results] == [1]
+
+    def test_a_none_filter_value_matches_null(self) -> None:
+        """A `None` value in `extra_filters` keeps the rows whose column is NULL."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(paid_with="Visa"))
+        add_item(LOCATION, make_expense())
+
+        results = list(fetch_rows(LOCATION, EXPENSES_DB_NAME, Expense, extra_filters=[("paid_with", None)]))
 
         assert [row_id for row_id, _ in results] == [2]
 

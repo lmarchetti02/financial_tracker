@@ -35,6 +35,9 @@ class Expense(DataContainer):
         cost_expression (str | None): The raw text (a number or an arithmetic expression) the
             user typed into the cost field, redisplayed when editing the expense. `None` for
             rows created before this field existed. Defaults to `None`.
+        paid_with (str | None): The name of the credit-card `:class:Account` (an
+            `:enum:AccountKind.DEBT` account with `is_card` set) this expense was paid with, whose
+            computed balance it raises. `None` when it wasn't paid by card. Defaults to `None`.
     """
 
     db_name = EXPENSES_DB_NAME
@@ -45,7 +48,11 @@ class Expense(DataContainer):
     description: str
     category: str
     cost: float = Field(gt=0.0)
+    # These must stay declared last, in this order: `add_missing_columns` always appends new
+    # columns to the physical end of an already-existing table, so a field declared anywhere else
+    # here would desync `init_from_tuple`'s positional zip for any expenses table that predates it.
     cost_expression: str | None = None
+    paid_with: str | None = None
 
     @model_validator(mode="after")
     def valid_day_end(self) -> Self:
@@ -64,6 +71,7 @@ class Expense(DataContainer):
             DataColumn2(label=ft.Container(ft.Text("D"), alignment=ft.Alignment.CENTER), fixed_width=100),
             DataColumn2(label=ft.Row(controls=[ft.Text("Category")], tight=True, spacing=5), fixed_width=200),
             DataColumn2(label=ft.Text("Description"), size=DataColumnSize.S),
+            DataColumn2(label=ft.Row(controls=[ft.Text("Paid with")], tight=True, spacing=5), fixed_width=150),
             DataColumn2(label=ft.Text("Cost (€)"), numeric=True, fixed_width=100),
         ]
 
@@ -78,5 +86,6 @@ class Expense(DataContainer):
             ft.DataCell(ft.Container(ft.Text(days), alignment=ft.Alignment.CENTER)),
             ft.DataCell(ft.Text(str(row["category"]))),
             ft.DataCell(ft.Text(str(row["description"]))),
+            ft.DataCell(ft.Text(row["paid_with"] if row["paid_with"] is not None else "—")),
             ft.DataCell(ft.Text(format_amount(row["cost"]))),
         ]

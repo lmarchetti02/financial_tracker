@@ -7,12 +7,19 @@ import flet as ft
 from flet_datatable2 import DataColumn2, DataTable2
 
 import database as db
+from _helpers.constants import INBOX_NO_CARD_CHOICE
 
 FILTER_ACTIVE_COLOR = ft.Colors.AMBER_700
 
 # Flet's date pickers have no first-day-of-week option: Flutter takes it from the locale, and the
 # app's default `en_US` starts weeks on Sunday. `en_GB` keeps English labels but starts on Monday.
 DATE_PICKER_LOCALE = ft.Locale("en", "GB")
+
+# key of the "not paid by card" choice in every "Paid with" picker and filter; prefixed with a
+# control character so it can't collide with a real account name
+NO_CARD_KEY = "\x00no-card"
+# the same label the phone's "Paid with" picker shows for it
+NO_CARD_LABEL = INBOX_NO_CARD_CHOICE
 
 
 def sync_filter_menu(

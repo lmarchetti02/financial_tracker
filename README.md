@@ -31,10 +31,11 @@ iCloud Drive/Financial Tracker/
   rejected.jsonl    unreadable or discarded entries (last 1000 lines)
   categories.txt    written by the app - one category per line, the Shortcut's picker
   profiles.txt      written by the app - one profile per line
+  cards.txt         written by the app - "No card", then one credit card per line
 ```
 
-Run the app once first. It creates that folder, writes `categories.txt` / `profiles.txt` for
-the Shortcut's pickers, and seeds an empty `inbox.jsonl` - the Shortcut appends by reading that
+Run the app once first. It creates that folder, writes `categories.txt` / `profiles.txt` /
+`cards.txt` for the Shortcut's pickers, and seeds an empty `inbox.jsonl` - the Shortcut appends by reading that
 file and saving it back, so it has to exist before the first run.
 
 This needs iCloud Drive to actually be enabled (**System Settings → Apple Account → iCloud →
@@ -43,8 +44,8 @@ that never syncs, and says so in the log.
 
 ### Building the Shortcut
 
-Both pickers are read out of the app, so neither the category list nor the profile list ever has
-to be kept in step by hand. In the Shortcuts app, tap **+** and add these in order.
+All three pickers are read out of the app, so neither the category, the profile nor the card list
+ever has to be kept in step by hand. In the Shortcuts app, tap **+** and add these in order.
 
 **Category picker**
 
@@ -80,13 +81,23 @@ to be kept in step by hand. In the Shortcuts app, tap **+** and add these in ord
     imported on the Friday would land in your books dated Friday. Sending the date is what makes
     it safe to let the inbox sit for a few days.
 
+**Card picker**
+
+17. **Get File** - same settings, *File Path* `/Financial Tracker/cards.txt`
+18. **Get Text from Input** - the file from step 17
+19. **Split Text** - *Separator* **New Lines**
+20. **Choose from List** - prompt `Paid with`
+21. **Set Variable** - name it `Card`, value **Chosen Item**
+
+    The first entry is always **No card**, for anything not paid by credit card.
+
 **Write the line**
 
-17. **Text** - paste this, replacing each `<...>` with the variable of that name from the
+22. **Text** - paste this, replacing each `<...>` with the variable of that name from the
     suggestion bar:
 
     ```
-    {"amount":"<Amt>","category":"<Cat>","description":"<Desc>","profile":"<Prof>","date":"<Day>"}
+    {"amount":"<Amt>","category":"<Cat>","description":"<Desc>","profile":"<Prof>","date":"<Day>","paid_with":"<Card>"}
     ```
 
     Keep the quotes exactly as shown, **including the ones around `<Amt>` and `<Day>`**. The
@@ -95,28 +106,28 @@ to be kept in step by hand. In the Shortcuts app, tap **+** and add these in ord
     outright. Quoted, the amount is read with the same convention as every amount field in the
     app: `,` for decimals, `.` for thousands.
 
-18. **Append to Text File** - *Service* **iCloud Drive**, *File Path*
+23. **Append to Text File** - *Service* **iCloud Drive**, *File Path*
     `/Financial Tracker/inbox.jsonl`, **Make New Line** on
 
 Name it something short ("Log expense"), then add it to your Home Screen or run it with Siri.
 
 Notes on the actions:
 
-- **The five `Set Variable` steps are the point of this layout.** Two **Choose from List**
-  actions both output a variable called *Chosen Item*, and two **Ask for Input** actions both
+- **The six `Set Variable` steps are the point of this layout.** Three **Choose from List**
+  actions all output a variable called *Chosen Item*, and two **Ask for Input** actions both
   output *Provided Input* - so without distinct names it is very easy for the Text action to
-  pick up the wrong one and file every expense under the wrong category or profile. Naming them
-  makes step 17 unambiguous. (If you'd rather keep it to 13 actions, you can instead tap each
-  magic variable in step 17 and rename it there, but it's fiddlier to get right.)
+  pick up the wrong one and file every expense under the wrong category, profile or card. Naming
+  them makes step 22 unambiguous. (If you'd rather keep it to fewer actions, you can instead tap
+  each magic variable in step 22 and rename it there, but it's fiddlier to get right.)
 - Steps 2-3 are the dependable way to turn a file into a picker: **Split Text** by new lines
   produces a plain list, which is why the app exports these as line-per-entry text rather than
   JSON. Do not use **Get Dictionary from Input** - it builds a dictionary, and **Choose from
   List** then shows keys with value previews instead of a flat list of names.
 - File paths in **Get File** and **Append to Text File** are relative to the **iCloud Drive
   root**, so `/Financial Tracker/...` is the folder this app creates.
-- Run the Mac app once before building this, so both `.txt` files exist.
-- Add or rename a category or create a new profile, and the pickers follow on the app's next
-  launch with nothing to change on the phone.
+- Run the Mac app once before building this, so all three `.txt` files exist.
+- Add or rename a category, create a new profile or mark an account as a credit card, and the
+  pickers follow on the app's next launch with nothing to change on the phone.
 - The date comes from the phone at capture time, not from the Mac at import time - see step 15.
   `22 Sep 2026 at 11:16` is the display style your phone will send, and it reads fine; the
   trailing clock time is dropped, since an expense is dated to a day rather than a moment.
@@ -147,12 +158,35 @@ Notes on the actions:
 - Quoting the amount, as the Shortcut above does, is what makes a comma-decimal phone work. If
   an amount does slip through unquoted (`"amount":58,7`), the app quotes it and reads it as
   `58,7` rather than rejecting the line - but the quotes in the Shortcut are the real fix.
+- `paid_with` is optional: the name of a credit-card account (see *Credit cards* below). Missing,
+  blank or `"No card"` means it wasn't paid by card. The review dialog checks it against the cards
+  of the entry's target year and profile, and blocks the import until an unknown card is changed
+  to a real one or to *No card*. A card only exists in a year once that year has been opened in
+  the app (opening it copies the previous year's accounts), so log a January card expense from the
+  phone only after opening the new year once.
 - `description` is optional. `type` is optional too, and reserved for future entry kinds;
   if present, anything other than `"expense"` is ignored.
 - A line the app can't read is moved to `rejected.jsonl` rather than being retried forever.
   An entry you *skip* in the review dialog stays in `inbox.jsonl` and comes back next launch -
   only importing or explicitly discarding it removes it.
 - Entries can also be reviewed on demand from **Settings → Maintenance → Import from iPhone**.
+
+## Credit cards
+
+A credit card is a **Debt** account marked as a credit card: tick *Credit card* when adding it
+in **Accounts**, or click the card icon on an existing Debt account's tile. Its monthly balance is
+computed, never typed in:
+
+- every expense with **Paid with** set to the card adds its cost to what you owe, from that
+  expense's month on;
+- paying the bill is a **Transfer** of kind *Debt* with the card as **destination** and the
+  **source left empty**, which brings the balance back down. (Don't put your checking account in
+  the source: a Debt transfer treats every name in it as a Debt account too.)
+
+A refund is logged by lowering or deleting the original expense. The card's December balance
+carries over into next year's opening balance, as with any Debt account, and **Settings →
+Maintenance → Recompute Debt/Credit Balances** rebuilds cards too. A card can't be deleted, or
+unmarked, while that year still has expenses paid with it.
 
 ## App password
 

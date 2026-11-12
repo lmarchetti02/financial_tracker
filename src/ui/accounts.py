@@ -53,7 +53,11 @@ class AccountsView(ft.Column):
     def _init_controls(self) -> None:
         """Instantiates all Flet controls used in the view."""
         self.name_text = ft.TextField(label="Account name", width=250)
-        self.kind_dropdown = ft.Dropdown(label="Kind", options=_KIND_OPTIONS, width=200)
+        self.kind_dropdown = ft.Dropdown(
+            label="Kind", options=_KIND_OPTIONS, width=200, on_text_change=self.update_card_checkbox
+        )
+        # only a Debt account can be a credit card, so this is enabled for that kind alone
+        self.card_checkbox = ft.Checkbox(label="Credit card", value=False, disabled=True)
         self.add_account_button = ft.Button("Add account", on_click=self.add_account)
 
         self.accounts_grid = ft.Row(
@@ -85,7 +89,7 @@ class AccountsView(ft.Column):
             ft.Container(height=20),
             ft.Text("Accounts", size=20, weight=ft.FontWeight.BOLD),
             ft.Row(
-                controls=[self.name_text, self.kind_dropdown, self.add_account_button],
+                controls=[self.name_text, self.kind_dropdown, self.card_checkbox, self.add_account_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             self.accounts_grid,
@@ -109,12 +113,36 @@ class AccountsView(ft.Column):
             show_alert(self._page, "Duplicate account", f"An account named '{name}' already exists.")
             return
 
-        account = db.Account(name=name, kind=db.AccountKind(int(self.kind_dropdown.value)))
+        kind = db.AccountKind(int(self.kind_dropdown.value))
+        account = db.Account(name=name, kind=kind, is_card=kind is db.AccountKind.DEBT and bool(self.card_checkbox.value))
         db.add_item(self.location, account)
         logger.debug(f"Added account:\n{account}")
 
         self.name_text.value = ""
         self.kind_dropdown.value = None
+        self.card_checkbox.value = False
+        self.card_checkbox.disabled = True
+        self.refresh()
+
+    def update_card_checkbox(self, _: ft.Event) -> None:
+        """Enables the "Credit card" checkbox only while the chosen kind is Debt."""
+        is_debt = self.kind_dropdown.value == str(db.AccountKind.DEBT.value)
+        self.card_checkbox.disabled = not is_debt
+        if not is_debt:
+            self.card_checkbox.value = False
+        self._page.update()
+
+    def toggle_card(self, e: ft.Event) -> None:
+        """Marks a Debt account as a credit card, or unmarks it."""
+        logger.info("Called 'toggle_card'")
+        account_id, is_card = e.control.data
+
+        try:
+            db.set_account_is_card(self.location, account_id, not is_card)
+        except ValueError as error:
+            show_alert(self._page, "Cannot change account", str(error))
+            return
+
         self.refresh()
 
     def delete_account(self, e: ft.Event) -> None:
@@ -124,8 +152,13 @@ class AccountsView(ft.Column):
 
         def delete(_: ft.Event) -> None:
             """Actually deletes the account."""
-            db.delete_account(self.location, account_id)
+            # close this dialog first: `pop_dialog` closes the most recent one, which would be the alert
             self._page.pop_dialog()
+            try:
+                db.delete_account(self.location, account_id)
+            except ValueError as error:
+                show_alert(self._page, "Cannot delete account", str(error))
+                return
             self.refresh()
 
         show_confirm_dialog(
@@ -251,6 +284,21 @@ class AccountsView(ft.Column):
                 data=account_id,
                 on_click=self.delete_account,
             )
+            buttons: list[ft.Control] = [delete_button]
+            if account.kind is db.AccountKind.DEBT:
+                buttons.insert(
+                    0,
+                    ft.IconButton(
+                        icon=ft.Icons.CREDIT_CARD_OFF_OUTLINED,
+                        selected_icon=ft.Icons.CREDIT_CARD,
+                        selected=account.is_card,
+                        icon_color=kind_color,
+                        tooltip="Credit card: click to unmark" if account.is_card else "Mark as credit card",
+                        data=(account_id, account.is_card),
+                        on_click=self.toggle_card,
+                    ),
+                )
+            kind_label = enum_label(account.kind) + (" · Credit card" if account.is_card else "")
             tiles.append(
                 ft.Container(
                     width=_TILE_WIDTH,
@@ -266,10 +314,10 @@ class AccountsView(ft.Column):
                                 tight=True,
                                 controls=[
                                     ft.Text(account.name, weight=ft.FontWeight.BOLD),
-                                    ft.Text(enum_label(account.kind), size=12, color=kind_color),
+                                    ft.Text(kind_label, size=12, color=kind_color),
                                 ],
                             ),
-                            delete_button,
+                            ft.Row(controls=buttons, spacing=0, tight=True),
                         ],
                     ),
                 )

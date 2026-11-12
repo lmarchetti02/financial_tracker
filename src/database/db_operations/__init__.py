@@ -1,19 +1,24 @@
 """Implementation of the database operations."""
 
+from .accounts import count_card_expenses as count_card_expenses
 from .accounts import delete_account as delete_account
 from .accounts import delete_balance as delete_balance
 from .accounts import delete_previous_year_end_balance as delete_previous_year_end_balance
 from .accounts import fetch_account_balances as fetch_account_balances
 from .accounts import fetch_account_definitions as fetch_account_definitions
 from .accounts import fetch_balances_by_kind as fetch_balances_by_kind
+from .accounts import fetch_card_accounts as fetch_card_accounts
 from .accounts import fetch_net_worth_components as fetch_net_worth_components
 from .accounts import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .accounts import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components
+from .accounts import list_card_names_for_phone as list_card_names_for_phone
 from .accounts import recompute_all_debt_credit_balances as recompute_all_debt_credit_balances
 from .accounts import save_account_opening_balance as save_account_opening_balance
 from .accounts import save_balance as save_balance
 from .accounts import save_previous_year_end_balance as save_previous_year_end_balance
 from .accounts import seed_accounts_for_new_year as seed_accounts_for_new_year
+from .accounts import set_account_is_card as set_account_is_card
+from .accounts import sync_expense_accounts as sync_expense_accounts
 from .accounts import sync_transfer_accounts as sync_transfer_accounts
 from .config import LookupKind as LookupKind
 from .config import LookupOption as LookupOption

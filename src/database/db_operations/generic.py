@@ -120,7 +120,7 @@ def fetch_rows(
     target_cls: type[DataContainer],
     sort: SortingConfig | None = None,
     month: int | None = None,
-    extra_filter: tuple[str, str] | None = None,
+    extra_filters: list[tuple[str, str | None]] | None = None,
 ) -> RowGenerator:
     """Fetches all the rows of a domain table, optionally filtered and sorted.
 
@@ -131,8 +131,9 @@ def fetch_rows(
         sort (`:class:SortingConfig` | None): If given, the rows get sorted accordingly.
             Defaults to `None`.
         month (int | None): The month to filter the table by. Defaults to `None`.
-        extra_filter (tuple[str, str] | None): An optional `(column_name, value)` pair used
-            as an additional equality filter. Defaults to `None`.
+        extra_filters (list[tuple[str, str | None]] | None): Optional `(column_name, value)` pairs,
+            each used as an additional equality filter. A `None` value matches `column_name IS NULL`
+            instead. Defaults to `None`.
 
     Returns:
         RowGenerator: The generator that yields the rows and the id of each item in the database.
@@ -147,10 +148,12 @@ def fetch_rows(
         if month is not None:
             conditions.append("month = ?")
             params.append(month)
-        if extra_filter is not None:
-            column_name, value = extra_filter
-            conditions.append(f"{column_name} = ?")
-            params.append(value)
+        for column_name, value in extra_filters or []:
+            if value is None:
+                conditions.append(f"{column_name} IS NULL")
+            else:
+                conditions.append(f"{column_name} = ?")
+                params.append(value)
 
         query = f"SELECT * FROM {table_name}"
         if conditions:

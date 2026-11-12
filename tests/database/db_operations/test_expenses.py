@@ -39,15 +39,20 @@ class TestExpensesSortingConfig:
         assert config.sql_command == "month ASC, day_start ASC"
 
     def test_sorts_by_cost_descending(self) -> None:
-        """Column 4 sorts by cost in the requested direction."""
-        config = ExpensesSortingConfig(col_id=4, ascending=False)
+        """Column 5 sorts by cost in the requested direction."""
+        config = ExpensesSortingConfig(col_id=5, ascending=False)
 
         assert config.sql_command == "cost DESC"
 
     def test_rejects_an_unsortable_column(self) -> None:
-        """A column ID other than 0 or 4 is not sortable."""
+        """A column ID other than 0 or 5 is not sortable."""
         with pytest.raises(ValueError, match="cannot sort"):
             ExpensesSortingConfig(col_id=2, ascending=True)
+
+    def test_paid_with_column_is_not_sortable(self) -> None:
+        """Column 4 ("Paid with") used to be cost, but is no longer sortable."""
+        with pytest.raises(ValueError, match="cannot sort"):
+            ExpensesSortingConfig(col_id=4, ascending=True)
 
 
 class TestFetchExpenses:
@@ -78,7 +83,7 @@ class TestFetchExpenses:
         initialize_db(LOCATION, WhichDb.EXPENSES)
         add_item(LOCATION, make_expense(cost=30.0))
         add_item(LOCATION, make_expense(cost=10.0))
-        sort = ExpensesSortingConfig(col_id=4, ascending=True)
+        sort = ExpensesSortingConfig(col_id=5, ascending=True)
 
         ids = [row_id for row_id, _ in fetch_expenses(LOCATION, sort=sort)]
 
@@ -90,7 +95,7 @@ class TestFetchExpenses:
         add_item(LOCATION, make_expense(month=1, cost=1.0))
         add_item(LOCATION, make_expense(month=2, cost=30.0))
         add_item(LOCATION, make_expense(month=2, cost=10.0))
-        sort = ExpensesSortingConfig(col_id=4, ascending=True)
+        sort = ExpensesSortingConfig(col_id=5, ascending=True)
 
         ids = [row_id for row_id, _ in fetch_expenses(LOCATION, sort=sort, month=2)]
 
@@ -116,6 +121,48 @@ class TestFetchExpenses:
         results = list(fetch_expenses(LOCATION, month=2, category="Travel"))
 
         assert [row_id for row_id, _ in results] == [3]
+
+    def test_filters_by_card(self) -> None:
+        """Only expenses paid with the given card are yielded."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(paid_with="Visa"))
+        add_item(LOCATION, make_expense(paid_with="Amex"))
+        add_item(LOCATION, make_expense())
+
+        results = list(fetch_expenses(LOCATION, paid_with="Visa"))
+
+        assert [row_id for row_id, _ in results] == [1]
+
+    def test_without_card_yields_only_expenses_not_paid_by_card(self) -> None:
+        """`without_card` keeps the expenses whose `paid_with` is unset."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(paid_with="Visa"))
+        add_item(LOCATION, make_expense())
+
+        results = list(fetch_expenses(LOCATION, without_card=True))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_without_card_takes_precedence_over_paid_with(self) -> None:
+        """Passing both filters keeps only the expenses not paid by card."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(paid_with="Visa"))
+        add_item(LOCATION, make_expense())
+
+        results = list(fetch_expenses(LOCATION, paid_with="Visa", without_card=True))
+
+        assert [row_id for row_id, _ in results] == [2]
+
+    def test_combines_category_and_card_filters(self) -> None:
+        """Filtering by category and card can be applied together."""
+        initialize_db(LOCATION, WhichDb.EXPENSES)
+        add_item(LOCATION, make_expense(category="Travel", paid_with="Visa"))
+        add_item(LOCATION, make_expense(category="Food and drinks", paid_with="Visa"))
+        add_item(LOCATION, make_expense(category="Travel"))
+
+        results = list(fetch_expenses(LOCATION, category="Travel", paid_with="Visa"))
+
+        assert [row_id for row_id, _ in results] == [1]
 
 
 class TestFetchCategory:

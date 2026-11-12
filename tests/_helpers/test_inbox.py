@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from _helpers.constants import (DEFAULT_PROFILE_NAME, INBOX_ARCHIVE_MAX_LINES,
-                                INBOX_CATEGORIES_FILE_NAME, INBOX_FILE_NAME,
+                                INBOX_CARDS_FILE_NAME, INBOX_CATEGORIES_FILE_NAME,
+                                INBOX_FILE_NAME, INBOX_NO_CARD_CHOICE,
                                 INBOX_PROFILES_FILE_NAME)
 from _helpers.inbox import (append_archive, ensure_inbox_file, export_lookups, read_inbox,
                             remove_from_inbox, stamp_imported)
@@ -49,6 +50,29 @@ class TestReadInbox:
         assert entries[0].description == "lidl"
         assert entries[0].profile == "Personal"
         assert entries[1].category == "Transport"
+
+    def test_reads_the_card_an_entry_was_paid_with(self, tmp_path: Path) -> None:
+        """An optional `paid_with` makes it onto the entry, trimmed."""
+        write_lines(tmp_path, make_line(paid_with=" Visa "))
+
+        entries, _ = read_inbox(tmp_path)
+
+        assert entries[0].paid_with == "Visa"
+
+    @pytest.mark.parametrize(
+        "line_overrides",
+        [{}, {"paid_with": ""}, {"paid_with": "   "}, {"paid_with": None}, {"paid_with": "no card"}],
+    )
+    def test_a_missing_blank_or_no_card_choice_means_not_paid_by_card(
+        self, tmp_path: Path, line_overrides: dict
+    ) -> None:
+        """No key, blank, `null` or the picker's "No card" choice all leave `paid_with` unset."""
+        write_lines(tmp_path, make_line(**line_overrides))
+
+        entries, malformed = read_inbox(tmp_path)
+
+        assert malformed == []
+        assert entries[0].paid_with is None
 
     def test_returns_empty_when_the_directory_does_not_exist(self, tmp_path: Path) -> None:
         """A folder iCloud hasn't created yet is an empty inbox, not an error."""
@@ -476,18 +500,34 @@ class TestStampImported:
 class TestExportLookups:
     """Tests for `export_lookups`."""
 
-    def test_writes_and_round_trips_both_files(self, tmp_path: Path) -> None:
+    def test_writes_and_round_trips_the_category_and_profile_files(self, tmp_path: Path) -> None:
         """Both lists are written one entry per line, which is what the Shortcut splits on."""
-        export_lookups(tmp_path, ["Groceries", "Transport"], ["Personal", "Shared"])
+        export_lookups(tmp_path, ["Groceries", "Transport"], ["Personal", "Shared"], [])
 
         categories = (tmp_path / INBOX_CATEGORIES_FILE_NAME).read_text(encoding="utf-8")
         profiles = (tmp_path / INBOX_PROFILES_FILE_NAME).read_text(encoding="utf-8")
         assert categories == "Groceries\nTransport\n"
         assert profiles.splitlines() == ["Personal", "Shared"]
 
+    def test_writes_the_cards_one_per_line_after_a_no_card_choice(self, tmp_path: Path) -> None:
+        """The card list gets its own file, led by the picker's "not paid by card" choice."""
+        export_lookups(tmp_path, ["Groceries"], ["Personal"], ["Amex", "Visa"])
+
+        assert (tmp_path / INBOX_CARDS_FILE_NAME).read_text(encoding="utf-8").splitlines() == [
+            INBOX_NO_CARD_CHOICE,
+            "Amex",
+            "Visa",
+        ]
+
+    def test_offers_the_no_card_choice_even_without_any_card(self, tmp_path: Path) -> None:
+        """With no card accounts, the picker still has its one "No card" option to pick."""
+        export_lookups(tmp_path, ["Groceries"], ["Personal"], [])
+
+        assert (tmp_path / INBOX_CARDS_FILE_NAME).read_text(encoding="utf-8") == f"{INBOX_NO_CARD_CHOICE}\n"
+
     def test_an_entry_containing_a_newline_stays_on_one_line(self, tmp_path: Path) -> None:
         """A stray newline inside a name would otherwise become two picker options."""
-        export_lookups(tmp_path, ["Food\nand drinks", "Transport"], ["Personal"])
+        export_lookups(tmp_path, ["Food\nand drinks", "Transport"], ["Personal"], [])
 
         assert (tmp_path / INBOX_CATEGORIES_FILE_NAME).read_text(encoding="utf-8").splitlines() == [
             "Food and drinks",
@@ -496,13 +536,13 @@ class TestExportLookups:
 
     def test_skips_blank_entries(self, tmp_path: Path) -> None:
         """A blank line would show up as an empty, unselectable picker option."""
-        export_lookups(tmp_path, ["Groceries", "   ", ""], ["Personal"])
+        export_lookups(tmp_path, ["Groceries", "   ", ""], ["Personal"], [])
 
         assert (tmp_path / INBOX_CATEGORIES_FILE_NAME).read_text(encoding="utf-8").splitlines() == ["Groceries"]
 
     def test_an_empty_list_writes_an_empty_file(self, tmp_path: Path) -> None:
         """No categories yet is an empty file, not a missing one."""
-        export_lookups(tmp_path, [], [])
+        export_lookups(tmp_path, [], [], [])
 
         assert (tmp_path / INBOX_CATEGORIES_FILE_NAME).read_text(encoding="utf-8") == ""
 
@@ -510,7 +550,7 @@ class TestExportLookups:
         """The exchange folder is created on first launch rather than being a prerequisite."""
         directory = tmp_path / "new"
 
-        export_lookups(directory, ["Groceries"], ["Personal"])
+        export_lookups(directory, ["Groceries"], ["Personal"], [])
 
         assert (directory / INBOX_CATEGORIES_FILE_NAME).is_file()
 
@@ -519,7 +559,7 @@ class TestExportLookups:
         blocked = tmp_path / "blocked"
         blocked.write_text("i am a file, not a directory", encoding="utf-8")
 
-        export_lookups(blocked / "sub", ["Groceries"], ["Personal"])
+        export_lookups(blocked / "sub", ["Groceries"], ["Personal"], [])
 
         assert blocked.is_file()
 
@@ -531,6 +571,6 @@ class TestExportLookups:
         """
         absent_container = tmp_path / "no-icloud-here"
 
-        export_lookups(absent_container / "Financial Tracker", ["Groceries"], ["Personal"])
+        export_lookups(absent_container / "Financial Tracker", ["Groceries"], ["Personal"], [])
 
         assert not absent_container.exists()
