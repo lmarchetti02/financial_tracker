@@ -14,13 +14,10 @@ from _helpers.formatting import format_amount
 from plotting import show_net_worth_summary, show_savings_pie, show_savings_summary
 
 from .common import build_styled_data_table, current_db_location
-from .typography import MUTED_COLOR, caption, page_title, section_title
+from .colors import HOME_ACCENT, MUTED_COLOR
+from .typography import caption, page_title, section_title
 
 logger = getLogger("financial_tracker")
-
-_HEADING_COLOR = "#FBC02D"
-_NET_WORTH_HEADING_COLOR = "#64B5F6"
-
 
 def _build_card_note(location: db.DbLocation, format_eur: Callable[[float], str]) -> ft.Control | None:
     """Builds the note on how much is still owed on credit cards, or `None` if the year has no cards.
@@ -115,7 +112,7 @@ def home_view(page: ft.Page) -> ft.Control:
         build_savings_row("Net Savings (€)", net_savings, format_eur),
         build_savings_row("Savings Rate (%)", savings_rate, lambda v: f"{v:.1f}"),
     ]
-    savings_table = build_styled_data_table(savings_columns, savings_rows, _HEADING_COLOR)
+    savings_table = build_styled_data_table(savings_columns, savings_rows, HOME_ACCENT)
     card_note = _build_card_note(location, format_eur)
 
     liquid_assets, pension, credits, debts = db.fetch_net_worth_components(location)
@@ -139,24 +136,24 @@ def home_view(page: ft.Page) -> ft.Control:
         build_net_worth_row("Debts (€)", prev_debts, debts, format_eur),
         build_net_worth_row("Total (€)", prev_net_worth, net_worth, format_eur, bold=True),
     ]
-    net_worth_table = build_styled_data_table(build_net_worth_columns(), net_worth_rows, _NET_WORTH_HEADING_COLOR)
+    net_worth_table = build_styled_data_table(build_net_worth_columns(), net_worth_rows, HOME_ACCENT)
 
     summary_button = ft.Button(
         "Show Summary",
         icon=ft.Icons.BAR_CHART,
-        color="#006400",
+        color=HOME_ACCENT,
         on_click=lambda _: show_savings_summary(page),
     )
     pie_chart_button = ft.Button(
         "Show Pie Chart",
         icon=ft.Icons.BAR_CHART,
-        color="#000096",
+        color=HOME_ACCENT,
         on_click=lambda _: show_savings_pie(page),
     )
     net_worth_summary_button = ft.Button(
         "Show Summary",
         icon=ft.Icons.BAR_CHART,
-        color="#1565C0",
+        color=HOME_ACCENT,
         on_click=lambda _: show_net_worth_summary(page),
     )
 
@@ -164,12 +161,12 @@ def home_view(page: ft.Page) -> ft.Control:
         controls=[
             page_title("Home"),
             ft.Container(height=10),
-            section_title("Savings"),
+            section_title("Savings", color=HOME_ACCENT),
             savings_table,
             *([card_note] if card_note is not None else []),
             ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=20),
-            section_title("Net Worth"),
+            section_title("Net Worth", color=HOME_ACCENT),
             net_worth_table,
             ft.Row([net_worth_summary_button], alignment=ft.MainAxisAlignment.CENTER),
         ],

@@ -15,6 +15,7 @@ from plotting import (show_expenses_pie, show_expenses_summary,
 from .base_view import BaseCrudView
 from .common import (DATE_PICKER_LOCALE, NO_CARD_KEY, NO_CARD_LABEL,
                      show_alert, show_confirm_dialog, sync_filter_menu)
+from .colors import EXPENSES_ACCENT
 
 logger = getLogger("financial_tracker")
 
@@ -28,7 +29,7 @@ class ExpensesView(BaseCrudView):
     """Encapsulates the 'add expense' view logic and UI."""
 
     _title = "Expenses"
-    _heading_color = "#960000"
+    _accent_color = EXPENSES_ACCENT
     _sorting_config_cls = db.ExpensesSortingConfig
     _default_to_current_month = True
     _item_label = "Expense"
@@ -116,21 +117,21 @@ class ExpensesView(BaseCrudView):
         self.summary_button = ft.Button(
             "Show Summary",
             icon=ft.Icons.BAR_CHART,
-            color="#006400",
+            color=self._accent_color,
             on_click=lambda _: show_expenses_summary(self._page, self.current_lookup_filter),
         )
 
         self.pie_chart_button = ft.Button(
             "Show Pie Chart",
             icon=ft.Icons.BAR_CHART,
-            color="#000096",
+            color=self._accent_color,
             on_click=lambda _: show_expenses_pie(self._page, self.current_month_filter),
         )
 
         self.trend_button = ft.Button(
             "Show Trend",
             icon=ft.Icons.BAR_CHART,
-            color="#960000",
+            color=self._accent_color,
             on_click=lambda _: show_expenses_trend(self._page),
         )
 
@@ -399,9 +400,7 @@ class ExpensesView(BaseCrudView):
     def _sync_card_filter_menu(self) -> None:
         """Re-styles the "Paid with" filter menu to reflect the active filter."""
         label = NO_CARD_LABEL if self.current_card_filter == NO_CARD_KEY else self.current_card_filter
-        sync_filter_menu(
-            self.card_filter_menu, label, ft.Colors.WHITE, "Filter card", active_value=self.current_card_filter
-        )
+        sync_filter_menu(self.card_filter_menu, label, "Filter card", active_value=self.current_card_filter)
 
     def filter_card(self, e: ft.Event) -> None:
         """Filters the "Paid with" column."""

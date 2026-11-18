@@ -45,14 +45,6 @@ class DistributionPolicy(Enum):
     DISTRIBUTING = auto()
 
 
-HOLDING_KIND_COLORS = {
-    HoldingKind.STOCKS: "#0D47A1",
-    HoldingKind.BONDS: "#6A1B9A",
-    HoldingKind.COMMODITIES: "#FF8F00",
-    HoldingKind.CRYPTO: "#FDD835",
-    HoldingKind.FIXED_MATURITY_BOND: "#00838F",
-}
-
 HOLDING_KIND_ICONS = {
     HoldingKind.STOCKS: ft.Icons.TRENDING_UP,
     HoldingKind.BONDS: ft.Icons.ACCOUNT_BALANCE,

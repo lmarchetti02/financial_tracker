@@ -5,6 +5,7 @@ from logging import getLogger
 import flet as ft
 
 from database import fetch_categories, fetch_category_totals, fetch_expense_totals
+from ui.colors import EXPENSES_ACCENT
 
 from ._common import show_lookup_pie, show_lookup_summary, show_monthly_trend
 
@@ -23,7 +24,7 @@ def show_expenses_trend(page: ft.Page) -> None:
     logger.info("Called 'show_expenses_trend'")
 
     show_monthly_trend(
-        page, "Expenses", fetch_expense_totals, color="#960000", empty_text="Empty monthly expenses", lower_is_better=True
+        page, "Expenses", fetch_expense_totals, color=EXPENSES_ACCENT, empty_text="Empty monthly expenses", lower_is_better=True
     )
 
 

@@ -9,8 +9,9 @@ import numpy as np
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import fetch_expense_totals, fetch_income_totals
+from ui.colors import CHART_BASELINE_COLOR, HOME_ACCENT, NEGATIVE_COLOR, POSITIVE_COLOR
 
-from ._common import current_db_location, show_chart_popup, show_empty_popup
+from ._common import PIE_WEDGE_PROPS, current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -28,13 +29,13 @@ def show_savings_summary(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    plt.axhline(0, color="black", linewidth=1)
-    plt.fill_between(months, net_savings, 0, where=net_savings >= 0, color="green", alpha=0.3, interpolate=True)
-    plt.fill_between(months, net_savings, 0, where=net_savings <= 0, color="red", alpha=0.3, interpolate=True)
-    plt.plot(months, net_savings, marker="o", color="#8B8000", linewidth=2, markersize=6)
+    plt.axhline(0, color=CHART_BASELINE_COLOR, linewidth=1)
+    plt.fill_between(months, net_savings, 0, where=net_savings >= 0, color=POSITIVE_COLOR, alpha=0.3, interpolate=True)
+    plt.fill_between(months, net_savings, 0, where=net_savings <= 0, color=NEGATIVE_COLOR, alpha=0.3, interpolate=True)
+    plt.plot(months, net_savings, marker="o", color=HOME_ACCENT, linewidth=2, markersize=6)
 
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.grid(axis="y", linestyle="--")
+    plt.grid(axis="x", linestyle="--")
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
@@ -71,11 +72,13 @@ def show_savings_pie(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    color_map = {"Saved": "green", "Spent": "red"}
+    color_map = {"Saved": POSITIVE_COLOR, "Spent": NEGATIVE_COLOR}
     colors = [color_map[name] for name in names]
 
     plt.title(f"Savings Pie Chart ({location.year})")
-    patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
+    patches, *_ = plt.pie(
+        values, labels=names, colors=colors, autopct="%1.1f%%", wedgeprops=PIE_WEDGE_PROPS
+    )  # type: ignore
 
     legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]
     plt.legend(

@@ -8,13 +8,13 @@ import numpy as np
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount
-from database import ACCOUNT_KIND_COLORS, AccountKind, DbLocation, fetch_balances_by_kind
+from database import AccountKind, DbLocation, fetch_balances_by_kind
+from ui.colors import ACCOUNT_KIND_COLORS
 
-from ._common import current_db_location, show_chart_popup, show_empty_popup
+from ._common import PIE_WEDGE_PROPS, current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
-_DEFAULT_COLOR = "#808080"
 _EXCLUDED_KINDS = {AccountKind.PENSION, AccountKind.CREDIT, AccountKind.DEBT}
 
 
@@ -45,11 +45,11 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
     # plot
     fig = plt.figure()
 
-    colors = [ACCOUNT_KIND_COLORS.get(kind, _DEFAULT_COLOR) for kind in kinds]
+    colors = [ACCOUNT_KIND_COLORS[kind] for kind in kinds]
     labels = [enum_label(kind) for kind in kinds]
     plt.stackplot(months, percentages, labels=labels, colors=colors, alpha=0.85)
 
-    plt.grid(axis="y", linestyle="--", alpha=0.5)
+    plt.grid(axis="y", linestyle="--")
     plt.xticks(months, MONTHS)
     plt.xlim(1, 12)
     plt.ylim(0, 100)
@@ -90,13 +90,15 @@ def show_asset_allocation_pie(page: ft.Page) -> None:
     kinds = [kind for kind, keep in zip(kinds, mask) if keep]
 
     names = [enum_label(kind) for kind in kinds]
-    colors = [ACCOUNT_KIND_COLORS.get(kind, _DEFAULT_COLOR) for kind in kinds]
+    colors = [ACCOUNT_KIND_COLORS[kind] for kind in kinds]
 
     # plot
     fig = plt.figure()
 
     plt.title(f"Asset Allocation ({MONTHS[month - 1]} {location.year})")
-    patches, *_ = plt.pie(values, labels=names, colors=colors, autopct="%1.1f%%")  # type: ignore
+    patches, *_ = plt.pie(
+        values, labels=names, colors=colors, autopct="%1.1f%%", wedgeprops=PIE_WEDGE_PROPS
+    )  # type: ignore
 
     legend_labels = [f"{name}: € {format_amount(val, decimals=0)}" for name, val in zip(names, values)]
     plt.legend(

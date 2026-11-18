@@ -15,6 +15,7 @@ from _helpers.constants import (SYSTEM_CATEGORY_TRADING_FEE,
 from _helpers.formatting import format_amount
 
 from .base_view import BaseCrudView
+from .colors import TRANSFERS_ACCENT
 from .common import DATE_PICKER_LOCALE, show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
@@ -24,7 +25,7 @@ class TransfersView(BaseCrudView):
     """Encapsulates the 'transfers' view logic and UI."""
 
     _title = "Transfers"
-    _heading_color = "#00008B"
+    _accent_color = TRANSFERS_ACCENT
     _sorting_config_cls = db.TransfersSortingConfig
     _item_label = "Transfer"
     _form_height: ClassVar[int] = 230

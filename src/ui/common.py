@@ -9,9 +9,8 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import INBOX_NO_CARD_CHOICE
 
+from .colors import EDIT_MODE_COLOR, ON_ACCENT_COLOR
 from .typography import HEADING_TEXT_STYLE, SECTION_SIZE, page_title
-
-FILTER_ACTIVE_COLOR = ft.Colors.AMBER_700
 
 # Flet's date pickers have no first-day-of-week option: Flutter takes it from the locale, and the
 # app's default `en_US` starts weeks on Sunday. `en_GB` keeps English labels but starts on Monday.
@@ -27,12 +26,14 @@ NO_CARD_LABEL = INBOX_NO_CARD_CHOICE
 def sync_filter_menu(
     menu: ft.PopupMenuButton,
     active_label: str | None,
-    inactive_color: str,
     inactive_tooltip: str,
     *,
     active_value: object,
 ) -> None:
     """Restyles a filter popup menu to reflect the active filter, and checks the filtered option.
+
+    Filter menus sit on a table's accent-colored header, so the icon is always `ON_ACCENT_COLOR`
+    and its shape carries the state: an outlined funnel when cleared, a filled one when filtering.
 
     Every filter menu lists its options, then a divider and a "Clear Filter" entry, so the options
     are every item but the last two.
@@ -40,12 +41,12 @@ def sync_filter_menu(
     Args:
         menu (ft.PopupMenuButton): The filter menu to restyle in place.
         active_label (str | None): The value currently filtered on, or `None` when the filter is cleared.
-        inactive_color (str): The icon color to restore when no filter is set.
         inactive_tooltip (str): The tooltip to restore when no filter is set.
         active_value (object): The `data` of the option currently filtered on, or `None` when the
             filter is cleared.
     """
-    menu.icon_color = inactive_color if active_label is None else FILTER_ACTIVE_COLOR
+    menu.icon = ft.Icons.FILTER_ALT_OUTLINED if active_label is None else ft.Icons.FILTER_ALT
+    menu.icon_color = ON_ACCENT_COLOR
     menu.tooltip = inactive_tooltip if active_label is None else f"Showing {active_label} only"
 
     # always `True`/`False`, never `None`, so every option keeps the check mark's indent and the labels stay aligned
@@ -74,7 +75,7 @@ class CollapsibleFormMixin:
     def _enter_edit_mode(self, on_modify: Callable[[ft.Event], None]) -> None:
         """Turns the add button into an "Edit ..." button that calls `on_modify`."""
         self.add_button.content = f"Edit {self._item_label}"
-        self.add_button.color = ft.Colors.PURPLE
+        self.add_button.color = EDIT_MODE_COLOR
         self.add_button.on_click = on_modify
 
     def reset_add_button(self) -> None:
@@ -162,22 +163,23 @@ def build_styled_data_table(
     Args:
         columns (list[DataColumn2]): The columns of the table.
         rows (list[ft.DataRow]): The rows of the table.
-        heading_color (str): The background color of the heading row.
+        heading_color (str): The background color of the heading row: the page's accent, which
+            heading text and sort arrows are drawn on in `ON_ACCENT_COLOR`.
         **overrides (Any): `DataTable2` keyword arguments replacing (or adding to) the shared styling.
 
     Returns:
         DataTable2: The styled table.
     """
     borders = ft.BorderSide(width=2)
-    v_lines = ft.BorderSide(width=1, color=ft.Colors.GREY)
+    v_lines = ft.BorderSide(width=1, color=ft.Colors.OUTLINE_VARIANT)
 
     styling: dict[str, Any] = {
         "border": ft.Border(top=borders, bottom=borders, right=borders, left=borders),
         "vertical_lines": v_lines,
         "horizontal_lines": v_lines,
-        "heading_text_style": HEADING_TEXT_STYLE,
+        "heading_text_style": HEADING_TEXT_STYLE.copy(color=ON_ACCENT_COLOR),
         "heading_row_color": heading_color,
-        "sort_arrow_icon_color": ft.Colors.WHITE,
+        "sort_arrow_icon_color": ON_ACCENT_COLOR,
         "heading_row_height": 35,
         "horizontal_margin": 10,
         "column_spacing": 15,

@@ -19,11 +19,11 @@ from plotting import (FigureClosingChart, build_kind_allocation_pie,
 from .common import (CollapsibleFormMixin, build_row_action_button,
                      build_styled_data_table, current_db_location, show_alert,
                      show_confirm_dialog, sync_filter_menu)
+from .colors import HOLDING_KIND_COLORS, NEGATIVE_COLOR, ON_ACCENT_COLOR, PORTFOLIO_ACCENT, POSITIVE_COLOR
 from .typography import caption, page_title, section_title, subheading
 
 logger = getLogger("financial_tracker")
 
-_HEADING_COLOR = "#00695C"
 _CHART_ASPECT_RATIO = 5 / 7
 _LOCK_COLUMN_WIDTH = 70
 _DELTA_COLUMN_WIDTH = 170
@@ -106,31 +106,31 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         self.long_term_refresh_prices_button = ft.Button(
             "Refresh Prices",
             icon=ft.Icons.REFRESH,
-            color=_HEADING_COLOR,
+            color=PORTFOLIO_ACCENT,
             on_click=lambda _: self.refresh_prices(self.long_term_holdings),
         )
         self.fixed_term_refresh_prices_button = ft.Button(
             "Refresh Prices",
             icon=ft.Icons.REFRESH,
-            color=_HEADING_COLOR,
+            color=PORTFOLIO_ACCENT,
             on_click=lambda _: self.refresh_prices(self.fixed_term_holdings),
         )
         self.diversification_button = ft.Button(
             "Show Diversification",
             icon=ft.Icons.PIE_CHART_OUTLINE,
-            color=_HEADING_COLOR,
+            color=PORTFOLIO_ACCENT,
             on_click=lambda _: show_portfolio_diversification(self._page),
         )
         self.detailed_diversification_button = ft.Button(
             "Detailed Diversification",
             icon=ft.Icons.TRAVEL_EXPLORE,
-            color=_HEADING_COLOR,
+            color=PORTFOLIO_ACCENT,
             on_click=lambda _: show_detailed_region_diversification(self._page),
         )
         self.asset_allocation_button = ft.Button(
             "Asset Allocation",
             icon=ft.Icons.DONUT_LARGE,
-            color=_HEADING_COLOR,
+            color=PORTFOLIO_ACCENT,
             on_click=self.show_asset_allocation,
         )
         self.long_term_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
@@ -191,14 +191,14 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
             self.form_container,
             ft.Container(height=5),
-            section_title("Long Term Assets", color=_HEADING_COLOR),
+            section_title("Long Term Assets", color=PORTFOLIO_ACCENT),
             self.long_term_table_container,
             ft.Row(
                 [self.diversification_button, self.detailed_diversification_button, self.asset_allocation_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             ft.Container(height=20),
-            section_title("Fixed Term Assets", color=_HEADING_COLOR),
+            section_title("Fixed Term Assets", color=PORTFOLIO_ACCENT),
             self.fixed_term_table_container,
         ]
 
@@ -446,7 +446,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                     width=380,
                     max_lines=1,
                     overflow=ft.TextOverflow.ELLIPSIS,
-                    color=ft.Colors.RED if expired else None,
+                    color=NEGATIVE_COLOR if expired else None,
                 ),
                 content=ft.Column(controls=rows, tight=True, scroll=ft.ScrollMode.AUTO, width=380, height=430),
                 actions=[ft.TextButton("Close", on_click=lambda _: self._page.pop_dialog())],
@@ -689,10 +689,10 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                         delta_texts[kind].color = None
                     elif delta > 0:
                         delta_texts[kind].value = f"Buy € {format_amount(delta)}"
-                        delta_texts[kind].color = ft.Colors.GREEN
+                        delta_texts[kind].color = POSITIVE_COLOR
                     else:
                         delta_texts[kind].value = f"Sell € {format_amount(abs(delta))}"
-                        delta_texts[kind].color = ft.Colors.RED
+                        delta_texts[kind].color = NEGATIVE_COLOR
                     _set_kind_label(kind, target_pct)
                 return
 
@@ -733,7 +733,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                     delta_texts[kind].color = None
                 else:
                     delta_texts[kind].value = f"Buy € {format_amount(amount)}"
-                    delta_texts[kind].color = ft.Colors.GREEN
+                    delta_texts[kind].color = POSITIVE_COLOR
                 _set_kind_label(kind, (kind_totals.get(kind, 0.0) + amount) / new_total * 100)
 
             unallocated = contribution - sum(allocation.values())
@@ -948,8 +948,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         Fixed Maturity Bond is left out, since such a holding always lands in the fixed-term table instead.
         """
         return ft.PopupMenuButton(
-            icon=ft.Icons.FILTER_ALT,
-            icon_color=_HEADING_COLOR,
+            icon=ft.Icons.FILTER_ALT_OUTLINED,
+            icon_color=ON_ACCENT_COLOR,
             icon_size=20,
             padding=0,
             menu_padding=0,
@@ -975,7 +975,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
     def _sync_kind_filter_menu(menu: ft.PopupMenuButton, kind_filter: db.HoldingKind | None) -> None:
         """Re-styles a holdings table's type filter menu to reflect the active filter."""
         label = None if kind_filter is None else enum_label(kind_filter)
-        sync_filter_menu(menu, label, _HEADING_COLOR, "Filter by type", active_value=kind_filter)
+        sync_filter_menu(menu, label, "Filter by type", active_value=kind_filter)
 
     def sort_long_term_by_total(self, e: ft.DataColumnSortEvent) -> None:
         """Sorts the long-term holdings table by market value (the "Total" column)."""
@@ -1169,7 +1169,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
         rows = []
         for holding_id, holding in holdings:
-            color = db.HOLDING_KIND_COLORS.get(holding.kind, "#000000")
+            color = HOLDING_KIND_COLORS[holding.kind]
             icon = db.HOLDING_KIND_ICONS.get(holding.kind, ft.Icons.HELP_OUTLINE)
             total = totals[holding_id]
 
@@ -1184,7 +1184,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                     ft.Row(
                         controls=[
                             ft.Icon(icon, color=color, size=18),
-                            ft.Text(name_text, color=ft.Colors.RED if expired else None),
+                            ft.Text(name_text, color=NEGATIVE_COLOR if expired else None),
                         ],
                         spacing=6,
                         tight=True,
@@ -1222,18 +1222,17 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                         ft.Icons.PUBLIC,
                         holding_id,
                         self.edit_region_allocations,
-                        color=_HEADING_COLOR,
                         tooltip="Detailed Regions",
                     )
                 )
             action_buttons += [
-                build_row_action_button(ft.Icons.EDIT, holding_id, self.edit_holding, color=ft.Colors.BLUE),
-                build_row_action_button(ft.Icons.DELETE, holding_id, self.delete_holding),
+                build_row_action_button(ft.Icons.EDIT, holding_id, self.edit_holding),
+                build_row_action_button(ft.Icons.DELETE, holding_id, self.delete_holding, color=ft.Colors.ERROR),
             ]
             cells.append(ft.DataCell(ft.Row(controls=action_buttons, alignment=ft.MainAxisAlignment.CENTER)))
             rows.append(ft.DataRow(cells=cells))
 
-        table = build_styled_data_table(columns, rows, _HEADING_COLOR)
+        table = build_styled_data_table(columns, rows, PORTFOLIO_ACCENT)
         if sort_ascending is not None:
             table.sort_column_index = total_column_index
             table.sort_ascending = sort_ascending

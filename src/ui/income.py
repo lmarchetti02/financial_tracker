@@ -12,6 +12,7 @@ from _helpers.formatting import format_amount
 from plotting import show_income_pie, show_income_summary, show_income_trend
 
 from .base_view import BaseCrudView
+from .colors import INCOME_ACCENT
 from .common import show_alert, show_confirm_dialog
 
 logger = getLogger("financial_tracker")
@@ -21,7 +22,7 @@ class IncomeView(BaseCrudView):
     """Encapsulates the 'income' view logic and UI."""
 
     _title = "Income"
-    _heading_color = "#006400"
+    _accent_color = INCOME_ACCENT
     _sorting_config_cls = db.IncomesSortingConfig
     _item_label = "Income"
     _form_height: ClassVar[int] = 170
@@ -90,21 +91,21 @@ class IncomeView(BaseCrudView):
         self.summary_button = ft.Button(
             "Show Summary",
             icon=ft.Icons.BAR_CHART,
-            color="#006400",
+            color=self._accent_color,
             on_click=lambda _: show_income_summary(self._page, self.current_lookup_filter),
         )
 
         self.pie_chart_button = ft.Button(
             "Show Pie Chart",
             icon=ft.Icons.BAR_CHART,
-            color="#000096",
+            color=self._accent_color,
             on_click=lambda _: show_income_pie(self._page, self.current_month_filter),
         )
 
         self.trend_button = ft.Button(
             "Show Trend",
             icon=ft.Icons.BAR_CHART,
-            color="#006400",
+            color=self._accent_color,
             on_click=lambda _: show_income_trend(self._page),
         )
 

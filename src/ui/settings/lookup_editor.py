@@ -7,7 +7,8 @@ import flet as ft
 import database as db
 
 from ..common import show_alert, show_confirm_dialog
-from ..typography import MUTED_COLOR, caption
+from ..colors import MUTED_COLOR
+from ..typography import caption
 
 logger = getLogger("financial_tracker")
 

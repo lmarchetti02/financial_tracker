@@ -5,6 +5,7 @@ from logging import getLogger
 import flet as ft
 
 from database import fetch_income_totals, fetch_source_totals, fetch_sources
+from ui.colors import INCOME_ACCENT
 
 from ._common import show_lookup_pie, show_lookup_summary, show_monthly_trend
 
@@ -23,7 +24,7 @@ def show_income_trend(page: ft.Page) -> None:
     logger.info("Called 'show_income_trend'")
 
     show_monthly_trend(
-        page, "Income", fetch_income_totals, color="#006400", empty_text="Empty monthly income", lower_is_better=False
+        page, "Income", fetch_income_totals, color=INCOME_ACCENT, empty_text="Empty monthly income", lower_is_better=False
     )
 
 

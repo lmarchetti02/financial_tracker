@@ -13,12 +13,12 @@ from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
 from .common import (build_row_action_button, build_styled_data_table,
                      current_db_location, show_alert, show_confirm_dialog)
-from .typography import HEADING_TEXT_STYLE, MUTED_COLOR, caption, page_title, section_title
+from .colors import ACCOUNT_KIND_COLORS, ACCOUNTS_ACCENT, MUTED_COLOR
+from .typography import caption, page_title, section_title
 
 logger = getLogger("financial_tracker")
 
-_HEADING_COLOR = "#B8860B"
-_ACCOUNT_COLUMN_WIDTH = 180
+_ACCOUNT_COLUMN_WIDTH = 190
 _ACCOUNT_DIVIDER = ft.Border(right=ft.BorderSide(width=2))
 _HEADING_ROW_HEIGHT = 35
 _BALANCE_ROW_HEIGHT = 48
@@ -69,13 +69,13 @@ class AccountsView(ft.Column):
         self.allocation_summary_button = ft.Button(
             "Liquid Asset Allocation",
             icon=ft.Icons.BAR_CHART,
-            color=_HEADING_COLOR,
+            color=ACCOUNTS_ACCENT,
             on_click=lambda _: show_asset_allocation_summary(self._page),
         )
         self.allocation_pie_button = ft.Button(
             "Current Month Pie",
             icon=ft.Icons.PIE_CHART,
-            color="#000096",
+            color=ACCOUNTS_ACCENT,
             on_click=lambda _: show_asset_allocation_pie(self._page),
         )
 
@@ -84,11 +84,11 @@ class AccountsView(ft.Column):
         return [
             page_title("Accounts"),
             ft.Container(height=20),
-            section_title("Monthly balances (€)"),
+            section_title("Monthly balances (€)", color=ACCOUNTS_ACCENT),
             self.balance_grid_container,
             ft.Row([self.allocation_summary_button, self.allocation_pie_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=20),
-            section_title("Accounts"),
+            section_title("Accounts", color=ACCOUNTS_ACCENT),
             ft.Row(
                 controls=[self.name_text, self.kind_dropdown, self.card_checkbox, self.add_account_button],
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -276,7 +276,7 @@ class AccountsView(ft.Column):
         """Builds the button-like tiles of the accounts-management grid."""
         tiles = []
         for account_id, account in self.accounts:
-            kind_color = db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000")
+            kind_color = ACCOUNT_KIND_COLORS[account.kind]
             delete_button = build_row_action_button(ft.Icons.DELETE, account_id, self.delete_account, color=kind_color)
             buttons: list[ft.Control] = [delete_button]
             if account.kind is db.AccountKind.DEBT:
@@ -308,7 +308,7 @@ class AccountsView(ft.Column):
                                 tight=True,
                                 controls=[
                                     ft.Text(account.name, weight=ft.FontWeight.BOLD),
-                                    caption(kind_label, color=kind_color),
+                                    caption(kind_label),
                                 ],
                             ),
                             ft.Row(controls=buttons, spacing=0, tight=True),
@@ -342,7 +342,11 @@ class AccountsView(ft.Column):
         for account_id, account in self.accounts:
             account_cell = ft.DataCell(
                 ft.Container(
-                    ft.Text(account.name, color=db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000")),
+                    # the kind's color is a mark color, too light for text: the dot carries it instead
+                    ft.Row(
+                        [ft.Icon(ft.Icons.CIRCLE, size=10, color=ACCOUNT_KIND_COLORS[account.kind]), ft.Text(account.name)],
+                        spacing=8,
+                    ),
                     width=_ACCOUNT_COLUMN_WIDTH,
                     height=_BALANCE_ROW_HEIGHT,
                     alignment=ft.Alignment.CENTER_LEFT,
@@ -387,10 +391,9 @@ class AccountsView(ft.Column):
         return build_styled_data_table(
             columns,
             rows,
-            _HEADING_COLOR,
+            ACCOUNTS_ACCENT,
             fixed_left_columns=1,
             fixed_top_rows=1,
-            heading_text_style=HEADING_TEXT_STYLE.copy(color=ft.Colors.WHITE),
             heading_row_height=_HEADING_ROW_HEIGHT,
             data_row_height=_BALANCE_ROW_HEIGHT,
             column_spacing=5,

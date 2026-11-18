@@ -8,6 +8,7 @@ import numpy as np
 
 from _helpers.constants import MONTHS
 from database import fetch_net_worth_components, fetch_previous_year_end_net_worth_components
+from ui.colors import CHART_SECONDARY_INK, HOME_ACCENT, NEGATIVE_COLOR, POSITIVE_COLOR
 
 from ._common import CHART_ANNOTATION_SIZE, current_db_location, show_chart_popup, show_empty_popup
 
@@ -37,10 +38,10 @@ def show_net_worth_summary(page: ft.Page) -> None:
     fig = plt.figure()
 
     plt.axhline(
-        previous_year_end, linestyle="--", color="firebrick", linewidth=1.5, label=f"{location.year - 1} year-end"
+        previous_year_end, linestyle="--", color=CHART_SECONDARY_INK, linewidth=1.5, label=f"{location.year - 1} year-end"
     )
-    plt.plot(months, net_worth, color="#1565C0", linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
-    plt.plot(months, net_worth, marker="o", linestyle="none", color="#1565C0", markersize=6, zorder=2)
+    plt.plot(months, net_worth, color=HOME_ACCENT, linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
+    plt.plot(months, net_worth, marker="o", linestyle="none", color=HOME_ACCENT, markersize=6, zorder=2)
 
     if previous_year_end != 0:
         percent_change = (net_worth - previous_year_end) / previous_year_end * 100
@@ -52,11 +53,11 @@ def show_net_worth_summary(page: ft.Page) -> None:
                 xytext=(0, 10),
                 ha="center",
                 fontsize=CHART_ANNOTATION_SIZE,
-                color="darkgreen" if pct >= 0 else "firebrick",
+                color=POSITIVE_COLOR if pct >= 0 else NEGATIVE_COLOR,
             )
 
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.grid(axis="y", linestyle="--")
+    plt.grid(axis="x", linestyle="--")
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 

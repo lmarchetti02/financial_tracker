@@ -9,8 +9,11 @@ from matplotlib.patches import ConnectionPatch
 
 import database as db
 from _helpers.formatting import enum_label, format_amount
+from ui.colors import CATEGORICAL_COLORS, HOLDING_KIND_COLORS, NEUTRAL_COLOR, NEUTRAL_LIGHT_COLOR
 
-from ._common import CHART_ANNOTATION_SIZE, current_db_location, show_chart_popup, show_empty_popup
+from ._common import (CHART_ANNOTATION_SIZE, PIE_WEDGE_PROPS,
+                      current_db_location, fold_into_other, show_chart_popup,
+                      show_empty_popup)
 
 logger = getLogger("financial_tracker")
 
@@ -77,11 +80,9 @@ def _region_totals(
 
 def _plot_pie(ax: plt.Axes, title: str, totals: dict[str, float]) -> None:
     """Draws one diversification pie chart, sorted by descending value, onto `ax`."""
-    names = sorted(totals, key=lambda name: totals[name], reverse=True)
-    values = [totals[name] for name in names]
-    colors = [plt.get_cmap("tab20")(i % 20) for i in range(len(names))]
+    names, values, colors = fold_into_other(list(totals), np.array(list(totals.values())))
 
-    patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%")  # type: ignore
+    patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%", wedgeprops=PIE_WEDGE_PROPS)  # type: ignore
     ax.set_title(title)
 
     legend_labels = [f"{name}: € {format_amount(value, decimals=0)}" for name, value in zip(names, values)]
@@ -104,11 +105,11 @@ def build_kind_allocation_pie(kind_totals: dict[db.HoldingKind, float]) -> plt.F
     """
     names = sorted(kind_totals, key=lambda kind: kind_totals[kind], reverse=True)
     values = [kind_totals[name] for name in names]
-    colors = [db.HOLDING_KIND_COLORS.get(name, "#808080") for name in names]
+    colors = [HOLDING_KIND_COLORS[name] for name in names]
     labels = [enum_label(name) for name in names]
 
     fig, ax = plt.subplots(figsize=(5, 6.5))
-    patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%")  # type: ignore
+    patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%", wedgeprops=PIE_WEDGE_PROPS)  # type: ignore
 
     legend_labels = [f"{label}: € {format_amount(value, decimals=0)}" for label, value in zip(labels, values)]
     ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05))
@@ -174,7 +175,7 @@ def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
     # i.e. on the right, facing the bar it's connected to.
     pie_names = ["Other"] + [name for name, _ in big_items]
     pie_values = [other_value] + [value for _, value in big_items]
-    colors = [plt.get_cmap("tab20")(i % 20) for i in range(len(pie_names))]
+    colors = [NEUTRAL_COLOR] + list(CATEGORICAL_COLORS[: len(big_items)])
     explode = [0.1] + [0.0] * len(big_items)
     startangle = -180 * (other_value / sum(pie_values))
 
@@ -183,18 +184,25 @@ def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
     ax2 = fig.add_subplot(122)
 
     wedges, *_ = ax1.pie(  # type: ignore
-        pie_values, labels=pie_names, colors=colors, autopct="%1.1f%%", explode=explode, startangle=startangle
+        pie_values,
+        labels=pie_names,
+        colors=colors,
+        autopct="%1.1f%%",
+        explode=explode,
+        startangle=startangle,
+        wedgeprops=PIE_WEDGE_PROPS,
     )
     ax1.set_title(title)
 
-    # break "Other" back down into a stacked bar, each region getting its own distinct color
+    # break "Other" back down into a stacked bar in alternating greys, so it reads as the grey wedge
+    # expanded and never runs out of hues - each segment carries its own text label
     grand_total = sum(pie_values)
     bar_width = 0.3
-    small_colors = [plt.get_cmap("tab20")((len(pie_names) + i) % 20) for i in range(len(small_items))]
+    small_colors = [NEUTRAL_COLOR if i % 2 == 0 else NEUTRAL_LIGHT_COLOR for i in range(len(small_items))]
     bottom = other_value
     for (name, value), color in zip(small_items, small_colors):
         bottom -= value
-        ax2.bar(0, value, bar_width, bottom=bottom, color=color)
+        ax2.bar(0, value, bar_width, bottom=bottom, color=color, edgecolor=PIE_WEDGE_PROPS["edgecolor"], linewidth=1)
         # relative to the whole portfolio, matching the pie's own percentages - not just "Other"
         pct = value / grand_total * 100 if grand_total else 0
         ax2.text(
@@ -222,7 +230,7 @@ def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
         connection = ConnectionPatch(
             xyA=(-bar_width / 2, bar_y), coordsA=ax2.transData, xyB=(x, y), coordsB=ax1.transData
         )
-        connection.set_color("gray")
+        connection.set_color(NEUTRAL_COLOR)
         ax2.add_artist(connection)
 
     fig.tight_layout()

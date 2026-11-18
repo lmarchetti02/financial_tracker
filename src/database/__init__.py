@@ -1,11 +1,9 @@
 """Handles the backend of the application."""
 
-from .data_structures import ACCOUNT_KIND_COLORS as ACCOUNT_KIND_COLORS
 from .data_structures import Account as Account
 from .data_structures import AccountKind as AccountKind
 from .data_structures import DistributionPolicy as DistributionPolicy
 from .data_structures import Expense as Expense
-from .data_structures import HOLDING_KIND_COLORS as HOLDING_KIND_COLORS
 from .data_structures import HOLDING_KIND_ICONS as HOLDING_KIND_ICONS
 from .data_structures import Holding as Holding
 from .data_structures import HoldingKind as HoldingKind

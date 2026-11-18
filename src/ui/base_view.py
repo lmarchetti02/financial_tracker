@@ -25,7 +25,8 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     """Shared scaffolding for a domain's add/edit/delete/sort/filter table view."""
 
     _title: ClassVar[str]
-    _heading_color: ClassVar[str]
+    # the page's accent: its table header and its chart buttons
+    _accent_color: ClassVar[str]
     _sorting_config_cls: ClassVar[type[db.SortingConfig]]
     # Whether the table opens filtered to the current month instead of showing the whole year.
     _default_to_current_month: ClassVar[bool] = False
@@ -136,8 +137,8 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         return amount, raw
 
     def _build_data_table(self, columns: list[DataColumn2]) -> DataTable2:
-        """Builds the `:class:DataTable2` shared by every subclass, styled with `_heading_color`."""
-        return build_styled_data_table(columns, [], self._heading_color)
+        """Builds the `:class:DataTable2` shared by every subclass, styled with `_accent_color`."""
+        return build_styled_data_table(columns, [], self._accent_color)
 
     def _build_month_filter_menu(self) -> ft.PopupMenuButton:
         """Builds the "Filter month" popup menu shared by every subclass.
@@ -172,7 +173,7 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         """Re-styles the month filter menu to reflect the active filter."""
         month = self.current_month_filter
         label = None if month is None else MONTHS[month - 1]
-        sync_filter_menu(self.month_filter_menu, label, ft.Colors.WHITE, "Filter month", active_value=month)
+        sync_filter_menu(self.month_filter_menu, label, "Filter month", active_value=month)
 
     def _sync_plot_buttons(self) -> None:
         """Relabels the plot buttons to name what they'll plot under the active filters.
@@ -209,7 +210,6 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         sync_filter_menu(
             self.lookup_filter_menu,
             self.current_lookup_filter,
-            ft.Colors.WHITE,
             self._lookup_filter_tooltip,
             active_value=self.current_lookup_filter,
         )
@@ -227,7 +227,6 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
             ft.Icons.EDIT,
             row_id,
             self.edit_this_item,
-            color=None if disabled else ft.Colors.BLUE,
             disabled=disabled,
             tooltip=tooltip,
         )
@@ -235,12 +234,16 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
             ft.Icons.COPY,
             row_id,
             self.copy_this_item,
-            color=None if disabled else ft.Colors.GREEN,
             disabled=disabled,
             tooltip=tooltip,
         )
         delete_btn = build_row_action_button(
-            ft.Icons.DELETE, row_id, self.delete_item, disabled=disabled, tooltip=tooltip
+            ft.Icons.DELETE,
+            row_id,
+            self.delete_item,
+            color=None if disabled else ft.Colors.ERROR,
+            disabled=disabled,
+            tooltip=tooltip,
         )
         return [edit_btn, copy_btn, delete_btn]
 

@@ -8,6 +8,8 @@ from typing import Any
 
 import flet as ft
 
+from .colors import MUTED_COLOR, SEED_COLOR
+
 FONT_FAMILY = "JetBrains Mono"
 # relative to the Flet assets directory (`src/assets`), as `page.fonts` expects. The variable-weight
 # file is used so bold is drawn from the font's own bold instance rather than synthesized.
@@ -20,9 +22,6 @@ SECTION_SIZE = 20
 SUBHEADING_SIZE = 16
 BODY_SIZE = 14
 CAPTION_SIZE = 12
-
-# secondary/hint text; theme-aware, so it stays readable in both light and dark mode
-MUTED_COLOR = ft.Colors.ON_SURFACE_VARIANT
 
 # for `heading_text_style`-like parameters that take a style rather than a control (table headings)
 HEADING_TEXT_STYLE = ft.TextStyle(size=SUBHEADING_SIZE, weight=ft.FontWeight.BOLD)
@@ -69,7 +68,7 @@ def build_theme() -> ft.Theme:
         label_medium=caption_style,
         label_small=caption_style,
     )
-    return ft.Theme(color_scheme_seed=ft.Colors.RED, font_family=FONT_FAMILY, text_theme=text_theme)
+    return ft.Theme(color_scheme_seed=SEED_COLOR, font_family=FONT_FAMILY, text_theme=text_theme)
 
 
 def page_title(text: str, **kwargs: Any) -> ft.Text:

@@ -8,13 +8,14 @@ import flet_charts as fch
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import font_manager
-from matplotlib.colors import TABLEAU_COLORS
 from matplotlib.figure import Figure
 
 from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import DbLocation
 from ui.common import current_db_location as current_db_location
+from ui.colors import (CATEGORICAL_COLORS, CHART_BASELINE_COLOR, CHART_GRID_COLOR, CHART_INK,
+                       CHART_SECONDARY_INK, CHART_SURFACE_COLOR, NEGATIVE_COLOR, NEUTRAL_COLOR, POSITIVE_COLOR)
 from ui.typography import FONT_FAMILY, FONTS_DIR
 
 type GroupedTotalsFetcher = Callable[[DbLocation], dict[str, np.ndarray]]
@@ -25,9 +26,15 @@ CHART_LABEL_SIZE = 12
 CHART_TICK_SIZE = 10
 CHART_ANNOTATION_SIZE = 8
 
+# a chart never needs more colors than the categorical palette has: the smallest series fold into "Other"
+MAX_SERIES = len(CATEGORICAL_COLORS)
 
-def _configure_fonts() -> None:
-    """Draws every chart in the app's font, on the chart text scale.
+# a surface-colored ring around each pie wedge, so neighboring wedges stay apart
+PIE_WEDGE_PROPS = {"edgecolor": CHART_SURFACE_COLOR, "linewidth": 2}
+
+
+def _configure_style() -> None:
+    """Draws every chart in the app's font and colors, on the chart text scale.
 
     matplotlib needs the static Regular/Bold files: it doesn't pick weights out of a variable font.
     """
@@ -46,12 +53,51 @@ def _configure_fonts() -> None:
             "xtick.labelsize": CHART_TICK_SIZE,
             "ytick.labelsize": CHART_TICK_SIZE,
             "legend.fontsize": CHART_ANNOTATION_SIZE,
+            "figure.facecolor": CHART_SURFACE_COLOR,
+            "axes.facecolor": CHART_SURFACE_COLOR,
+            "axes.prop_cycle": plt.cycler(color=CATEGORICAL_COLORS),
+            "axes.edgecolor": CHART_BASELINE_COLOR,
+            "axes.labelcolor": CHART_INK,
+            "axes.titlecolor": CHART_INK,
+            "text.color": CHART_INK,
+            "xtick.color": CHART_SECONDARY_INK,
+            "ytick.color": CHART_SECONDARY_INK,
+            "grid.color": CHART_GRID_COLOR,
         }
     )
 
 
 # every chart module imports this one, so this runs before any figure is drawn
-_configure_fonts()
+_configure_style()
+
+
+def fold_into_other(names: list[str], values: np.ndarray) -> tuple[list[str], np.ndarray, list[str]]:
+    """Ranks series by total, keeps the largest ones and sums the rest into one "Other" series.
+
+    Series are ranked largest first and colored in that order from `CATEGORICAL_COLORS`. With more
+    series than the palette has colors, the smallest ones are summed into a final "Other (n)" series
+    drawn in `NEUTRAL_COLOR`, so no color is ever reused or generated.
+
+    Args:
+        names (list[str]): The name of each series.
+        values (np.ndarray): The series' values, one per series along the last axis: shape `(n,)`
+            for a pie, `(12, n)` for monthly lines.
+
+    Returns:
+        tuple[list[str], np.ndarray, list[str]]: The kept names, their values (same layout as
+            `values`, possibly with fewer series) and one color per kept series.
+    """
+    weights = values.reshape(-1, len(names)).sum(axis=0)
+    order = sorted(range(len(names)), key=lambda i: weights[i], reverse=True)
+
+    if len(order) <= MAX_SERIES:
+        return [names[i] for i in order], values[..., order], list(CATEGORICAL_COLORS[: len(order)])
+
+    kept, rest = order[: MAX_SERIES - 1], order[MAX_SERIES - 1 :]
+    folded_names = [names[i] for i in kept] + [f"Other ({len(rest)})"]
+    folded_values = np.concatenate([values[..., kept], values[..., rest].sum(axis=-1, keepdims=True)], axis=-1)
+    colors = list(CATEGORICAL_COLORS[: len(kept)]) + [NEUTRAL_COLOR]
+    return folded_names, folded_values, colors
 
 
 def _totals_matrix(location: DbLocation, options: list[str], fetch_all: GroupedTotalsFetcher) -> np.ndarray:
@@ -153,13 +199,14 @@ def show_lookup_summary(
     options = [selected] if selected is not None else fetch_options()
     months = np.array([i + 1 for i in range(12)], dtype=np.uint8)
     totals = _totals_matrix(location, options, fetch_all)
+    options, totals, colors = fold_into_other(options, totals)
 
     # plot
     fig = plt.figure()
 
+    # line style and marker are a second channel besides color, for lines that cross
     linestyles = cycle(["-", "--", "-.", ":"])
     markers = cycle(["o", "s", "^", "D", "v", "p", "*"])
-    colors = cycle(TABLEAU_COLORS)
 
     for i in range(len(options)):
         plt.plot(
@@ -168,14 +215,14 @@ def show_lookup_summary(
             label=options[i],
             linestyle=next(linestyles),
             marker=next(markers),
-            color=next(colors),
+            color=colors[i],
             linewidth=2,
             markersize=6,
             alpha=0.8,
         )
 
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.grid(axis="y", linestyle="--")
+    plt.grid(axis="x", linestyle="--")
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
@@ -203,10 +250,10 @@ def show_monthly_trend(
         page (ft.Page): The page object.
         name (str): The plotted domain, used in the title (e.g. "Expenses").
         fetch_totals (Callable[[DbLocation], np.ndarray]): Returns the monthly totals.
-        color (str): The color of the line and its markers.
+        color (str): The color of the line and its markers: the page's accent.
         empty_text (str): The text shown instead of the chart when every month is zero.
-        lower_is_better (bool): Whether a month below the average is annotated in green (expenses)
-            rather than in red (income).
+        lower_is_better (bool): Whether a month below the average is annotated as good
+            (`POSITIVE_COLOR`, expenses) rather than as bad (`NEGATIVE_COLOR`, income).
     """
     location = current_db_location(page)
 
@@ -223,7 +270,7 @@ def show_monthly_trend(
     # plot
     fig = plt.figure()
 
-    plt.axhline(average, linestyle=":", color="firebrick", linewidth=1.5, label=f"{location.year} average")
+    plt.axhline(average, linestyle=":", color=CHART_SECONDARY_INK, linewidth=1.5, label=f"{location.year} average")
     plt.plot(months, totals, color=color, linewidth=1.2, alpha=0.4, label=str(location.year), zorder=1)
     plt.plot(months, totals, marker="o", linestyle="none", color=color, markersize=6, zorder=2)
 
@@ -237,11 +284,11 @@ def show_monthly_trend(
             xytext=(0, 10),
             ha="center",
             fontsize=CHART_ANNOTATION_SIZE,
-            color="darkgreen" if is_good else "firebrick",
+            color=POSITIVE_COLOR if is_good else NEGATIVE_COLOR,
         )
 
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.grid(axis="y", linestyle="--")
+    plt.grid(axis="x", linestyle="--")
     plt.xticks(months, MONTHS)
     plt.xlim(0.75, 12.25)
 
@@ -291,13 +338,16 @@ def show_lookup_pie(
     if not totals.size > 0:
         show_empty_popup(page, empty_text)
         return
+    names, totals, colors = fold_into_other(names.tolist(), totals)
 
     # plot
     fig = plt.figure()
 
     title = location.year if month is None else MONTHS[month - 1]
     plt.title(f"{name} Pie Chart ({title})")
-    patches, *_ = plt.pie(totals, labels=names, autopct="%1.1f%%")  # type: ignore
+    patches, *_ = plt.pie(  # type: ignore
+        totals, labels=names, colors=colors, autopct="%1.1f%%", wedgeprops=PIE_WEDGE_PROPS
+    )
 
     legend_labels = [f"{option}: € {format_amount(val)}" for option, val in zip(names, totals)]
     plt.legend(
