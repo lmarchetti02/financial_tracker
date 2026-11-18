@@ -56,7 +56,9 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
     Holdings are split into two independent sections: "Long Term Assets" (open-ended holdings,
     with no `maturity_date`) and "Fixed Term Assets" (a defined maturity date, e.g. an individual
     bond or a target-maturity ETF like an iBonds series). Both sections share a single add/edit
-    form; which one a holding lands in is decided purely by whether a maturity date was entered.
+    form; a holding lands in the fixed-term one exactly when its type is Fixed Maturity Bond, the
+    only type that takes a maturity date (enforced by `:class:Holding`'s validator). That section
+    therefore has no type filter or "Type (%)" column, which could only ever repeat the totals.
     """
 
     _item_label: ClassVar[str] = "Holding"
@@ -70,7 +72,6 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
         self.location = current_db_location(page)
         self.long_term_kind_filter: db.HoldingKind | None = None
-        self.fixed_term_kind_filter: db.HoldingKind | None = None
         self.long_term_sort_ascending: bool | None = None
         self.fixed_term_sort_ascending: bool | None = None
 
@@ -134,7 +135,6 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         self.long_term_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
         self.fixed_term_table_container = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
         self.long_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_long_term_kind)
-        self.fixed_term_kind_filter_menu = self._build_kind_filter_menu(self.filter_fixed_term_kind)
 
         # collapsible form
         upper_row = ft.Row(
@@ -397,23 +397,13 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         holding_id = e.control.data
         holding = self._holdings_by_id[holding_id]
 
-        if db.is_fixed_term(holding):
-            totals, kind_totals, grand_total = (
-                self._fixed_term_totals,
-                self._fixed_term_kind_totals,
-                self._fixed_term_grand_total,
-            )
+        fixed_term = db.is_fixed_term(holding)
+        if fixed_term:
+            total = self._fixed_term_totals[holding_id]
+            total_pct = self._format_share(total, self._fixed_term_grand_total)
         else:
-            totals, kind_totals, grand_total = (
-                self._long_term_totals,
-                self._long_term_kind_totals,
-                self._long_term_grand_total,
-            )
-
-        total = totals[holding_id]
-        kind_total = kind_totals.get(holding.kind, 0.0)
-        total_pct = self._format_share(total, grand_total)
-        type_pct = self._format_share(total, kind_total)
+            total = self._long_term_totals[holding_id]
+            total_pct = self._format_share(total, self._long_term_grand_total)
         region_summary = self._region_allocation_summary(holding_id)
 
         def info_row(label: str, value: str) -> ft.Row:
@@ -439,8 +429,11 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             info_row("Shares", format_amount(holding.quantity, decimals=3)),
             info_row("Total", f"€ {format_amount(total)}" if total is not None else "—"),
             info_row("Total (%)", total_pct),
-            info_row("Type (%)", type_pct),
         ]
+        if not fixed_term:
+            # every fixed-term holding is the same type, so its type share would just repeat Total (%)
+            kind_total = self._long_term_kind_totals.get(holding.kind, 0.0)
+            rows.append(info_row("Type (%)", self._format_share(total, kind_total)))
 
         expired = db.is_expired(holding)
         title_text = f"{holding.name} (EXPIRED)" if expired else holding.name
@@ -949,7 +942,10 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
     @staticmethod
     def _build_kind_filter_menu(on_click: Callable[[ft.Event], None]) -> ft.PopupMenuButton:
-        """Builds a "Filter by type" popup menu for a holdings table."""
+        """Builds the long-term holdings table's "Filter by type" popup menu.
+
+        Fixed Maturity Bond is left out, since such a holding always lands in the fixed-term table instead.
+        """
         return ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
             icon_color=_HEADING_COLOR,
@@ -961,6 +957,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                 # unchecked rather than `None` from the start, so the options don't shift once one gets checked
                 ft.PopupMenuItem(enum_label(kind), data=kind, on_click=on_click, checked=False)
                 for kind in sorted(db.HoldingKind, key=lambda k: k.name)
+                if kind is not db.HoldingKind.FIXED_MATURITY_BOND
             ]
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=None, on_click=on_click)],
@@ -971,13 +968,6 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         logger.info("Called 'filter_long_term_kind'")
         self.long_term_kind_filter = e.control.data
         self._sync_kind_filter_menu(self.long_term_kind_filter_menu, self.long_term_kind_filter)
-        self.refresh()
-
-    def filter_fixed_term_kind(self, e: ft.Event) -> None:
-        """Filters the fixed-term holdings table down to one `:enum:HoldingKind`, or clears the filter."""
-        logger.info("Called 'filter_fixed_term_kind'")
-        self.fixed_term_kind_filter = e.control.data
-        self._sync_kind_filter_menu(self.fixed_term_kind_filter_menu, self.fixed_term_kind_filter)
         self.refresh()
 
     @staticmethod
@@ -1021,11 +1011,11 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             self.fixed_term_holdings,
             self._fixed_term_totals,
             self._fixed_term_grand_total,
-            self._fixed_term_kind_totals,
+            _,
             self._fixed_term_weighted_ter,
         ) = self._prepare_group(
             [(hid, h) for hid, h in all_holdings if db.is_fixed_term(h)],
-            self.fixed_term_kind_filter,
+            None,
             self.fixed_term_sort_ascending,
         )
 
@@ -1039,22 +1029,21 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             refresh_button=self.long_term_refresh_prices_button,
             sort_ascending=self.long_term_sort_ascending,
             sort_handler=self.sort_long_term_by_total,
-            show_maturity_column=False,
+            fixed_term=False,
             empty_message="Add a holding above to start tracking your long-term portfolio.",
         )
         self.fixed_term_table_container.controls = self._build_holdings_section(
             holdings=self.fixed_term_holdings,
             totals=self._fixed_term_totals,
-            kind_totals=self._fixed_term_kind_totals,
+            kind_totals={},
             grand_total=self._fixed_term_grand_total,
             weighted_ter=self._fixed_term_weighted_ter,
-            kind_filter_menu=self.fixed_term_kind_filter_menu,
+            kind_filter_menu=None,
             refresh_button=self.fixed_term_refresh_prices_button,
             sort_ascending=self.fixed_term_sort_ascending,
             sort_handler=self.sort_fixed_term_by_total,
-            show_maturity_column=True,
-            empty_message="Add a holding above with a Maturity Date (e.g. a bond or an iBonds-style ETF) to "
-            "track it here.",
+            fixed_term=True,
+            empty_message="Add a Fixed Maturity Bond above (e.g. a bond or an iBonds-style ETF) to track it here.",
         )
 
         self._page.update()
@@ -1120,14 +1109,14 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         kind_totals: dict["db.HoldingKind", float],
         grand_total: float,
         weighted_ter: float | None,
-        kind_filter_menu: ft.PopupMenuButton,
+        kind_filter_menu: ft.PopupMenuButton | None,
         refresh_button: ft.Button,
         sort_ascending: bool | None,
         sort_handler: Callable[[ft.DataColumnSortEvent], None],
-        show_maturity_column: bool,
+        fixed_term: bool,
         empty_message: str,
     ) -> list[ft.Control]:
-        """Builds one group's summary line and holdings table."""
+        """Builds one group's summary line and holdings table, with `kind_filter_menu` omitted when `None`."""
         if not holdings:
             return [ft.Text(empty_message)]
 
@@ -1137,11 +1126,11 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
         summary = ft.Text(summary_text, size=16, weight=ft.FontWeight.BOLD)
         header_row = ft.Row(
-            [summary, ft.Row([kind_filter_menu, refresh_button])],
+            [summary, ft.Row([kind_filter_menu, refresh_button] if kind_filter_menu else [refresh_button])],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
         )
         table = self._build_holdings_table(
-            holdings, totals, kind_totals, grand_total, sort_ascending, sort_handler, show_maturity_column
+            holdings, totals, kind_totals, grand_total, sort_ascending, sort_handler, fixed_term
         )
         return [header_row, table]
 
@@ -1153,13 +1142,14 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         grand_total: float,
         sort_ascending: bool | None,
         sort_handler: Callable[[ft.DataColumnSortEvent], None],
-        show_maturity_column: bool,
+        fixed_term: bool,
     ) -> ft.Control:
         """Builds one group's holdings `:class:DataTable2`, one row per holding, kept to the bare-minimum columns.
 
         Every other field (ticker, issuer, currency, region, replication, distribution, notes, price) is
         available from the info button rather than taking up table width, since the window can't be
-        zoomed out like a spreadsheet to fit them all.
+        zoomed out like a spreadsheet to fit them all. A fixed-term table swaps "Type (%)" for "Maturity": its
+        holdings are all Fixed Maturity Bonds, so their type share would just repeat "Total (%)".
         """
         total_column_index = 3
         columns = [
@@ -1168,23 +1158,22 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             DataColumn2(label=ft.Text("Shares"), numeric=True, fixed_width=120),
             DataColumn2(label=ft.Text("Total"), numeric=True, fixed_width=150, on_sort=sort_handler),
             DataColumn2(label=ft.Text("Total (%)"), numeric=True, fixed_width=100),
-            DataColumn2(label=ft.Text("Type (%)"), numeric=True, fixed_width=100),
         ]
-        if show_maturity_column:
+        if fixed_term:
             columns.append(DataColumn2(label=ft.Text("Maturity"), fixed_width=120))
+        else:
+            columns.append(DataColumn2(label=ft.Text("Type (%)"), numeric=True, fixed_width=100))
         # long-term rows carry a 4th button (Detailed Regions), so they need more room than fixed-term ones
-        columns.append(DataColumn2(label=ft.Text(""), fixed_width=150 if show_maturity_column else 200))
+        columns.append(DataColumn2(label=ft.Text(""), fixed_width=150 if fixed_term else 200))
 
         rows = []
         for holding_id, holding in holdings:
             color = db.HOLDING_KIND_COLORS.get(holding.kind, "#000000")
             icon = db.HOLDING_KIND_ICONS.get(holding.kind, ft.Icons.HELP_OUTLINE)
             total = totals[holding_id]
-            kind_total = kind_totals.get(holding.kind, 0.0)
 
             total_str = f"€ {format_amount(total)}" if total is not None else "—"
             total_pct = self._format_share(total, grand_total)
-            type_pct = self._format_share(total, kind_total)
 
             expired = db.is_expired(holding)
             name_text = f"{holding.name} (EXPIRED)" if expired else holding.name
@@ -1216,13 +1205,15 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                 ),
                 ft.DataCell(ft.Text(total_str)),
                 ft.DataCell(ft.Text(total_pct)),
-                ft.DataCell(ft.Text(type_pct)),
             ]
-            if show_maturity_column:
+            if fixed_term:
                 cells.append(ft.DataCell(ft.Text(holding.maturity_date)))
+            else:
+                kind_total = kind_totals.get(holding.kind, 0.0)
+                cells.append(ft.DataCell(ft.Text(self._format_share(total, kind_total))))
 
             action_buttons = [build_row_action_button(ft.Icons.INFO_OUTLINE, holding_id, self.show_holding_info)]
-            if not show_maturity_column:
+            if not fixed_term:
                 # region allocation only makes sense for a diversified, long-term holding - a
                 # fixed-term one is dropped from the diversification tools entirely (see
                 # `show_portfolio_diversification`/`show_detailed_region_diversification`)

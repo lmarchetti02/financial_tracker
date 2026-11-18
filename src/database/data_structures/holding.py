@@ -3,10 +3,11 @@
 from enum import Enum, auto
 from logging import getLogger
 from sqlite3 import Row
+from typing import Self
 
 import flet as ft
 from flet_datatable2 import DataColumn2, DataColumnSize
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic.dataclasses import dataclass
 
 from _helpers.constants import (HOLDING_KIND_TARGETS_DB_NAME,
@@ -91,7 +92,8 @@ class Holding(DataContainer):
             fixed-maturity instrument (an individual bond, or a target-maturity ETF like an
             iBonds series). `None` for an open-ended holding (a plain stock/ETF meant to be held
             indefinitely) - presence of this field is what makes a holding "fixed term" rather
-            than "long term". Defaults to `None`.
+            than "long term". Set if and only if `kind` is `FIXED_MATURITY_BOND`, so the
+            fixed-term group is exactly that one kind. Defaults to `None`.
     """
 
     db_name = HOLDINGS_DB_NAME
@@ -112,6 +114,17 @@ class Holding(DataContainer):
     last_price_updated: str | None = None
     region: str | None = None
     maturity_date: str | None = None
+
+    @model_validator(mode="after")
+    def maturity_date_matches_kind(self) -> Self:
+        """Validates that a maturity date is set exactly when the holding is a Fixed Maturity Bond."""
+        is_fixed_maturity_bond = self.kind is HoldingKind.FIXED_MATURITY_BOND
+        if is_fixed_maturity_bond and self.maturity_date is None:
+            raise ValueError("A Fixed Maturity Bond must have a maturity date.")
+        if not is_fixed_maturity_bond and self.maturity_date is not None:
+            raise ValueError("Only a Fixed Maturity Bond can have a maturity date.")
+
+        return self
 
     @staticmethod
     def get_table_columns() -> list[DataColumn2]:  # noqa: D102

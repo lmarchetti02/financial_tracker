@@ -37,6 +37,11 @@ def make_holding(**overrides: object) -> Holding:
     return Holding(**defaults)
 
 
+def make_bond(maturity_date: str) -> Holding:
+    """Builds a fixed-term `:class:Holding`: a Fixed Maturity Bond maturing on `maturity_date`."""
+    return make_holding(kind=HoldingKind.FIXED_MATURITY_BOND, maturity_date=maturity_date)
+
+
 class TestFetchHoldings:
     """Tests for `fetch_holdings`."""
 
@@ -82,7 +87,7 @@ class TestIsFixedTerm:
 
     def test_returns_true_when_maturity_date_is_set(self) -> None:
         """A holding with a maturity date is fixed-term."""
-        assert is_fixed_term(make_holding(maturity_date="2027-06-15")) is True
+        assert is_fixed_term(make_bond("2027-06-15")) is True
 
     def test_returns_false_when_maturity_date_is_unset(self) -> None:
         """A holding with no maturity date is long-term."""
@@ -96,17 +101,17 @@ class TestIsExpired:
         """A maturity date before today has already expired."""
         yesterday = (date.today() - timedelta(days=1)).isoformat()
 
-        assert is_expired(make_holding(maturity_date=yesterday)) is True
+        assert is_expired(make_bond(yesterday)) is True
 
     def test_returns_true_for_todays_maturity_date(self) -> None:
         """A holding matures on its maturity date, so today counts as expired."""
-        assert is_expired(make_holding(maturity_date=date.today().isoformat())) is True
+        assert is_expired(make_bond(date.today().isoformat())) is True
 
     def test_returns_false_for_a_future_maturity_date(self) -> None:
         """A maturity date after today hasn't expired yet."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
-        assert is_expired(make_holding(maturity_date=tomorrow)) is False
+        assert is_expired(make_bond(tomorrow)) is False
 
     def test_returns_false_when_maturity_date_is_unset(self) -> None:
         """A long-term holding, with no maturity date, is never expired."""

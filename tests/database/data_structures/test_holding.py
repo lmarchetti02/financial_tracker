@@ -49,11 +49,24 @@ class TestHolding:
         assert holding.ter is None
         assert holding.maturity_date is None
 
-    def test_construction_succeeds_with_maturity_date_set(self) -> None:
-        """A maturity date can be set to mark the holding as fixed-term."""
-        holding = make_holding(maturity_date="2027-06-15")
+    def test_construction_succeeds_for_a_fixed_maturity_bond_with_maturity_date(self) -> None:
+        """A Fixed Maturity Bond carries the maturity date that marks it as fixed-term."""
+        holding = make_holding(kind=HoldingKind.FIXED_MATURITY_BOND, maturity_date="2027-06-15")
 
         assert holding.maturity_date == "2027-06-15"
+
+    def test_construction_fails_for_a_fixed_maturity_bond_without_maturity_date(self) -> None:
+        """A Fixed Maturity Bond without a maturity date is rejected."""
+        with pytest.raises(ValueError, match="must have a maturity date"):
+            make_holding(kind=HoldingKind.FIXED_MATURITY_BOND)
+
+    @pytest.mark.parametrize(
+        "kind", [kind for kind in HoldingKind if kind is not HoldingKind.FIXED_MATURITY_BOND]
+    )
+    def test_construction_fails_for_maturity_date_on_any_other_kind(self, kind: HoldingKind) -> None:
+        """Only a Fixed Maturity Bond may have a maturity date."""
+        with pytest.raises(ValueError, match="Only a Fixed Maturity Bond"):
+            make_holding(kind=kind, maturity_date="2027-06-15")
 
     def test_quantity_defaults_to_zero(self) -> None:
         """A newly-defined holding starts with no shares/units."""
