@@ -222,7 +222,7 @@ def build_row_action_button(
     """Builds an icon-only button for a table row's action cell, with the icon centered.
 
     The icon is passed as the button's `content` rather than its `icon`: an `icon` with no label is still laid out as
-    icon + gap + empty label inside the default horizontal padding, which pushes it off-center in a 50px-wide button.
+    icon + gap + empty label inside the default horizontal padding, which pushes it off-center in a 40px-wide button.
 
     Args:
         icon (ft.IconData): The icon to show.
@@ -237,7 +237,7 @@ def build_row_action_button(
     """
     return ft.Button(
         content=ft.Icon(icon),
-        width=50,
+        width=40,
         height=30,
         style=ft.ButtonStyle(padding=0),
         data=row_id,

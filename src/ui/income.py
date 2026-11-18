@@ -76,7 +76,7 @@ class IncomeView(BaseCrudView):
 
         # data table
         columns = db.Income.get_table_columns()
-        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
+        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
         columns[0].on_sort = self.sort_columns
         columns[3].on_sort = self.sort_columns
 

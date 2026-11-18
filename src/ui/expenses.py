@@ -101,7 +101,7 @@ class ExpensesView(BaseCrudView):
 
         # data table
         columns = db.Expense.get_table_columns()
-        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=200))
+        columns.append(DataColumn2(label=ft.Text("Options"), fixed_width=150))
         columns[0].on_sort = self.sort_columns
         columns[5].on_sort = self.sort_columns
 

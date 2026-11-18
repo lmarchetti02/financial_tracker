@@ -1171,7 +1171,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         ]
         if show_maturity_column:
             columns.append(DataColumn2(label=ft.Text("Maturity"), fixed_width=120))
-        columns.append(DataColumn2(label=ft.Text(""), fixed_width=240))
+        # long-term rows carry a 4th button (Detailed Regions), so they need more room than fixed-term ones
+        columns.append(DataColumn2(label=ft.Text(""), fixed_width=150 if show_maturity_column else 200))
 
         rows = []
         for holding_id, holding in holdings:

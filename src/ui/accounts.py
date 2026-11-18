@@ -11,8 +11,8 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import enum_label, format_amount, parse_amount
 from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
-from .common import (build_styled_data_table, current_db_location, show_alert,
-                     show_confirm_dialog)
+from .common import (build_row_action_button, build_styled_data_table,
+                     current_db_location, show_alert, show_confirm_dialog)
 
 logger = getLogger("financial_tracker")
 
@@ -276,14 +276,7 @@ class AccountsView(ft.Column):
         tiles = []
         for account_id, account in self.accounts:
             kind_color = db.ACCOUNT_KIND_COLORS.get(account.kind, "#000000")
-            delete_button = ft.Button(
-                icon=ft.Icons.DELETE,
-                icon_color=kind_color,
-                width=50,
-                height=30,
-                data=account_id,
-                on_click=self.delete_account,
-            )
+            delete_button = build_row_action_button(ft.Icons.DELETE, account_id, self.delete_account, color=kind_color)
             buttons: list[ft.Control] = [delete_button]
             if account.kind is db.AccountKind.DEBT:
                 buttons.insert(
