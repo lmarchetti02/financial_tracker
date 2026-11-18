@@ -8,6 +8,7 @@ from .accounts import fetch_account_balances as fetch_account_balances
 from .accounts import fetch_account_definitions as fetch_account_definitions
 from .accounts import fetch_balances_by_kind as fetch_balances_by_kind
 from .accounts import fetch_card_accounts as fetch_card_accounts
+from .accounts import fetch_card_balances as fetch_card_balances
 from .accounts import fetch_net_worth_components as fetch_net_worth_components
 from .accounts import fetch_previous_year_end_balances as fetch_previous_year_end_balances
 from .accounts import fetch_previous_year_end_net_worth_components as fetch_previous_year_end_net_worth_components

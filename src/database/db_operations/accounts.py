@@ -137,6 +137,32 @@ def fetch_account_balances(location: DbLocation) -> dict[tuple[int, int], float]
     return {(row[0], row[1]): row[2] for row in rows}
 
 
+def fetch_card_balances(location: DbLocation, month: int) -> list[tuple[str, float]]:
+    """Fetches how much is owed on each credit card at the end of `month`.
+
+    A card with no balance row for `month` falls back to its `:attr:Account.opening_balance`: that's
+    the case for a card seeded into a new year that nothing has been logged against yet, since
+    `:func:seed_accounts_for_new_year` copies definitions without recomputing their balances.
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the cards in the database.
+        month (int): The month (1-12) whose month-end balance to read.
+
+    Returns:
+        list[tuple[str, float]]: The name and month-end balance of each card, ordered by name.
+    """
+    logger.info("Called 'fetch_card_balances'")
+
+    balances = fetch_account_balances(location)
+    card_balances = [
+        (account.name, balances.get((account_id, month), account.opening_balance))
+        for account_id, account in fetch_card_accounts(location)
+    ]
+    logger.debug(f"Card balances at the end of month {month}:\n{card_balances}")
+
+    return card_balances
+
+
 def fetch_balances_by_kind(location: DbLocation) -> dict[AccountKind, np.ndarray]:
     """Fetches the total balance per month for each account kind that has any balance logged.
 

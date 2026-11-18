@@ -17,6 +17,7 @@ from database.db_operations.accounts import (
     fetch_account_definitions,
     fetch_balances_by_kind,
     fetch_card_accounts,
+    fetch_card_balances,
     fetch_net_worth_components,
     fetch_opening_balances_by_kind,
     fetch_previous_year_account_ids,
@@ -1090,6 +1091,48 @@ class TestFetchCardAccounts:
         cards = fetch_card_accounts(LOCATION)
 
         assert [(account_id, account.name) for account_id, account in cards] == [(card_id, "Visa")]
+
+
+class TestFetchCardBalances:
+    """Tests for `fetch_card_balances`."""
+
+    def test_returns_each_cards_month_end_balance_by_name(self) -> None:
+        """Every card's recomputed balance for the month is returned, ordered by name."""
+        initialize_card_tables(LOCATION)
+        visa_id = add_card(LOCATION, "Visa")
+        amex_id = add_card(LOCATION, "Amex")
+        add_item(LOCATION, make_card_expense(month=1, cost=30.0, paid_with="Visa"))
+        add_item(LOCATION, make_card_expense(month=2, cost=20.0, paid_with="Visa"))
+        add_item(LOCATION, make_card_expense(month=3, cost=99.0, paid_with="Visa"))
+        add_item(LOCATION, make_card_expense(month=2, cost=15.0, paid_with="Amex"))
+        recompute_account_balance(LOCATION, visa_id)
+        recompute_account_balance(LOCATION, amex_id)
+
+        # March's expense comes after the end of February, so it isn't owed yet
+        assert fetch_card_balances(LOCATION, 2) == [("Amex", pytest.approx(15.0)), ("Visa", pytest.approx(50.0))]
+
+    def test_ignores_debt_accounts_that_are_not_cards(self) -> None:
+        """A loan or a person's Debt account isn't a card, so its balance is left out."""
+        initialize_card_tables(LOCATION)
+        add_card(LOCATION)
+        loan_id = add_item(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT))
+        save_balance(LOCATION, loan_id, 1, 500.0)
+
+        assert [name for name, _ in fetch_card_balances(LOCATION, 1)] == ["Visa"]
+
+    def test_card_without_balances_falls_back_to_its_opening_balance(self) -> None:
+        """A card seeded into a new year, never recomputed, still owes what it carried over."""
+        initialize_card_tables(LOCATION)
+        add_card(LOCATION, opening_balance=120.0)
+
+        assert fetch_card_balances(LOCATION, 6) == [("Visa", pytest.approx(120.0))]
+
+    def test_returns_empty_list_without_cards(self) -> None:
+        """A year with no card accounts owes nothing on cards."""
+        initialize_card_tables(LOCATION)
+        add_item(LOCATION, make_account())
+
+        assert fetch_card_balances(LOCATION, 1) == []
 
 
 class TestCountCardExpenses:

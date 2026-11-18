@@ -1,6 +1,7 @@
 """Implementation of the home layout."""
 
 from collections.abc import Callable
+from datetime import date
 from logging import getLogger
 
 import flet as ft
@@ -18,6 +19,34 @@ logger = getLogger("financial_tracker")
 
 _HEADING_COLOR = "#FBC02D"
 _NET_WORTH_HEADING_COLOR = "#64B5F6"
+
+
+def _build_card_note(location: db.DbLocation, format_eur: Callable[[float], str]) -> ft.Control | None:
+    """Builds the note on how much is still owed on credit cards, or `None` if the year has no cards.
+
+    The balance shown is the current month's for the current year, and December's for any other
+    year. Card purchases are already counted in the Expenses row, so the note only tells how much
+    of that spending hasn't left the bank account yet.
+    """
+    logger.info("Called '_build_card_note'")
+
+    today = date.today()
+    month = today.month if location.year == today.year else 12
+    card_balances = db.fetch_card_balances(location, month)
+    if not card_balances:
+        return None
+
+    total = sum(balance for _, balance in card_balances)
+    text = f"Owed on credit cards at the end of {MONTHS[month - 1]}: € {format_eur(total)}"
+    if len(card_balances) > 1:
+        breakdown = ", ".join(f"{name} € {format_eur(balance)}" for name, balance in card_balances)
+        text += f" ({breakdown})"
+    text += " - already counted in Expenses."
+
+    return ft.Row(
+        [ft.Icon(ft.Icons.CREDIT_CARD, size=16, color=ft.Colors.GREY), ft.Text(text, italic=True, color=ft.Colors.GREY)],
+        alignment=ft.MainAxisAlignment.CENTER,
+    )
 
 
 def home_view(page: ft.Page) -> ft.Control:
@@ -86,6 +115,7 @@ def home_view(page: ft.Page) -> ft.Control:
         build_savings_row("Savings Rate (%)", savings_rate, lambda v: f"{v:.1f}"),
     ]
     savings_table = build_styled_data_table(savings_columns, savings_rows, _HEADING_COLOR)
+    card_note = _build_card_note(location, format_eur)
 
     liquid_assets, pension, credits, debts = db.fetch_net_worth_components(location)
     net_worth = liquid_assets + pension + credits - debts
@@ -135,6 +165,7 @@ def home_view(page: ft.Page) -> ft.Control:
             ft.Container(height=30),
             ft.Text("Savings", size=20, weight=ft.FontWeight.BOLD),
             savings_table,
+            *([card_note] if card_note is not None else []),
             ft.Container(height=10),
             ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=30),

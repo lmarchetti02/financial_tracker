@@ -37,6 +37,7 @@ from .db_operations import fetch_account_definitions as fetch_account_definition
 from .db_operations import fetch_balances_by_kind as fetch_balances_by_kind
 from .db_operations import fetch_by_id as fetch_by_id
 from .db_operations import fetch_card_accounts as fetch_card_accounts
+from .db_operations import fetch_card_balances as fetch_card_balances
 from .db_operations import fetch_categories as fetch_categories
 from .db_operations import fetch_category as fetch_category
 from .db_operations import fetch_category_totals as fetch_category_totals
