@@ -28,8 +28,6 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     # the page's accent: its table header and its chart buttons
     _accent_color: ClassVar[str]
     _sorting_config_cls: ClassVar[type[db.SortingConfig]]
-    # Whether the table opens filtered to the current month instead of showing the whole year.
-    _default_to_current_month: ClassVar[bool] = False
 
     def __init__(self, page: ft.Page) -> None:
         """Initializes the view, state variables, and layout."""
@@ -39,7 +37,8 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self.location = current_db_location(page)
 
         self.default_date = datetime.today()
-        self.current_month_filter: int | None = self.default_date.month if self._default_to_current_month else None
+        # the table opens on the current month; "Clear Filter" shows the whole year
+        self.current_month_filter: int | None = self.default_date.month
         self.current_lookup_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None
 

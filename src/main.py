@@ -62,10 +62,20 @@ def initialize_tracker(page: ft.Page, selected_year: int, selected_profile: str)
 
 def startup_layout(page: ft.Page) -> None:
     """Renders the main page."""
+    # index of the page currently on screen, so re-clicking its destination doesn't rebuild it
+    shown_index = 0
 
     def menu_change(e: ft.Event) -> None:
         """Controls navigation between pages."""
+        nonlocal shown_index
         index = e.control.selected_index
+
+        # the rail fires on every tap, including the destination already selected: rebuilding that
+        # page would throw away its filters, sort and half-filled form
+        if index == shown_index:
+            logger.debug(f"Page {index} already shown, ignoring navigation")
+            return
+        shown_index = index
 
         match index:
             case 0:
