@@ -11,6 +11,7 @@ from _helpers.constants import DEFAULT_PROFILE_NAME
 from _helpers.formatting import parse_year, validate_profile_name
 
 from .common import build_title_header
+from .typography import caption
 
 logger = getLogger("financial_tracker")
 
@@ -77,15 +78,11 @@ def welcome_page(page: ft.Page, on_start_callback: Callable[[int, str], None]) -
 
     year_field = ft.TextField(label="Year", value=str(default_year), width=150, on_change=update_hint)
     profile_field = ft.TextField(label="Profile", value=default_profile, width=200, on_change=update_hint)
-    hint_text = ft.Text(compute_hint(), size=12, color=ft.Colors.GREY)
+    hint_text = caption(compute_hint())
 
     existing_pairs = sorted(db.list_year_profile_pairs())
     existing_text = (
-        ft.Text(
-            "Existing: " + ", ".join(f"{year} ({profile})" for year, profile in existing_pairs),
-            size=12,
-            color=ft.Colors.GREY,
-        )
+        caption("Existing: " + ", ".join(f"{year} ({profile})" for year, profile in existing_pairs))
         if existing_pairs
         else None
     )

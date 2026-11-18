@@ -9,7 +9,7 @@ import numpy as np
 from _helpers.constants import MONTHS
 from database import fetch_net_worth_components, fetch_previous_year_end_net_worth_components
 
-from ._common import current_db_location, show_chart_popup, show_empty_popup
+from ._common import CHART_ANNOTATION_SIZE, current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -51,7 +51,7 @@ def show_net_worth_summary(page: ft.Page) -> None:
                 textcoords="offset points",
                 xytext=(0, 10),
                 ha="center",
-                fontsize=8,
+                fontsize=CHART_ANNOTATION_SIZE,
                 color="darkgreen" if pct >= 0 else "firebrick",
             )
 
@@ -61,7 +61,7 @@ def show_net_worth_summary(page: ft.Page) -> None:
     plt.xlim(0.75, 12.25)
 
     plt.title(f"Net Worth Summary {location.year}")
-    plt.ylabel("Net Worth (€)", fontsize=12)
+    plt.ylabel("Net Worth (€)")
     plt.legend()
 
     fig.tight_layout()

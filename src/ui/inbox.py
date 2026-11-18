@@ -17,6 +17,7 @@ from _helpers.inbox import (InboxEntry, append_archive, ensure_inbox_file,
                             stamp_imported)
 
 from .common import NO_CARD_KEY, NO_CARD_LABEL, show_alert
+from .typography import caption
 
 logger = getLogger("financial_tracker")
 
@@ -105,7 +106,7 @@ class InboxReviewDialog:
         self._cards_by_location: dict[tuple[int, str], list[str]] = {}
 
         self._import_button = ft.Button("Import", icon=ft.Icons.DOWNLOAD, on_click=self._import_all)
-        self._warning = ft.Text("", size=12, color=ft.Colors.ERROR, visible=False)
+        self._warning = caption(color=ft.Colors.ERROR, visible=False)
         self._rows = [self._build_row(entry) for entry in entries]
         self._rows_column = ft.Column(
             controls=[self._build_row_layout(row) for row in self._rows],
@@ -119,11 +120,7 @@ class InboxReviewDialog:
             title=ft.Text(self._title()),
             content=ft.Column(
                 controls=[
-                    ft.Text(
-                        "Captured on your iPhone. Check each row before it's added to your books.",
-                        size=12,
-                        opacity=0.7,
-                    ),
+                    caption("Captured on your iPhone. Check each row before it's added to your books."),
                     self._warning,
                     self._rows_column,
                 ],
@@ -197,7 +194,7 @@ class InboxReviewDialog:
         return ft.Row(
             controls=[
                 ft.Container(
-                    content=ft.Text(f"{day.day} {MONTHS[day.month - 1]} {day.year}", size=12, no_wrap=True),
+                    content=caption(f"{day.day} {MONTHS[day.month - 1]} {day.year}", color=None, no_wrap=True),
                     width=110,
                 ),
                 row.amount_field,

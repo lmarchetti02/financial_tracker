@@ -7,6 +7,7 @@ import flet as ft
 import flet_charts as fch
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import font_manager
 from matplotlib.colors import TABLEAU_COLORS
 from matplotlib.figure import Figure
 
@@ -14,8 +15,43 @@ from _helpers.constants import MONTHS
 from _helpers.formatting import format_amount
 from database import DbLocation
 from ui.common import current_db_location as current_db_location
+from ui.typography import FONT_FAMILY, FONTS_DIR
 
 type GroupedTotalsFetcher = Callable[[DbLocation], dict[str, np.ndarray]]
+
+# the chart text scale (points); the UI's scale lives in `ui.typography`
+CHART_TITLE_SIZE = 14
+CHART_LABEL_SIZE = 12
+CHART_TICK_SIZE = 10
+CHART_ANNOTATION_SIZE = 8
+
+
+def _configure_fonts() -> None:
+    """Draws every chart in the app's font, on the chart text scale.
+
+    matplotlib needs the static Regular/Bold files: it doesn't pick weights out of a variable font.
+    """
+    for font_file in ("JetBrainsMono-Regular.ttf", "JetBrainsMono-Bold.ttf"):
+        font_manager.fontManager.addfont(FONTS_DIR / font_file)
+
+    plt.rcParams.update(
+        {
+            "font.family": FONT_FAMILY,
+            "font.size": CHART_TICK_SIZE,
+            "axes.titlesize": CHART_TITLE_SIZE,
+            "axes.titleweight": "bold",
+            "figure.titlesize": CHART_TITLE_SIZE,
+            "figure.titleweight": "bold",
+            "axes.labelsize": CHART_LABEL_SIZE,
+            "xtick.labelsize": CHART_TICK_SIZE,
+            "ytick.labelsize": CHART_TICK_SIZE,
+            "legend.fontsize": CHART_ANNOTATION_SIZE,
+        }
+    )
+
+
+# every chart module imports this one, so this runs before any figure is drawn
+_configure_fonts()
 
 
 def _totals_matrix(location: DbLocation, options: list[str], fetch_all: GroupedTotalsFetcher) -> np.ndarray:
@@ -145,7 +181,7 @@ def show_lookup_summary(
 
     title = f"{name} Summary {location.year}"
     plt.title(title if selected is None else f"{title} — {selected}")
-    plt.ylabel("Total (€)", fontsize=12)
+    plt.ylabel("Total (€)")
     plt.legend()
 
     fig.tight_layout()
@@ -200,7 +236,7 @@ def show_monthly_trend(
             textcoords="offset points",
             xytext=(0, 10),
             ha="center",
-            fontsize=8,
+            fontsize=CHART_ANNOTATION_SIZE,
             color="darkgreen" if is_good else "firebrick",
         )
 
@@ -210,7 +246,7 @@ def show_monthly_trend(
     plt.xlim(0.75, 12.25)
 
     plt.title(f"{name} Trend {location.year}")
-    plt.ylabel("Total (€)", fontsize=12)
+    plt.ylabel("Total (€)")
     plt.legend()
 
     fig.tight_layout()

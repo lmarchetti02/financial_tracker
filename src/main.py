@@ -16,6 +16,7 @@ from ui.lock import lock_screen
 from ui.portfolio import portfolio_view
 from ui.settings import settings_view
 from ui.transfers import transfers_view
+from ui.typography import FONT_ASSET, FONT_FAMILY, build_theme
 from ui.welcome import welcome_page
 
 logger = getLogger("financial_tracker")
@@ -136,7 +137,8 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.full_screen = True
     page.theme_mode = ft.ThemeMode.DARK if db.get_theme_preference() == "dark" else ft.ThemeMode.LIGHT
-    page.theme = ft.Theme(color_scheme_seed=ft.Colors.RED, font_family="JetBrains Mono")
+    page.fonts = {FONT_FAMILY: FONT_ASSET}
+    page.theme = build_theme()
 
     def start(year: int, profile: str) -> None:
         """Prepares and renders the tracker for the year/profile picked on the welcome page."""

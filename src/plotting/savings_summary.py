@@ -39,7 +39,7 @@ def show_savings_summary(page: ft.Page) -> None:
     plt.xlim(0.75, 12.25)
 
     plt.title(f"Savings Summary {location.year}")
-    plt.ylabel("Net Savings (€)", fontsize=12)
+    plt.ylabel("Net Savings (€)")
 
     fig.tight_layout()
 

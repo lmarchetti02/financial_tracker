@@ -2,6 +2,8 @@
 
 import flet as ft
 
+from ..typography import caption, page_title, subheading
+
 
 def setting_row(title: str, subtitle: str, control: ft.Control) -> ft.Container:
     """Builds one settings entry: a label and description on the left, its control on the right.
@@ -19,8 +21,8 @@ def setting_row(title: str, subtitle: str, control: ft.Control) -> ft.Container:
             controls=[
                 ft.Column(
                     controls=[
-                        ft.Text(title, weight=ft.FontWeight.BOLD, size=15),
-                        ft.Text(subtitle, size=12, opacity=0.7),
+                        subheading(title),
+                        caption(subtitle),
                     ],
                     spacing=2,
                     expand=True,
@@ -56,8 +58,8 @@ def panel_title(title: str, subtitle: str) -> ft.Column:
     """Builds the heading shown at the top of a settings panel."""
     return ft.Column(
         controls=[
-            ft.Text(title, size=24, weight=ft.FontWeight.BOLD),
-            ft.Text(subtitle, size=13, opacity=0.7),
+            page_title(title),
+            caption(subtitle),
         ],
         spacing=2,
     )

@@ -16,6 +16,7 @@ from _helpers.expression_parser import evaluate_expression
 from .common import (CollapsibleFormMixin, build_row_action_button,
                      build_styled_data_table, current_db_location,
                      show_alert, sync_filter_menu)
+from .typography import page_title
 
 logger = getLogger("financial_tracker")
 
@@ -53,7 +54,7 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self._init_collapsible_form()
         self._sync_plot_buttons()
 
-        self.controls = [ft.Text(self._title, size=30, weight=ft.FontWeight.BOLD), *self._build_layout()]
+        self.controls = [page_title(self._title), *self._build_layout()]
 
         try:
             self.refresh_table()

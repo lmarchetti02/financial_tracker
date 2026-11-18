@@ -7,6 +7,7 @@ import flet as ft
 import database as db
 
 from ..common import show_alert, show_confirm_dialog
+from ..typography import MUTED_COLOR, caption
 
 logger = getLogger("financial_tracker")
 
@@ -46,7 +47,7 @@ class LookupListEditor(ft.Column):
             allow_multiple_selection=False,
             on_change=self._handle_kind_change,
         )
-        self._description = ft.Text(size=13, opacity=0.7)
+        self._description = caption()
         self._search_field = ft.TextField(
             label="Search",
             prefix_icon=ft.Icons.SEARCH,
@@ -106,7 +107,7 @@ class LookupListEditor(ft.Column):
 
         if not options:
             message = "No entry matches the search." if self._search else "This list is empty."
-            self._rows.controls = [ft.Container(content=ft.Text(message, opacity=0.6), padding=16)]
+            self._rows.controls = [ft.Container(content=ft.Text(message, color=MUTED_COLOR), padding=16)]
             return
 
         self._rows.controls = [self._build_row(option) for option in options]
@@ -116,7 +117,7 @@ class LookupListEditor(ft.Column):
         tooltip = "Required by the app" if option.is_system else None
 
         name = ft.Row(
-            controls=[ft.Text(option.name, size=14, expand=True)],
+            controls=[ft.Text(option.name, expand=True)],
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )

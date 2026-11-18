@@ -55,7 +55,7 @@ def show_asset_allocation_summary(page: ft.Page) -> None:
     plt.ylim(0, 100)
 
     plt.title(f"Asset Allocation {location.year}")
-    plt.ylabel("Share of total balance (%)", fontsize=12)
+    plt.ylabel("Share of total balance (%)")
     plt.legend(loc="center left", bbox_to_anchor=(1.0, 0.5))
 
     fig.tight_layout()

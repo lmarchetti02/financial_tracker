@@ -19,6 +19,7 @@ from plotting import (FigureClosingChart, build_kind_allocation_pie,
 from .common import (CollapsibleFormMixin, build_row_action_button,
                      build_styled_data_table, current_db_location, show_alert,
                      show_confirm_dialog, sync_filter_menu)
+from .typography import caption, page_title, section_title, subheading
 
 logger = getLogger("financial_tracker")
 
@@ -185,19 +186,19 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout, matching the other CRUD pages."""
         return [
-            ft.Text("Portfolio", size=30, weight=ft.FontWeight.BOLD),
+            page_title("Portfolio"),
             ft.Container(height=5),
             ft.Row([self.toggle_form_button], alignment=ft.MainAxisAlignment.CENTER),
             self.form_container,
             ft.Container(height=5),
-            ft.Text("Long Term Assets", size=20, weight=ft.FontWeight.BOLD, color=_HEADING_COLOR),
+            section_title("Long Term Assets", color=_HEADING_COLOR),
             self.long_term_table_container,
             ft.Row(
                 [self.diversification_button, self.detailed_diversification_button, self.asset_allocation_button],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             ft.Container(height=20),
-            ft.Text("Fixed Term Assets", size=20, weight=ft.FontWeight.BOLD, color=_HEADING_COLOR),
+            section_title("Fixed Term Assets", color=_HEADING_COLOR),
             self.fixed_term_table_container,
         ]
 
@@ -630,8 +631,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         total_text = ft.Text(
             f"Target total: {format_amount(sum(existing.values()), decimals=2)}%", weight=ft.FontWeight.BOLD
         )
-        delta_texts = {kind: ft.Text("—", size=12) for kind in kinds}
-        unallocated_text = ft.Text("", size=12, color=ft.Colors.GREY)
+        delta_texts = {kind: caption("—", color=None) for kind in kinds}
+        unallocated_text = caption()
 
         def _set_kind_label(kind: db.HoldingKind, resulting_pct: float | None) -> None:
             """Updates a kind field's label with its current %, and projected new % once known."""
@@ -663,7 +664,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
 
             if contribution <= 0:
                 unallocated_text.value = ""
-                caption.value = _REBALANCE_CAPTION
+                mode_caption.value = _REBALANCE_CAPTION
                 for kind in kinds:
                     if lock_checkboxes[kind].value:
                         # locked kinds are left untouched by definition - always exactly balanced,
@@ -696,7 +697,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                 return
 
             # contribution mode: only ever buy, never sell, and locked kinds never receive any of it
-            caption.value = _CONTRIBUTION_CAPTION
+            mode_caption.value = _CONTRIBUTION_CAPTION
             new_total = grand_total + contribution
             target_pcts = _parsed_target_percentages()
             unlocked = [kind for kind in kinds if not lock_checkboxes[kind].value]
@@ -785,7 +786,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             suffix="€",
             on_change=update_total,
         )
-        caption = ft.Text(_REBALANCE_CAPTION, size=12, color=ft.Colors.GREY)
+        mode_caption = caption(_REBALANCE_CAPTION)
 
         update_deltas()
 
@@ -836,7 +837,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                 ft.Container(width=400),
                 ft.Container(width=30),
                 ft.Container(
-                    ft.Text("Lock", size=12, weight=ft.FontWeight.BOLD),
+                    caption("Lock", color=None, weight=ft.FontWeight.BOLD),
                     width=_LOCK_COLUMN_WIDTH,
                     alignment=ft.Alignment.CENTER,
                 ),
@@ -879,7 +880,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                                 header_row,
                                 ft.Column(controls=rows, tight=True, spacing=15),
                                 ft.Container(height=10),
-                                caption,
+                                mode_caption,
                             ],
                             tight=True,
                             expand=10,
@@ -1124,7 +1125,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
         if weighted_ter is not None:
             summary_text += f"  •  Total TER: {format_amount(weighted_ter, decimals=2)}%"
 
-        summary = ft.Text(summary_text, size=16, weight=ft.FontWeight.BOLD)
+        summary = subheading(summary_text)
         header_row = ft.Row(
             [summary, ft.Row([kind_filter_menu, refresh_button] if kind_filter_menu else [refresh_button])],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -1194,7 +1195,6 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
                     ft.TextField(
                         value=format_amount(holding.quantity, decimals=3),
                         text_align=ft.TextAlign.RIGHT,
-                        text_size=14,
                         border=ft.NoInputBorder(),
                         content_padding=6,
                         dense=True,

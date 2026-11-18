@@ -14,6 +14,7 @@ from _helpers.formatting import format_amount
 from plotting import show_net_worth_summary, show_savings_pie, show_savings_summary
 
 from .common import build_styled_data_table, current_db_location
+from .typography import MUTED_COLOR, caption, page_title, section_title
 
 logger = getLogger("financial_tracker")
 
@@ -44,7 +45,7 @@ def _build_card_note(location: db.DbLocation, format_eur: Callable[[float], str]
     text += " - already counted in Expenses."
 
     return ft.Row(
-        [ft.Icon(ft.Icons.CREDIT_CARD, size=16, color=ft.Colors.GREY), ft.Text(text, italic=True, color=ft.Colors.GREY)],
+        [ft.Icon(ft.Icons.CREDIT_CARD, size=16, color=MUTED_COLOR), caption(text, italic=True)],
         alignment=ft.MainAxisAlignment.CENTER,
     )
 
@@ -161,20 +162,20 @@ def home_view(page: ft.Page) -> ft.Control:
 
     return ft.Column(
         controls=[
-            ft.Text("Home", size=30, weight=ft.FontWeight.BOLD),
-            ft.Container(height=30),
-            ft.Text("Savings", size=20, weight=ft.FontWeight.BOLD),
+            page_title("Home"),
+            ft.Container(height=10),
+            section_title("Savings"),
             savings_table,
             *([card_note] if card_note is not None else []),
-            ft.Container(height=10),
             ft.Row([summary_button, pie_chart_button], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=30),
-            ft.Text("Net Worth", size=20, weight=ft.FontWeight.BOLD),
-            ft.Container(height=10),
+            ft.Container(height=20),
+            section_title("Net Worth"),
             net_worth_table,
-            ft.Container(height=10),
             ft.Row([net_worth_summary_button], alignment=ft.MainAxisAlignment.CENTER),
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         expand=True,
+        # both tables plus their buttons are about a laptop screen tall; scroll rather than clip
+        # the last button on a shorter screen
+        scroll=ft.ScrollMode.AUTO,
     )

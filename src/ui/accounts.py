@@ -13,6 +13,7 @@ from plotting import show_asset_allocation_pie, show_asset_allocation_summary
 
 from .common import (build_row_action_button, build_styled_data_table,
                      current_db_location, show_alert, show_confirm_dialog)
+from .typography import HEADING_TEXT_STYLE, MUTED_COLOR, caption, page_title, section_title
 
 logger = getLogger("financial_tracker")
 
@@ -81,13 +82,13 @@ class AccountsView(ft.Column):
     def _build_layout(self) -> list[ft.Control]:
         """Assembles the initialized controls into the final layout."""
         return [
-            ft.Text("Accounts", size=30, weight=ft.FontWeight.BOLD),
+            page_title("Accounts"),
             ft.Container(height=20),
-            ft.Text("Monthly balances (€)", size=20, weight=ft.FontWeight.BOLD),
+            section_title("Monthly balances (€)"),
             self.balance_grid_container,
             ft.Row([self.allocation_summary_button, self.allocation_pie_button], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=20),
-            ft.Text("Accounts", size=20, weight=ft.FontWeight.BOLD),
+            section_title("Accounts"),
             ft.Row(
                 controls=[self.name_text, self.kind_dropdown, self.card_checkbox, self.add_account_button],
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -307,7 +308,7 @@ class AccountsView(ft.Column):
                                 tight=True,
                                 controls=[
                                     ft.Text(account.name, weight=ft.FontWeight.BOLD),
-                                    ft.Text(kind_label, size=12, color=kind_color),
+                                    caption(kind_label, color=kind_color),
                                 ],
                             ),
                             ft.Row(controls=buttons, spacing=0, tight=True),
@@ -375,7 +376,7 @@ class AccountsView(ft.Column):
                         self.balances.get((account_id, month)),
                         (account_id, month),
                         read_only=is_computed,
-                        color=ft.Colors.GREY if is_computed else None,
+                        color=MUTED_COLOR if is_computed else None,
                         tooltip="Computed from Debt/Credit transfers" if is_computed else None,
                         on_blur=None if is_computed else self.commit_cell,
                         on_submit=None if is_computed else self.commit_cell,
@@ -389,7 +390,7 @@ class AccountsView(ft.Column):
             _HEADING_COLOR,
             fixed_left_columns=1,
             fixed_top_rows=1,
-            heading_text_style=ft.TextStyle(size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+            heading_text_style=HEADING_TEXT_STYLE.copy(color=ft.Colors.WHITE),
             heading_row_height=_HEADING_ROW_HEIGHT,
             data_row_height=_BALANCE_ROW_HEIGHT,
             column_spacing=5,

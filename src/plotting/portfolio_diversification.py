@@ -10,7 +10,7 @@ from matplotlib.patches import ConnectionPatch
 import database as db
 from _helpers.formatting import enum_label, format_amount
 
-from ._common import current_db_location, show_chart_popup, show_empty_popup
+from ._common import CHART_ANNOTATION_SIZE, current_db_location, show_chart_popup, show_empty_popup
 
 logger = getLogger("financial_tracker")
 
@@ -85,7 +85,7 @@ def _plot_pie(ax: plt.Axes, title: str, totals: dict[str, float]) -> None:
     ax.set_title(title)
 
     legend_labels = [f"{name}: € {format_amount(value, decimals=0)}" for name, value in zip(names, values)]
-    ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05), fontsize=8)
+    ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05))
 
 
 def build_kind_allocation_pie(kind_totals: dict[db.HoldingKind, float]) -> plt.Figure:
@@ -111,7 +111,7 @@ def build_kind_allocation_pie(kind_totals: dict[db.HoldingKind, float]) -> plt.F
     patches, *_ = ax.pie(values, colors=colors, autopct="%1.1f%%")  # type: ignore
 
     legend_labels = [f"{label}: € {format_amount(value, decimals=0)}" for label, value in zip(labels, values)]
-    ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05), fontsize=8)
+    ax.legend(patches, legend_labels, loc="upper center", bbox_to_anchor=(0.5, -0.05))
     fig.tight_layout()
 
     return fig
@@ -203,7 +203,7 @@ def _build_bar_of_pie(totals: dict[str, float], title: str) -> plt.Figure:
             f"{name} {format_amount(pct, decimals=1)}%",
             va="center",
             ha="left",
-            fontsize=8,
+            fontsize=CHART_ANNOTATION_SIZE,
         )
 
     ax2.set_title("Other")

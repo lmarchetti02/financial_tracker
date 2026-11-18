@@ -9,6 +9,8 @@ from flet_datatable2 import DataColumn2, DataTable2
 import database as db
 from _helpers.constants import INBOX_NO_CARD_CHOICE
 
+from .typography import HEADING_TEXT_STYLE, SECTION_SIZE, page_title
+
 FILTER_ACTIVE_COLOR = ft.Colors.AMBER_700
 
 # Flet's date pickers have no first-day-of-week option: Flutter takes it from the locale, and the
@@ -173,7 +175,7 @@ def build_styled_data_table(
         "border": ft.Border(top=borders, bottom=borders, right=borders, left=borders),
         "vertical_lines": v_lines,
         "horizontal_lines": v_lines,
-        "heading_text_style": ft.TextStyle(size=16, weight=ft.FontWeight.BOLD),
+        "heading_text_style": HEADING_TEXT_STYLE,
         "heading_row_color": heading_color,
         "sort_arrow_icon_color": ft.Colors.WHITE,
         "heading_row_height": 35,
@@ -196,8 +198,8 @@ def build_title_header(page: ft.Page) -> list[ft.Control]:
     """
     return [
         ft.Container(height=page.height * 0.1),  # type: ignore
-        ft.Text("FINANCIAL TRACKER", size=30, weight=ft.FontWeight.BOLD),
-        ft.Text("by Luca Marchetti", size=22),
+        page_title("FINANCIAL TRACKER"),
+        ft.Text("by Luca Marchetti", size=SECTION_SIZE),
         ft.Container(height=page.height * 0.2),  # type: ignore
     ]
 
