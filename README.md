@@ -209,17 +209,24 @@ sqlite3 ~/Library/Application\ Support/Financial\ Tracker/config.db \
 See [Flet](https://flet.dev/docs/publish/macos/) for the prerequisite, then run:
 
 ```
-./compile.sh
+uv run flet build macos
 ```
 
-Builds `Financial Tracker.app` into `build/macos/` and packages it into `Financial Tracker.dmg`.
-Move the app to `/Applications` to install.
+Builds `Financial Tracker.app` into `build/macos/`. Move the app to `/Applications` to install.
 
-Use `compile.sh` rather than a bare `uv run flet build macos`: Flet's macOS template targets
-macOS 11.0, which Xcode 27 rejects (it supports 12.0 and up), and Flet regenerates
-`build/flutter` whenever its build inputs change, such as the Flet or project version. The script
-bumps the generated project to 12.0 before building and, if a build fails because the template
-was just regenerated, bumps it again and retries once. That retry takes a few extra minutes.
+With Xcode 27 the first build fails: Flet's macOS template targets macOS 11.0, but Xcode 27 only
+supports 12.0 and up, and Flet has no setting for it. The failed build still generates the Xcode
+project under `build/flutter/macos/`, so raise its target there and build again:
+
+- In `Podfile`, set `platform :osx, '12.0'`. Then, in the `post_install` block, add this line right
+  after `flutter_additional_macos_build_settings(target)`:
+  `target.build_configurations.each { |config| config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '12.0' }`.
+  The pods keep their own targets otherwise.
+- In `Runner.xcodeproj/project.pbxproj`, set every `MACOSX_DEPLOYMENT_TARGET` to `12.0`.
+
+Flet regenerates `build/flutter` whenever its build inputs change, such as the Flet or project
+version, which undoes these edits. After bumping either, expect the first build to fail again and
+redo them.
 
 ## Requirements
 
