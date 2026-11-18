@@ -399,7 +399,9 @@ class ExpensesView(BaseCrudView):
     def _sync_card_filter_menu(self) -> None:
         """Re-styles the "Paid with" filter menu to reflect the active filter."""
         label = NO_CARD_LABEL if self.current_card_filter == NO_CARD_KEY else self.current_card_filter
-        sync_filter_menu(self.card_filter_menu, label, ft.Colors.WHITE, "Filter card")
+        sync_filter_menu(
+            self.card_filter_menu, label, ft.Colors.WHITE, "Filter card", active_value=self.current_card_filter
+        )
 
     def filter_card(self, e: ft.Event) -> None:
         """Filters the "Paid with" column."""

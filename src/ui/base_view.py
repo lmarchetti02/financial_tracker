@@ -41,12 +41,17 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         self.current_lookup_filter: str | None = None
         self.current_sort: db.SortingConfig | None = None
 
+        # optional plot buttons whose label names the filter they plot; a subclass without charts leaves them unset
+        self.summary_button: ft.Button | None = None
+        self.pie_chart_button: ft.Button | None = None
+
         self.expand = True
         self.alignment = ft.MainAxisAlignment.START
         self.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
         self._init_controls()
         self._init_collapsible_form()
+        self._sync_plot_buttons()
 
         self.controls = [ft.Text(self._title, size=30, weight=ft.FontWeight.BOLD), *self._build_layout()]
 
@@ -134,14 +139,27 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         return build_styled_data_table(columns, [], self._heading_color)
 
     def _build_month_filter_menu(self) -> ft.PopupMenuButton:
-        """Builds the "Filter month" popup menu shared by every subclass."""
+        """Builds the "Filter month" popup menu shared by every subclass.
+
+        Today's month is drawn bold and colored when the view shows the current year, and the
+        filtered month carries a check mark (see `_sync_month_filter_menu`).
+        """
+        today_month = self.default_date.month if self.location.year == self.default_date.year else None
+        today_style = ft.TextStyle(weight=ft.FontWeight.BOLD, color=ft.Colors.PRIMARY)
+
         self.month_filter_menu = ft.PopupMenuButton(
             icon=ft.Icons.FILTER_ALT,
             icon_size=20,
             padding=0,
             menu_padding=0,
             items=[
-                ft.PopupMenuItem(f"{MONTHS[i]} ({i + 1})", data=i + 1, on_click=self.filter_months) for i in range(12)
+                ft.PopupMenuItem(
+                    f"{MONTHS[i]} ({i + 1})",
+                    data=i + 1,
+                    on_click=self.filter_months,
+                    label_text_style=today_style if i + 1 == today_month else None,
+                )
+                for i in range(12)
             ]
             + [ft.PopupMenuItem()]
             + [ft.PopupMenuItem("Clear Filter", data=-1, on_click=self.filter_months)],
@@ -153,7 +171,22 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         """Re-styles the month filter menu to reflect the active filter."""
         month = self.current_month_filter
         label = None if month is None else MONTHS[month - 1]
-        sync_filter_menu(self.month_filter_menu, label, ft.Colors.WHITE, "Filter month")
+        sync_filter_menu(self.month_filter_menu, label, ft.Colors.WHITE, "Filter month", active_value=month)
+
+    def _sync_plot_buttons(self) -> None:
+        """Relabels the plot buttons to name what they'll plot under the active filters.
+
+        The pie chart follows the month filter and the summary follows the lookup filter, so the
+        labels make that visible before the user clicks.
+        """
+        if self.pie_chart_button is not None:
+            month = self.current_month_filter
+            scope = "Whole Year" if month is None else MONTHS[month - 1]
+            self.pie_chart_button.content = f"Show Pie Chart ({scope})"
+
+        if self.summary_button is not None:
+            lookup = self.current_lookup_filter
+            self.summary_button.content = "Show Summary" if lookup is None else f"Show Summary ({lookup})"
 
     def _build_lookup_filter_menu(self, options: list[str], tooltip: str) -> ft.PopupMenuButton:
         """Builds the domain-specific lookup-list filter popup menu shared by every subclass."""
@@ -173,7 +206,11 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
     def _sync_lookup_filter_menu(self) -> None:
         """Re-styles the lookup-list filter menu to reflect the active filter."""
         sync_filter_menu(
-            self.lookup_filter_menu, self.current_lookup_filter, ft.Colors.WHITE, self._lookup_filter_tooltip
+            self.lookup_filter_menu,
+            self.current_lookup_filter,
+            ft.Colors.WHITE,
+            self._lookup_filter_tooltip,
+            active_value=self.current_lookup_filter,
         )
 
     def _is_readonly(self, row_id: int) -> bool:
@@ -230,10 +267,12 @@ class BaseCrudView(CollapsibleFormMixin, ft.Column, ABC):
         month = e.control.data
         self.current_month_filter = month if month > 0 else None
         self._sync_month_filter_menu()
+        self._sync_plot_buttons()
         self.refresh_table()
 
     def filter_lookup(self, e: ft.Event) -> None:
         """Filters the domain-specific lookup-list column (category, source, or kind)."""
         self.current_lookup_filter = e.control.data
         self._sync_lookup_filter_menu()
+        self._sync_plot_buttons()
         self.refresh_table()

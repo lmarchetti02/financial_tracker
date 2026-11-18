@@ -958,7 +958,8 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
             menu_padding=0,
             tooltip="Filter by type",
             items=[
-                ft.PopupMenuItem(enum_label(kind), data=kind, on_click=on_click)
+                # unchecked rather than `None` from the start, so the options don't shift once one gets checked
+                ft.PopupMenuItem(enum_label(kind), data=kind, on_click=on_click, checked=False)
                 for kind in sorted(db.HoldingKind, key=lambda k: k.name)
             ]
             + [ft.PopupMenuItem()]
@@ -983,7 +984,7 @@ class PortfolioView(CollapsibleFormMixin, ft.Column):
     def _sync_kind_filter_menu(menu: ft.PopupMenuButton, kind_filter: db.HoldingKind | None) -> None:
         """Re-styles a holdings table's type filter menu to reflect the active filter."""
         label = None if kind_filter is None else enum_label(kind_filter)
-        sync_filter_menu(menu, label, _HEADING_COLOR, "Filter by type")
+        sync_filter_menu(menu, label, _HEADING_COLOR, "Filter by type", active_value=kind_filter)
 
     def sort_long_term_by_total(self, e: ft.DataColumnSortEvent) -> None:
         """Sorts the long-term holdings table by market value (the "Total" column)."""

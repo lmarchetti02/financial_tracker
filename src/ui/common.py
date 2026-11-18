@@ -23,18 +23,32 @@ NO_CARD_LABEL = INBOX_NO_CARD_CHOICE
 
 
 def sync_filter_menu(
-    menu: ft.PopupMenuButton, active_label: str | None, inactive_color: str, inactive_tooltip: str
+    menu: ft.PopupMenuButton,
+    active_label: str | None,
+    inactive_color: str,
+    inactive_tooltip: str,
+    *,
+    active_value: object,
 ) -> None:
-    """Colors a filter popup menu's icon and updates its tooltip to reflect whether a filter is set.
+    """Restyles a filter popup menu to reflect the active filter, and checks the filtered option.
+
+    Every filter menu lists its options, then a divider and a "Clear Filter" entry, so the options
+    are every item but the last two.
 
     Args:
         menu (ft.PopupMenuButton): The filter menu to restyle in place.
         active_label (str | None): The value currently filtered on, or `None` when the filter is cleared.
         inactive_color (str): The icon color to restore when no filter is set.
         inactive_tooltip (str): The tooltip to restore when no filter is set.
+        active_value (object): The `data` of the option currently filtered on, or `None` when the
+            filter is cleared.
     """
     menu.icon_color = inactive_color if active_label is None else FILTER_ACTIVE_COLOR
     menu.tooltip = inactive_tooltip if active_label is None else f"Showing {active_label} only"
+
+    # always `True`/`False`, never `None`, so every option keeps the check mark's indent and the labels stay aligned
+    for item in menu.items[:-2]:
+        item.checked = active_value is not None and item.data == active_value
 
 
 class CollapsibleFormMixin:
