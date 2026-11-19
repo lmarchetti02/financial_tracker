@@ -12,13 +12,19 @@ import database as db
 from _helpers.constants import (SYSTEM_CATEGORY_TRADING_FEE,
                                 SYSTEM_KIND_INVESTMENT,
                                 SYSTEM_SOURCE_INVESTMENTS)
-from _helpers.formatting import format_amount
+from _helpers.expression_parser import evaluate_expression
+from _helpers.formatting import enum_label, format_amount
 
 from .base_view import BaseCrudView
 from .colors import TRANSFERS_ACCENT
 from .common import DATE_PICKER_LOCALE, show_alert, show_confirm_dialog
+from .typography import caption
 
 logger = getLogger("financial_tracker")
+
+# `ft.Dropdown` keys can't be `None`, so "no account" gets a key no account name can collide with
+NO_ACCOUNT_KEY = "\x00no-account"
+NO_ACCOUNT_LABEL = "None"
 
 
 class TransfersView(BaseCrudView):
@@ -57,8 +63,13 @@ class TransfersView(BaseCrudView):
         self.amount_text = ft.TextField(label="Amount (€)", width=170)
 
         # source / destination
-        self.source_text = ft.TextField(label="Source", width=290)
-        self.destination_text = ft.TextField(label="Destination", width=290)
+        self.accounts = [account for _, account in db.fetch_account_definitions(self.location)]
+        self.extra_account_names: list[str] = []
+        self.source_picker = ft.Dropdown(label="Source", value=NO_ACCOUNT_KEY, width=250)
+        self.destination_picker = ft.Dropdown(label="Destination", value=NO_ACCOUNT_KEY, width=250)
+        self.new_source_button = self._build_new_account_button(self.source_picker)
+        self.new_destination_button = self._build_new_account_button(self.destination_picker)
+        self.update_account_pickers()
 
         # description
         self.description_text = ft.TextField(label="Description", width=350, multiline=True)
@@ -87,9 +98,9 @@ class TransfersView(BaseCrudView):
                 ),
                 ft.Row(
                     controls=[
-                        self.source_text,
+                        ft.Row([self.source_picker, self.new_source_button], spacing=0, tight=True),
                         ft.Container(width=40),
-                        self.destination_text,
+                        ft.Row([self.destination_picker, self.new_destination_button], spacing=0, tight=True),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                 ),
@@ -157,7 +168,120 @@ class TransfersView(BaseCrudView):
         if self.profit_text.disabled:
             self.profit_text.value = ""
 
+        self.update_account_pickers()
+
         self._page.update()
+
+    def _offered_account_names(self) -> list[str]:
+        """Returns the names of the accounts the selected kind may name in its source/destination.
+
+        A Debt/Credit transfer may only name accounts of the matching kind (any other one would be
+        refused by `db.sync_transfer_accounts`); every other kind may name any account of the year.
+        """
+        kind = db.debt_credit_account_kind(self.kind_picker.value)
+        return [account.name for account in self.accounts if kind is None or account.kind is kind]
+
+    def update_account_pickers(self) -> None:
+        """Offers the accounts the selected kind may name, resetting any selection no longer offered."""
+        names = self._offered_account_names()
+        names += [name for name in self.extra_account_names if name not in names]
+
+        for picker in (self.source_picker, self.destination_picker):
+            # each dropdown needs its own option controls, so they're built per picker
+            picker.options = [ft.DropdownOption(key=NO_ACCOUNT_KEY, text=NO_ACCOUNT_LABEL)] + [
+                ft.DropdownOption(key=name, text=name) for name in names
+            ]
+            if picker.value not in names:
+                picker.value = NO_ACCOUNT_KEY
+
+        kind = db.debt_credit_account_kind(self.kind_picker.value)
+        for button in (self.new_source_button, self.new_destination_button):
+            button.disabled = kind is None
+            button.tooltip = (
+                f"New {enum_label(kind)} account" if kind is not None else "Choose the Debt or Credit kind to add an account"
+            )
+
+    def _account_key(self, name: str | None) -> str:
+        """Returns the source/destination picker key showing `name`.
+
+        Account names match case-insensitively (as when computing a Debt/Credit balance), so a
+        transfer stored as "mom" still selects the "Mom" account.
+        """
+        if name is None:
+            return NO_ACCOUNT_KEY
+
+        for account in self.accounts:
+            if account.name.lower() == name.lower():
+                return account.name
+
+        return name
+
+    def _build_new_account_button(self, picker: ft.Dropdown) -> ft.IconButton:
+        """Builds the "+" button creating a new Debt/Credit account and selecting it in `picker`."""
+        return ft.IconButton(icon=ft.Icons.ADD, on_click=lambda _: self.open_new_account_dialog(picker))
+
+    def open_new_account_dialog(self, picker: ft.Dropdown) -> None:
+        """Shows a dialog creating an account of the selected Debt/Credit kind, then selects it in `picker`."""
+        logger.info("Called 'open_new_account_dialog'")
+
+        kind = db.debt_credit_account_kind(self.kind_picker.value)
+        if kind is None:
+            return
+
+        owed = "you owe" if kind is db.AccountKind.DEBT else "you are owed"
+        name_field = ft.TextField(label="Name", autofocus=True)
+        balance_field = ft.TextField(label="Opening balance (€)", hint_text="0")
+
+        def create(_: ft.Event) -> None:
+            """Creates the account, if valid, and selects it."""
+            name_field.error_text = None
+            balance_field.error_text = None
+
+            name = (name_field.value or "").strip()
+            if not name:
+                name_field.error_text = "You must give the account a name."
+                self._page.update()
+                return
+
+            try:
+                opening_balance = evaluate_expression(balance_field.value) if balance_field.value else 0.0
+            except ValueError:
+                balance_field.error_text = "Must be a number or an arithmetic expression."
+                self._page.update()
+                return
+
+            try:
+                db.create_account(self.location, db.Account(name=name, kind=kind, opening_balance=opening_balance))
+            except ValueError as error:
+                name_field.error_text = str(error)
+                self._page.update()
+                return
+
+            self._page.pop_dialog()
+
+            self.accounts = [account for _, account in db.fetch_account_definitions(self.location)]
+            self.update_account_pickers()
+            picker.value = name
+            self._page.update()
+
+        self._page.show_dialog(
+            ft.AlertDialog(
+                title=ft.Text(f"New {enum_label(kind)} account"),
+                content=ft.Column(
+                    controls=[
+                        caption(f"Opening balance: what {owed} at the start of {self.location.year}."),
+                        name_field,
+                        balance_field,
+                    ],
+                    tight=True,
+                    width=350,
+                ),
+                actions=[
+                    ft.TextButton("Create", on_click=create),
+                    ft.TextButton("Cancel", on_click=lambda _: self._page.pop_dialog()),
+                ],
+            )
+        )
 
     def get_transfer_from_inputs(self) -> db.Transfer | None:
         """Reads the values in the controls and returns a `:class:Transfer` object."""
@@ -184,8 +308,8 @@ class TransfersView(BaseCrudView):
         if amount is None:
             return None
 
-        source = self.source_text.value or None
-        destination = self.destination_text.value or None
+        source = None if self.source_picker.value == NO_ACCOUNT_KEY else self.source_picker.value
+        destination = None if self.destination_picker.value == NO_ACCOUNT_KEY else self.destination_picker.value
         if source is None and destination is None:
             show_alert(
                 self._page,
@@ -236,8 +360,10 @@ class TransfersView(BaseCrudView):
         self.fee_text.value = ""
         self.profit_text.value = ""
         self.update_investment_fields_state()
-        self.source_text.value = ""
-        self.destination_text.value = ""
+        self.extra_account_names = []
+        self.source_picker.value = NO_ACCOUNT_KEY
+        self.destination_picker.value = NO_ACCOUNT_KEY
+        self.update_account_pickers()
         logger.debug("Cleared transfer data")
 
     def _sync_transfer_accounts(self, *transfers: db.Transfer) -> None:
@@ -424,8 +550,13 @@ class TransfersView(BaseCrudView):
         else:
             self.profit_text.value = ""
         self.description_text.value = transfer.description
-        self.source_text.value = transfer.source or ""
-        self.destination_text.value = transfer.destination or ""
+
+        # a stored name no longer offered (e.g. of a deleted account) stays selectable rather than being lost on save
+        keys = [self._account_key(transfer.source), self._account_key(transfer.destination)]
+        offered = self._offered_account_names()
+        self.extra_account_names = [key for key in dict.fromkeys(keys) if key != NO_ACCOUNT_KEY and key not in offered]
+        self.update_account_pickers()
+        self.source_picker.value, self.destination_picker.value = keys
         self.update_date_text(e)
 
     def _fetch_rows(self) -> db.RowGenerator:

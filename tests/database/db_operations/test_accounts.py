@@ -4,12 +4,15 @@ import sqlite3 as sq
 
 import pytest
 
-from _helpers.constants import DEFAULT_PROFILE_NAME, SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT
+from _helpers.constants import DEFAULT_PROFILE_NAME, SYSTEM_KIND_CREDIT, SYSTEM_KIND_DEBT, SYSTEM_KIND_INVESTMENT
 from database.data_structures.account import Account, AccountKind
 from database.data_structures.expense import Expense
 from database.data_structures.transfer import Transfer
 from database.db_operations.accounts import (
+    count_account_transfers,
     count_card_expenses,
+    create_account,
+    debt_credit_account_kind,
     delete_account,
     delete_balance,
     delete_previous_year_end_balance,
@@ -36,7 +39,7 @@ from database.db_operations.accounts import (
     sync_transfer_accounts,
 )
 from database.db_operations.generic import (DbLocation, WhichDb, add_item, edit_item, fetch_by_id, get_db_path,
-                                            initialize_db)
+                                            initialize_db, remove_item)
 
 YEAR = 2024
 PRIOR_YEAR = 2023
@@ -404,6 +407,112 @@ class TestDeleteAccount:
         add_item(LOCATION, make_card_expense(paid_with=None))
 
         assert delete_account(LOCATION, card_id) is True
+
+    def test_refuses_to_delete_an_account_a_transfer_names(self) -> None:
+        """An account still named by a transfer's source/destination is kept, and the reason is raised."""
+        initialize_card_tables(LOCATION)
+        account_id = add_item(LOCATION, make_account())
+        add_item(LOCATION, make_transfer(kind=SYSTEM_KIND_INVESTMENT, source="checking"))
+
+        with pytest.raises(ValueError, match="1 transfer still names it"):
+            delete_account(LOCATION, account_id)
+
+        assert dict(fetch_account_definitions(LOCATION)) != {}
+
+    def test_deletes_an_account_once_no_transfer_names_it(self) -> None:
+        """Removing the last transfer naming an account makes it deletable again."""
+        initialize_card_tables(LOCATION)
+        account_id = add_item(LOCATION, make_account())
+        transfer_id = add_item(LOCATION, make_transfer(kind=SYSTEM_KIND_INVESTMENT, destination="Checking"))
+        remove_item(LOCATION, WhichDb.TRANSFERS, transfer_id)
+
+        assert delete_account(LOCATION, account_id) is True
+
+
+class TestCountAccountTransfers:
+    """Tests for `count_account_transfers`."""
+
+    def test_counts_source_and_destination_matches_case_insensitively(self) -> None:
+        """Transfers of any kind naming the account on either side count, whatever the case."""
+        initialize_card_tables(LOCATION)
+        add_item(LOCATION, make_transfer(source="Mom"))
+        add_item(LOCATION, make_transfer(source=None, destination="mom"))
+        add_item(LOCATION, make_transfer(kind=SYSTEM_KIND_INVESTMENT, source="MOM", destination="Broker"))
+        add_item(LOCATION, make_transfer(source="Dad"))
+
+        assert count_account_transfers(LOCATION, "Mom") == 3
+
+    def test_returns_zero_for_an_unused_name(self) -> None:
+        """A name no transfer mentions has no references."""
+        initialize_card_tables(LOCATION)
+        add_item(LOCATION, make_transfer(source="Mom"))
+
+        assert count_account_transfers(LOCATION, "Checking") == 0
+
+    def test_returns_zero_when_the_year_has_no_transfers_table(self) -> None:
+        """A database without a `transfers` table simply has no referencing transfers."""
+        initialize_db(LOCATION, WhichDb.ACCOUNTS)
+
+        assert count_account_transfers(LOCATION, "Mom") == 0
+
+
+class TestCreateAccount:
+    """Tests for `create_account`."""
+
+    def test_adds_the_account_and_returns_its_id(self) -> None:
+        """A new name is stored as given."""
+        initialize_card_tables(LOCATION)
+        account = make_account()
+
+        account_id = create_account(LOCATION, account)
+
+        assert fetch_by_id(LOCATION, WhichDb.ACCOUNTS, account_id) == account
+
+    def test_refuses_a_name_already_used_by_an_account_of_any_kind(self) -> None:
+        """Names are unique per year case-insensitively, regardless of the accounts' kinds."""
+        initialize_card_tables(LOCATION)
+        add_item(LOCATION, make_account(name="Mom", kind=AccountKind.CREDIT))
+
+        with pytest.raises(ValueError, match="An account named 'Mom' already exists"):
+            create_account(LOCATION, make_account(name="mom", kind=AccountKind.DEBT))
+
+        assert len(fetch_account_definitions(LOCATION)) == 1
+
+    def test_debt_account_with_an_opening_balance_gets_it_in_every_month(self) -> None:
+        """A Debt/Credit opening balance is replayed into all 12 months right away."""
+        initialize_card_tables(LOCATION)
+
+        account_id = create_account(LOCATION, make_account(name="Mom", kind=AccountKind.DEBT, opening_balance=100.0))
+
+        assert fetch_account_balances(LOCATION) == {(account_id, month): 100.0 for month in range(1, 13)}
+
+    @pytest.mark.parametrize("kind", [AccountKind.CASH, AccountKind.DEBT, AccountKind.CREDIT])
+    def test_writes_no_balances_without_an_opening_balance(self, kind: AccountKind) -> None:
+        """An account with nothing to replay starts with an empty balance grid."""
+        initialize_card_tables(LOCATION)
+
+        create_account(LOCATION, make_account(kind=kind))
+
+        assert fetch_account_balances(LOCATION) == {}
+
+
+class TestDebtCreditAccountKind:
+    """Tests for `debt_credit_account_kind`."""
+
+    @pytest.mark.parametrize(
+        ("transfer_kind", "expected"),
+        [(SYSTEM_KIND_DEBT, AccountKind.DEBT), (SYSTEM_KIND_CREDIT, AccountKind.CREDIT)],
+    )
+    def test_maps_debt_and_credit_kinds_to_their_account_kind(
+        self, transfer_kind: str, expected: AccountKind
+    ) -> None:
+        """The two system kinds name accounts of the matching kind."""
+        assert debt_credit_account_kind(transfer_kind) is expected
+
+    @pytest.mark.parametrize("transfer_kind", [SYSTEM_KIND_INVESTMENT, "Savings", None])
+    def test_returns_none_for_any_other_kind(self, transfer_kind: str | None) -> None:
+        """Any other (or no) kind isn't tied to an account kind."""
+        assert debt_credit_account_kind(transfer_kind) is None
 
 
 class TestSeedAccountsForNewYear:

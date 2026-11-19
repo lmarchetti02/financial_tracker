@@ -1,6 +1,9 @@
 """Implementation of the database operations."""
 
+from .accounts import count_account_transfers as count_account_transfers
 from .accounts import count_card_expenses as count_card_expenses
+from .accounts import create_account as create_account
+from .accounts import debt_credit_account_kind as debt_credit_account_kind
 from .accounts import delete_account as delete_account
 from .accounts import delete_balance as delete_balance
 from .accounts import delete_previous_year_end_balance as delete_previous_year_end_balance

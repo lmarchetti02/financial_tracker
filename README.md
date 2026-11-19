@@ -171,6 +171,15 @@ Notes on the actions:
   only importing or explicitly discarding it removes it.
 - Entries can also be reviewed on demand from **Settings → Maintenance → Import from iPhone**.
 
+## Transfer accounts
+
+A transfer's **Source** and **Destination** are picked from the year's accounts (or *None*; at
+least one must be set), so a typo can't create a stray account. A *Debt* or *Credit* transfer only
+lists accounts of that kind; every other kind lists all accounts. To log a Debt/Credit transfer with
+someone new, choose the kind first, then click **+** next to Source or Destination to create the
+account (with an optional opening balance) and select it. An account can't be deleted while that
+year still has transfers naming it.
+
 ## Credit cards
 
 A credit card is a **Debt** account marked as a credit card: tick *Credit card* when adding it
@@ -180,8 +189,8 @@ computed, never typed in:
 - every expense with **Paid with** set to the card adds its cost to what you owe, from that
   expense's month on;
 - paying the bill is a **Transfer** of kind *Debt* with the card as **destination** and the
-  **source left empty**, which brings the balance back down. (Don't put your checking account in
-  the source: a Debt transfer treats every name in it as a Debt account too.)
+  **source set to None**, which brings the balance back down. (A Debt transfer only offers Debt
+  accounts in its Source/Destination, so your checking account isn't listed there.)
 
 A refund is logged by lowering or deleting the original expense. The card's December balance
 carries over into next year's opening balance, as with any Debt account, and **Settings →

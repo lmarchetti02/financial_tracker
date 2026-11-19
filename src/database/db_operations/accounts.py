@@ -86,6 +86,65 @@ def count_card_expenses(location: DbLocation, account_name: str) -> int:
     return count
 
 
+def count_account_transfers(location: DbLocation, account_name: str) -> int:
+    """Counts the transfers of the year naming `account_name` as source or destination (case-insensitively).
+
+    Args:
+        location (`:class:DbLocation`): The year/profile of the transfers in the database.
+        account_name (str): The name of the account.
+
+    Returns:
+        int: How many transfers, of any kind, reference the account.
+    """
+    logger.info("Called 'count_account_transfers'")
+
+    with sq.connect(get_db_path(location)) as connection:
+        try:
+            (count,) = connection.execute(
+                f"""
+                SELECT COUNT(*) FROM {TRANSFERS_DB_NAME}
+                WHERE LOWER(source) = LOWER(?) OR LOWER(destination) = LOWER(?)
+                """,
+                (account_name, account_name),
+            ).fetchone()
+        except sq.OperationalError:
+            # this year's database has no `transfers` table yet
+            return 0
+
+    return count
+
+
+def create_account(location: DbLocation, account: Account) -> int:
+    """Adds a new account, refusing a name already used by another account of the year.
+
+    A Debt/Credit account with a nonzero opening balance gets its balances recomputed right away, so
+    that balance shows up in every month of the balance grid even before any transfer names it.
+
+    Args:
+        location (`:class:DbLocation`): The desired year/profile.
+        account (Account): The account to add.
+
+    Returns:
+        int: The id of the new account.
+
+    Raises:
+        ValueError: If an account with the same name (case-insensitively, of any kind) already exists.
+    """
+    logger.info("Called 'create_account'")
+
+    for _, existing in fetch_account_definitions(location):
+        if existing.name.lower() == account.name.lower():
+            raise ValueError(f"An account named '{existing.name}' already exists.")
+
+    account_id = add_item(location, account)
+    logger.debug(f"Created account {account_id}:\n{account}")
+
+    if account.kind in (AccountKind.DEBT, AccountKind.CREDIT) and account.opening_balance:
+        recompute_account_balance(location, account_id)
+
+    return account_id
+
+
 def _refuse_if_card_in_use(location: DbLocation, account: Account, action: str) -> None:
     """Raises a `ValueError` if any expense of the year is still paid with `account`."""
     count = count_card_expenses(location, account.name)
@@ -376,14 +435,24 @@ def delete_account(location: DbLocation, account_id: int) -> bool:
         bool: `True` if the account was found and deleted, `False` otherwise.
 
     Raises:
-        ValueError: If the account is a credit card that expenses of the year are still paid with.
+        ValueError: If the account is a credit card that expenses of the year are still paid with,
+            or if transfers of the year still name it as source or destination.
     """
     logger.info("Called 'delete_account'")
 
     # looked up by hand rather than via `fetch_by_id`, which raises for a missing id
     account = dict(fetch_account_definitions(location)).get(account_id)
-    if account is not None and account.is_card:
-        _refuse_if_card_in_use(location, account, "delete")
+    if account is not None:
+        if account.is_card:
+            _refuse_if_card_in_use(location, account, "delete")
+
+        count = count_account_transfers(location, account.name)
+        if count:
+            noun = "transfer still names" if count == 1 else "transfers still name"
+            raise ValueError(
+                f"Cannot delete '{account.name}': {count} {noun} it as source or destination. "
+                "Change or delete them first."
+            )
 
     with sq.connect(get_db_path(location)) as connection:
         connection.execute(f"DELETE FROM {ACCOUNT_BALANCES_DB_NAME} WHERE account_id = ?", (account_id,))
@@ -735,6 +804,20 @@ def _cascade_opening_balance_forward(
         return
 
 
+def debt_credit_account_kind(transfer_kind: str | None) -> AccountKind | None:
+    """Returns the `:enum:AccountKind` a transfer of `transfer_kind` names in its source/destination.
+
+    Returns:
+        AccountKind | None: `DEBT` for `SYSTEM_KIND_DEBT`, `CREDIT` for `SYSTEM_KIND_CREDIT`, and
+            `None` for any other kind, whose transfers may name an account of any kind.
+    """
+    if transfer_kind == SYSTEM_KIND_DEBT:
+        return AccountKind.DEBT
+    if transfer_kind == SYSTEM_KIND_CREDIT:
+        return AccountKind.CREDIT
+    return None
+
+
 def sync_transfer_accounts(location: DbLocation, transfer: Transfer) -> list[str]:
     """Creates/updates the Debt or Credit account(s) named in a transfer's source/destination.
 
@@ -757,11 +840,8 @@ def sync_transfer_accounts(location: DbLocation, transfer: Transfer) -> list[str
     """
     logger.info("Called 'sync_transfer_accounts'")
 
-    if transfer.kind == SYSTEM_KIND_DEBT:
-        kind = AccountKind.DEBT
-    elif transfer.kind == SYSTEM_KIND_CREDIT:
-        kind = AccountKind.CREDIT
-    else:
+    kind = debt_credit_account_kind(transfer.kind)
+    if kind is None:
         return []
 
     created_names = []

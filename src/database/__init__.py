@@ -22,8 +22,11 @@ from .db_operations import WhichDb as WhichDb
 from .db_operations import add_item as add_item
 from .db_operations import add_lookup_option as add_lookup_option
 from .db_operations import clear_app_password as clear_app_password
+from .db_operations import count_account_transfers as count_account_transfers
 from .db_operations import count_card_expenses as count_card_expenses
 from .db_operations import compute_holding_value as compute_holding_value
+from .db_operations import create_account as create_account
+from .db_operations import debt_credit_account_kind as debt_credit_account_kind
 from .db_operations import delete_account as delete_account
 from .db_operations import delete_balance as delete_balance
 from .db_operations import delete_holding as delete_holding
